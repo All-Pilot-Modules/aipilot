@@ -5,7 +5,7 @@ import { FadeIn, StaggerContainer, StaggerItem, ScaleIn } from './AnimationWrapp
 
 const testimonials = [
   {
-    name: "Dr. Sarah Mitchell",
+    name: "Dr. Zhang",
     role: "EDUCATOR STORY",
     image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&h=800&fit=crop",
     bgColor: "bg-[#f3a952]", // Podia Orange
@@ -13,7 +13,7 @@ const testimonials = [
     size: "large"
   },
   {
-    name: "Prof. James Chen",
+    name: "Dr. Yu Ning",
     role: "EDUCATOR STORY",
     image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=600&fit=crop",
     bgColor: "bg-[#a8d3e6]", // Podia Blue
@@ -21,7 +21,7 @@ const testimonials = [
     size: "small"
   },
   {
-    name: "Maria Rodriguez",
+    name: "Yubraj Khatri",
     role: "STUDENT STORY",
     image: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=600&h=800&fit=crop",
     bgColor: "bg-[#d4e6a8]", // Podia Green
@@ -29,7 +29,7 @@ const testimonials = [
     size: "large"
   },
   {
-    name: "Dr. Michael Park",
+    name: "Dr. Adam Rich",
     role: "EDUCATOR STORY",
     image: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=600&h=600&fit=crop",
     bgColor: "bg-[#e6a8d3]", // Podia Pink-ish
