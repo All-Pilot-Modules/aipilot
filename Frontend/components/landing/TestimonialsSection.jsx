@@ -5,9 +5,9 @@ import { FadeIn, StaggerContainer, StaggerItem, ScaleIn } from './AnimationWrapp
 
 const testimonials = [
   {
-    name: "Dr. Zhang",
+    name: "Dr Jie Zhang",
     role: "EDUCATOR STORY",
-    image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=600&h=800&fit=crop",
+    image: "https://www.brockport.edu/live/image/scale/2x/gid/38/width/250/height/375/crop/1/9776_Jie_Zhang.rev.1685726873.webp",
     bgColor: "bg-[#f3a952]", // Podia Orange
     quote: "AI Pilot transformed how I teach. Real-time insights help me identify struggling students instantly.",
     size: "large"
@@ -15,7 +15,7 @@ const testimonials = [
   {
     name: "Dr. Yu Ning",
     role: "EDUCATOR STORY",
-    image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=600&h=600&fit=crop",
+    image: "https://www.brockport.edu/live/image/gid/32/width/250/height/375/crop/1/8223_ning_yu.rev.1658924710.webp",
     bgColor: "bg-[#a8d3e6]", // Podia Blue
     quote: "The AI test creation saves me hours every week. I can finally focus on teaching.",
     size: "small"
