@@ -18,6 +18,14 @@ const nextConfig = {
         port: '',
         pathname: '/storage/v1/object/public/**',
       },
+      {
+        protocol: 'https',
+        hostname: 'www.brockport.edu',
+      },
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+      },
     ],
     // Enable modern image formats (WebP, AVIF)
     formats: ['image/avif', 'image/webp'],
@@ -33,66 +41,17 @@ const nextConfig = {
   // ========== WEBPACK OPTIMIZATIONS ==========
   webpack: (config, { dev, isServer }) => {
     config.resolve.extensions = ['.js', '.jsx', '.ts', '.tsx', '.json'];
-
-    // Production optimizations
-    if (!dev && !isServer) {
-      // Split chunks more aggressively for better caching
-      config.optimization = {
-        ...config.optimization,
-        splitChunks: {
-          chunks: 'all',
-          cacheGroups: {
-            default: false,
-            vendors: false,
-            // Vendor chunk for all node_modules
-            vendor: {
-              name: 'vendor',
-              chunks: 'all',
-              test: /node_modules/,
-              priority: 20
-            },
-            // Separate chunk for common components
-            common: {
-              name: 'common',
-              minChunks: 2,
-              chunks: 'all',
-              priority: 10,
-              reuseExistingChunk: true,
-              enforce: true
-            },
-            // Separate large libraries
-            lib: {
-              test(module) {
-                return (
-                  module.size() > 50000 &&
-                  /node_modules/.test(module.identifier())
-                );
-              },
-              name(module) {
-                const packageNameMatch = module.identifier().match(/[\\/]node_modules[\\/](.*?)([\\/]|$)/);
-                const packageName = packageNameMatch ? packageNameMatch[1] : '';
-                return `lib-${packageName.replace('@', '')}`;
-              },
-              priority: 30,
-              minChunks: 1,
-            },
-          },
-        },
-      };
-    }
-
     return config;
   },
-
-  // ========== PRODUCTION OPTIMIZATIONS ==========
-  swcMinify: true, // Use SWC for faster minification
 
   // ========== EXPERIMENTAL FEATURES ==========
   experimental: {
     optimizeCss: true, // Optimize CSS with Critters
     optimizePackageImports: [
       'lucide-react',
-      '@radix-ui/react-icons',
+      'framer-motion',
+      '@tabler/icons-react',
+      'recharts',
       '@radix-ui/react-dialog',
       '@radix-ui/react-dropdown-menu',
       '@radix-ui/react-alert-dialog',
@@ -103,8 +62,7 @@ const nextConfig = {
       '@radix-ui/react-tabs',
       '@radix-ui/react-tooltip',
     ],
-    // Optimize server components
-    serverComponentsExternalPackages: ['@prisma/client'],
+    serverExternalPackages: ['exceljs', 'pg'],
   },
 
   // ========== COMPILER OPTIMIZATIONS ==========

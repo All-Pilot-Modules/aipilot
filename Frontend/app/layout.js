@@ -23,9 +23,16 @@ export const metadata = {
   description: "AI-powered education and learning platform for students and teachers",
 };
 
+const apiOrigin = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000')
+  .replace(/\/$/, '')
+  .replace(/^(https?:\/\/[^/]+).*$/, '$1');
+
 export default function RootLayout({ children }) {
   return (
     <html lang="en" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href={apiOrigin} />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

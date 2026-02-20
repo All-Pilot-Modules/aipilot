@@ -2,11 +2,50 @@
 RAG (Retrieval-Augmented Generation) retrieval service
 Fetches relevant course material context for AI feedback generation
 """
+import hashlib
+import time
+import threading
+import logging
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
 from app.services.embedding import search_similar_chunks
+
+logger = logging.getLogger(__name__)
+
+# In-memory cache for RAG results keyed by (module_id, question_text).
+# Course materials don't change between students, so the 2nd student
+# answering the same question gets instant context.
+# TTL = 30 minutes (documents rarely change mid-session).
+_rag_cache: Dict[str, Dict[str, Any]] = {}
+_rag_cache_lock = threading.Lock()
+_RAG_CACHE_TTL = 1800  # 30 minutes
+
+
+def _cache_key(module_id: str, question_text: str) -> str:
+    """Stable cache key from module + question text."""
+    raw = f"{module_id}:{question_text}"
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def _get_cached(key: str) -> Optional[Dict[str, Any]]:
+    with _rag_cache_lock:
+        entry = _rag_cache.get(key)
+        if entry and (time.time() - entry["ts"]) < _RAG_CACHE_TTL:
+            return entry["data"]
+        if entry:
+            del _rag_cache[key]
+    return None
+
+
+def _set_cached(key: str, data: Dict[str, Any]):
+    with _rag_cache_lock:
+        # Evict oldest entries if cache grows beyond 500 questions
+        if len(_rag_cache) >= 500:
+            oldest_key = min(_rag_cache, key=lambda k: _rag_cache[k]["ts"])
+            del _rag_cache[oldest_key]
+        _rag_cache[key] = {"data": data, "ts": time.time()}
 
 
 def get_context_for_feedback(
@@ -15,11 +54,13 @@ def get_context_for_feedback(
     student_answer: str,
     module_id: str,
     max_chunks: int = 3,
-    similarity_threshold: float = 0.7,
+    similarity_threshold: float = 0.3,
     include_document_locations: bool = True
 ) -> Dict[str, Any]:
     """
-    Retrieve relevant course material context for feedback generation
+    Retrieve relevant course material context for feedback generation.
+    Results are cached per (module_id, question_text) so repeated lookups
+    for the same question across students are instant.
 
     Args:
         db: Database session
@@ -37,6 +78,13 @@ def get_context_for_feedback(
             'sources': List[str]  # Document sources for citations
         }
     """
+    # Check cache first — keyed on module + question only (not student answer)
+    key = _cache_key(str(module_id), question_text)
+    cached = _get_cached(key)
+    if cached is not None:
+        logger.info(f"RAG CACHE HIT for module {module_id}")
+        return cached
+
     # Combine question and answer for better context matching
     query = f"Question: {question_text}\nAnswer: {student_answer}"
 
@@ -51,18 +99,19 @@ def get_context_for_feedback(
     print(f"   Found {len(documents)} embedded documents")
 
     if not documents:
-        # Debug: Check what documents exist (regardless of status)
         all_docs = db.query(Document).filter(Document.module_id == module_id).all()
-        print(f"   Total documents in module: {len(all_docs)}")
+        logger.info(f"   Total documents in module: {len(all_docs)}")
         for doc in all_docs:
-            print(f"      - {doc.title}: status={doc.processing_status}, is_testbank={doc.is_testbank}")
+            logger.info(f"      - {doc.title}: status={doc.processing_status}, is_testbank={doc.is_testbank}")
 
-        return {
+        no_ctx = {
             'has_context': False,
             'chunks': [],
             'formatted_context': '',
             'sources': []
         }
+        _set_cached(key, no_ctx)
+        return no_ctx
 
     # Search across all module documents
     all_results = []
@@ -80,10 +129,10 @@ def get_context_for_feedback(
                 result['document_id'] = str(doc.id)
             all_results.extend(results)
         except Exception as e:
-            print(f"Error searching document {doc.id}: {str(e)}")
+            logger.error(f"Error searching document {doc.id}: {str(e)}")
             continue
 
-    print(f"   Retrieved {len(all_results)} total chunks from {len(documents)} documents")
+    logger.info(f"   Retrieved {len(all_results)} total chunks from {len(documents)} documents")
 
     # Filter by similarity threshold
     filtered_results = [
@@ -91,24 +140,31 @@ def get_context_for_feedback(
         if r['similarity'] >= similarity_threshold
     ]
 
-    print(f"   After filtering (threshold={similarity_threshold}): {len(filtered_results)} chunks")
+    logger.info(f"   After filtering (threshold={similarity_threshold}): {len(filtered_results)} chunks")
+
+    # BEST-EFFORT FALLBACK: If threshold filtering removed all results but we
+    # DO have embedded documents, use the top results anyway.  Course material
+    # is almost always relevant to questions from the same module — the
+    # similarity score just isn't high enough for the threshold.
     if all_results and not filtered_results:
-        # Show top similarity scores to help debug threshold issues
-        top_3 = sorted(all_results, key=lambda x: x['similarity'], reverse=True)[:3]
-        top_scores = [f"{r['similarity']:.3f}" for r in top_3]
-        print(f"   Top 3 similarity scores: {top_scores}")
+        all_results.sort(key=lambda x: x['similarity'], reverse=True)
+        filtered_results = all_results[:max_chunks]
+        top_scores = [f"{r['similarity']:.3f}" for r in filtered_results]
+        logger.info(f"   Best-effort fallback: using top {len(filtered_results)} chunks (scores: {top_scores})")
 
     # Sort by similarity and get top N
     filtered_results.sort(key=lambda x: x['similarity'], reverse=True)
     top_results = filtered_results[:max_chunks]
 
     if not top_results:
-        return {
+        no_ctx = {
             'has_context': False,
             'chunks': [],
             'formatted_context': '',
             'sources': []
         }
+        _set_cached(key, no_ctx)
+        return no_ctx
 
     # Format context for prompt
     formatted_context = format_context_for_prompt(top_results, include_document_locations)
@@ -119,12 +175,15 @@ def get_context_for_feedback(
         for chunk in top_results
     ]))
 
-    return {
+    result = {
         'has_context': True,
         'chunks': top_results,
         'formatted_context': formatted_context,
         'sources': sources
     }
+    _set_cached(key, result)
+    logger.info(f"RAG CACHE SET for module {module_id} ({len(top_results)} chunks)")
+    return result
 
 
 

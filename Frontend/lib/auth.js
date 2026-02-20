@@ -3,77 +3,88 @@ import { jwtDecode } from 'jwt-decode';
 // Remove trailing slash from API_BASE_URL to prevent double slashes
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
-// Helper function to add timeout to fetch requests with proper abort handling
-const fetchWithTimeout = async (url, options = {}, timeout = 30000) => {
-  // Declare variables outside try block so catch can access them
-  let timeoutId;
-  let startTime = Date.now();
+// Returns true for transient network errors that are worth retrying
+const isRetryableError = (error) => {
+  if (!error) return false;
+  const msg = error.message || '';
+  return (
+    error.name === 'AbortError' ||
+    error.name === 'TimeoutError' ||
+    error.isTimeout === true ||
+    error.name === 'TypeError' ||
+    msg.includes('Failed to fetch') ||
+    msg.includes('fetch') ||
+    msg.includes('aborted') ||
+    msg.includes('network') ||
+    msg.includes('ECONNREFUSED') ||
+    msg.includes('ECONNRESET') ||
+    msg.includes('timed out') ||
+    msg.includes('timeout') ||
+    msg.includes('NetworkError')
+  );
+};
 
-  // CRITICAL: Prevent ANY execution during SSR
-  // Wrap entire function in try-catch to catch all SSR issues
+// Single fetch attempt with timeout
+const fetchOnce = async (url, options = {}, timeout = 30000) => {
+  // Prevent execution during SSR
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    throw new Error('SSR: not in browser');
+  }
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => {
+    controller.abort(new DOMException(`Request timed out after ${timeout}ms`, 'TimeoutError'));
+  }, timeout);
+
   try {
-    // Multiple layers of SSR detection
-    if (typeof window === 'undefined') {
-      throw new Error('SSR: window undefined');
-    }
-    if (typeof fetch === 'undefined') {
-      throw new Error('SSR: fetch undefined');
-    }
-    if (typeof AbortController === 'undefined') {
-      throw new Error('SSR: AbortController undefined');
-    }
-
-    // Extra check for document (only exists in browser)
-    if (typeof document === 'undefined') {
-      throw new Error('SSR: document undefined');
-    }
-
-    const controller = new AbortController();
-    timeoutId = setTimeout(() => controller.abort(), timeout);
-
     const response = await fetch(url, {
       ...options,
       signal: controller.signal,
-      // Ensure we're not caching failed requests
       cache: 'no-store',
     });
-
-    if (timeoutId) clearTimeout(timeoutId);
+    clearTimeout(timeoutId);
     return response;
   } catch (error) {
-    if (timeoutId) clearTimeout(timeoutId);
-    const elapsedTime = Date.now() - startTime;
-
-    // Handle SSR errors gracefully - don't crash the app
-    if (error.message?.includes('SSR:')) {
-      // Silent fail during SSR - this is expected
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[fetchWithTimeout] SSR detected, skipping fetch');
-      }
-      throw error; // Let the calling code handle it
+    clearTimeout(timeoutId);
+    // Wrap AbortError with a clearer message when it was caused by our timeout
+    if (error.name === 'AbortError') {
+      const timeoutErr = new Error(`Request timed out after ${Math.round(timeout / 1000)}s`);
+      timeoutErr.name = 'TimeoutError';
+      timeoutErr.isTimeout = true;
+      throw timeoutErr;
     }
-
-    // Log error details (only in development)
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[fetchWithTimeout] Error:', {
-        url: url.replace(API_BASE_URL, ''),
-        error: error.message,
-        type: error.name,
-        time: `${elapsedTime}ms`
-      });
-    }
-
-    // Handle abort/timeout errors
-    if (error.name === 'AbortError' || error.message?.includes('aborted')) {
-      if (process.env.NODE_ENV === 'development') {
-        console.warn(`[fetchWithTimeout] Timeout after ${elapsedTime}ms`);
-      }
-      throw error;
-    }
-
-    // For all other errors, re-throw them
     throw error;
   }
+};
+
+// Fetch with timeout + automatic retry for transient network errors
+const fetchWithTimeout = async (url, options = {}, timeout = 30000, maxRetries = 2) => {
+  let lastError;
+
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fetchOnce(url, options, timeout);
+    } catch (error) {
+      lastError = error;
+
+      // Don't retry SSR errors or non-retryable errors
+      if (error.message?.includes('SSR:') || !isRetryableError(error)) {
+        throw error;
+      }
+
+      // Don't retry if we've exhausted attempts
+      if (attempt >= maxRetries) break;
+
+      // Exponential backoff: 800ms, 2000ms
+      const delay = Math.min(800 * Math.pow(2.5, attempt), 5000);
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[fetch] Retry ${attempt + 1}/${maxRetries} in ${delay}ms — ${url.replace(API_BASE_URL, '')}`);
+      }
+      await new Promise(r => setTimeout(r, delay));
+    }
+  }
+
+  throw lastError;
 };
 
 // Auth functions
@@ -432,7 +443,7 @@ export const auth = {
   }
 };
 
-// API helper with authentication and auto-refresh
+// API helper with authentication, auto-refresh, and retry
 export const apiClient = {
   async request(endpoint, options = {}) {
     let token = auth.getToken();
@@ -464,55 +475,97 @@ export const apiClient = {
       ...options,
     };
 
-    // Dynamic timeout based on endpoint type
+    // Dynamic timeout and retries based on endpoint type
     let timeout = 15000; // Default: 15 seconds
+    let retries = 2;     // Default: 2 retries (3 total attempts)
 
-    if (endpoint.includes('/feedback') || endpoint.includes('/cleanup-feedback') || endpoint.includes('/feedback-status')) {
-      timeout = 8000; // Feedback endpoints: 8 seconds (fail fast, retry via polling)
+    if (endpoint.includes('/dashboard-metrics') || endpoint.includes('/performance')) {
+      timeout = 45000; // Dashboard metrics: 45 seconds (heavy aggregation queries)
+      retries = 1;     // 1 retry (data load, not critical path)
+    } else if (endpoint.includes('/feedback') || endpoint.includes('/cleanup-feedback') || endpoint.includes('/feedback-status')) {
+      timeout = 10000; // Feedback endpoints: 10 seconds
+      retries = 1;     // 1 retry (fail fast, SSE/polling picks up)
     } else if (endpoint.includes('/submit-test')) {
-      timeout = 30000; // Test submission: 30 seconds (may trigger AI feedback generation)
+      timeout = 30000; // Test submission: 30 seconds
+      retries = 3;     // 3 retries (critical path)
+    } else if (endpoint.includes('/consent')) {
+      timeout = 15000;
+      retries = 3;     // Consent is important, retry more
     }
 
-    const response = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, config, timeout);
+    // Retry loop for network-level failures and 502/503/504
+    let lastError;
+    for (let attempt = 0; attempt <= retries; attempt++) {
+      try {
+        const response = await fetchWithTimeout(
+          `${API_BASE_URL}${endpoint}`,
+          config,
+          timeout,
+          0 // fetchWithTimeout handles its own retries; we handle higher-level retries here
+        );
 
-    if (!response.ok) {
-      if (response.status === 401) {
-        // Try to refresh token once on 401
-        const newToken = await auth.refreshAccessToken();
-        if (newToken) {
-          // Retry request with new token
-          config.headers['Authorization'] = `Bearer ${newToken}`;
-          const retryResponse = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, config, 15000);
-          if (retryResponse.ok) {
-            return retryResponse.json();
+        // Server errors that indicate a restarting/overloaded backend — retry
+        if (response.status >= 502 && response.status <= 504 && attempt < retries) {
+          const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+          if (process.env.NODE_ENV === 'development') {
+            console.log(`[apiClient] HTTP ${response.status} — retry ${attempt + 1}/${retries} in ${delay}ms`);
           }
+          await new Promise(r => setTimeout(r, delay));
+          continue;
         }
 
-        // If refresh failed or retry failed, logout
-        auth.logout();
-        throw new Error('Authentication required');
-      }
-      const error = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          if (response.status === 401) {
+            // Try to refresh token once on 401
+            const newToken = await auth.refreshAccessToken();
+            if (newToken) {
+              config.headers['Authorization'] = `Bearer ${newToken}`;
+              const retryResponse = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, config, 15000, 1);
+              if (retryResponse.ok) {
+                return retryResponse.json();
+              }
+            }
+            auth.logout();
+            throw new Error('Authentication required');
+          }
 
-      // Handle FastAPI validation errors (array of objects)
-      let errorMessage = `HTTP ${response.status}`;
-      if (error.detail) {
-        if (Array.isArray(error.detail)) {
-          // FastAPI validation error format: [{loc: [...], msg: "...", type: "..."}]
-          errorMessage = error.detail
-            .map(err => `${err.loc?.join('.')}: ${err.msg}`)
-            .join('; ');
-        } else if (typeof error.detail === 'string') {
-          errorMessage = error.detail;
-        } else {
-          errorMessage = JSON.stringify(error.detail);
+          const error = await response.json().catch(() => ({}));
+
+          let errorMessage = `HTTP ${response.status}`;
+          if (error.detail) {
+            if (Array.isArray(error.detail)) {
+              errorMessage = error.detail
+                .map(err => `${err.loc?.join('.')}: ${err.msg}`)
+                .join('; ');
+            } else if (typeof error.detail === 'string') {
+              errorMessage = error.detail;
+            } else {
+              errorMessage = JSON.stringify(error.detail);
+            }
+          }
+
+          throw new Error(errorMessage);
         }
-      }
 
-      throw new Error(errorMessage);
+        return response.json();
+
+      } catch (error) {
+        lastError = error;
+
+        // Only retry on transient network errors, not on auth/validation errors
+        if (!isRetryableError(error) || attempt >= retries) {
+          throw error;
+        }
+
+        const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[apiClient] ${error.message} — retry ${attempt + 1}/${retries} in ${delay}ms — ${endpoint}`);
+        }
+        await new Promise(r => setTimeout(r, delay));
+      }
     }
 
-    return response.json();
+    throw lastError;
   },
 
   get(endpoint) {

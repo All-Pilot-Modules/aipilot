@@ -466,3 +466,204 @@ def update_chatbot_instructions(
         "module_id": str(module_id),
         "chatbot_instructions": module.chatbot_instructions
     }
+
+
+# ─── Cached dashboard metrics ────────────────────────────────────────────────
+import time, threading, logging
+from sqlalchemy import func
+
+_dashboard_cache: Dict[str, Dict[str, Any]] = {}
+_dashboard_cache_lock = threading.Lock()
+_DASHBOARD_CACHE_TTL = 30  # 30 seconds — fresh enough for a dashboard
+
+_logger = logging.getLogger(__name__)
+
+
+@router.get("/modules/{module_id}/dashboard-metrics")
+def get_dashboard_metrics(
+    module_id: UUID,
+    teacher_id: str = Query(..., description="Teacher user ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Single endpoint returning all dashboard data for a module.
+    Cached for 30s so rapid refreshes don't hammer the DB.
+    Uses JOINs instead of N+1 queries for speed.
+    """
+    cache_key = f"{module_id}:{teacher_id}"
+    with _dashboard_cache_lock:
+        cached = _dashboard_cache.get(cache_key)
+        if cached and (time.time() - cached["ts"]) < _DASHBOARD_CACHE_TTL:
+            return cached["data"]
+
+    from app.models.student_answer import StudentAnswer
+    from app.models.question import Question
+    from app.models.document import Document
+    from app.models.ai_feedback import AIFeedback
+    from datetime import timedelta
+    from sqlalchemy import case, cast, Date
+    from sqlalchemy.orm import aliased
+
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    # ── Core counts (3 fast queries) ──
+    total_answers = db.query(func.count(StudentAnswer.id)).filter(
+        StudentAnswer.module_id == module_id
+    ).scalar() or 0
+
+    unique_student_count = db.query(func.count(func.distinct(StudentAnswer.student_id))).filter(
+        StudentAnswer.module_id == module_id
+    ).scalar() or 0
+
+    questions_count = db.query(func.count(Question.id)).filter(
+        Question.module_id == module_id
+    ).scalar() or 0
+
+    documents_count = db.query(func.count(Document.id)).filter(
+        Document.module_id == module_id
+    ).scalar() or 0
+
+    # ── Single JOIN query: answers + feedback scores ──
+    # This replaces 3 separate N+1 loops with one query
+    rows = db.query(
+        StudentAnswer.id,
+        StudentAnswer.student_id,
+        StudentAnswer.question_id,
+        StudentAnswer.submitted_at,
+        StudentAnswer.attempt,
+        AIFeedback.score,
+        AIFeedback.generation_status,
+    ).outerjoin(
+        AIFeedback, AIFeedback.answer_id == StudentAnswer.id
+    ).filter(
+        StudentAnswer.module_id == module_id
+    ).all()
+
+    # ── Process results in Python (single pass) ──
+    scored_answers = []
+    score_ranges = [
+        {"range": "0-20%", "min": 0, "max": 20, "count": 0},
+        {"range": "21-40%", "min": 21, "max": 40, "count": 0},
+        {"range": "41-60%", "min": 41, "max": 60, "count": 0},
+        {"range": "61-80%", "min": 61, "max": 80, "count": 0},
+        {"range": "81-100%", "min": 81, "max": 100, "count": 0},
+    ]
+    pending_grades = 0
+    question_scores: Dict[str, Dict] = {}
+
+    # Activity chart prep
+    now = datetime.now(timezone.utc)
+    day_counts = {}
+    for i in range(7):
+        day = (now - timedelta(days=i)).date()
+        day_counts[day] = 0
+
+    # Recent activity (track top 10 by submitted_at)
+    recent_rows = []
+
+    for row in rows:
+        answer_id, student_id, question_id, submitted_at, attempt, score, gen_status = row
+
+        # Score distribution
+        if score is not None:
+            scored_answers.append(score)
+            for r in score_ranges:
+                if r["min"] <= score <= r["max"]:
+                    r["count"] += 1
+                    break
+
+        # Pending grades
+        if gen_status != 'completed':
+            pending_grades += 1
+
+        # Question-level scores for low performance detection
+        if score is not None:
+            qid = str(question_id)
+            if qid not in question_scores:
+                question_scores[qid] = {"total": 0, "count": 0}
+            question_scores[qid]["total"] += score
+            question_scores[qid]["count"] += 1
+
+        # Activity chart
+        if submitted_at:
+            day = submitted_at.date()
+            if day in day_counts:
+                day_counts[day] += 1
+
+        # Recent activity (collect all, sort later)
+        recent_rows.append({
+            "id": str(answer_id),
+            "student_id": student_id,
+            "question_id": str(question_id),
+            "timestamp": submitted_at.isoformat() if submitted_at else None,
+            "score": score,
+            "attempt": attempt,
+            "_submitted_at": submitted_at,
+        })
+
+    avg_score = round(sum(scored_answers) / len(scored_answers)) if scored_answers else 0
+
+    # ── Completion rate ──
+    total_possible = unique_student_count * questions_count if questions_count else 0
+    completion_rate = round((total_answers / total_possible) * 100) if total_possible > 0 else 0
+
+    # ── Low performance questions ──
+    low_perf_questions = sum(
+        1 for q in question_scores.values()
+        if q["count"] > 0 and q["total"] / q["count"] < 60
+    )
+
+    # ── Activity chart (last 7 days) ──
+    activity_chart = []
+    for i in range(6, -1, -1):
+        day = (now - timedelta(days=i)).date()
+        activity_chart.append({
+            "dateKey": day.isoformat(),
+            "dayName": day.strftime("%a"),
+            "count": day_counts.get(day, 0)
+        })
+
+    # ── Recent activity (last 10) ──
+    recent_rows.sort(key=lambda r: r["_submitted_at"] or datetime.min, reverse=True)
+    recent = [
+        {k: v for k, v in r.items() if k != "_submitted_at"}
+        for r in recent_rows[:10]
+    ]
+
+    # ── Rubric summary ──
+    try:
+        rubric_summary = get_rubric_summary(db, module_id)
+    except Exception:
+        rubric_summary = None
+
+    data = {
+        "module_id": str(module_id),
+        "access_code": module.access_code,
+        "total_students": unique_student_count,
+        "total_questions": questions_count,
+        "total_documents": documents_count,
+        "average_score": avg_score,
+        "completion_rate": completion_rate,
+        "total_submissions": total_answers,
+        "ai_feedback_count": len(scored_answers),
+        "score_distribution": score_ranges,
+        "activity_chart": activity_chart,
+        "recent_activity": recent,
+        "action_items": {
+            "pending_grades": pending_grades,
+            "inactive_students": 0,
+            "low_performance_questions": low_perf_questions,
+        },
+        "rubric_summary": rubric_summary,
+    }
+
+    with _dashboard_cache_lock:
+        # Evict old entries
+        stale = [k for k, v in _dashboard_cache.items() if time.time() - v["ts"] > _DASHBOARD_CACHE_TTL * 10]
+        for k in stale:
+            del _dashboard_cache[k]
+        _dashboard_cache[cache_key] = {"data": data, "ts": time.time()}
+
+    return data

@@ -87,9 +87,19 @@ def on_startup():
 
     # ✅ Ensure all models are imported for table creation
     from app.models import user, document, question, module, student_answer, student_enrollment, survey_response, question_queue, document_chunk, document_embedding, ai_feedback, chat_conversation, chat_message
+    from app.models import feedback_job  # noqa: F401 — register FeedbackJob table
     print("📊 Creating database tables...")
     Base.metadata.create_all(bind=engine)
-    print("✅ All tables created successfully (including student_enrollments, survey_responses, ai_feedback and chat tables)")
+    print("✅ All tables created successfully")
+
+    # ✅ Recover any jobs that were in-flight when the server last stopped
+    from app.services.feedback_worker import recover_stale_jobs, start_worker
+    recover_stale_jobs()
+    print("✅ Stale feedback jobs recovered")
+
+    # ✅ Start the feedback worker thread
+    start_worker()
+    print("✅ Feedback worker started")
     print("🎉 Application startup complete!")
 
 # 📎 Test route
@@ -101,3 +111,114 @@ def read_root():
 @app.get("/items/{item_id}")
 def read_item(item_id: int, q: Union[str, None] = None):
     return {"item_id": item_id, "q": q}
+
+# 🩺 Diagnostic endpoint to verify OpenAI + DB health
+@app.get("/api/health/diagnostics")
+def run_diagnostics():
+    """Quick health check of OpenAI API, database, and feedback stats."""
+    import time
+    from app.database import SessionLocal
+    from app.core.config import OPENAI_API_KEY, LLM_MODEL
+
+    results = {"openai": {}, "database": {}, "feedback_stats": {}, "job_queue": {}}
+
+    # 1. Test OpenAI API
+    try:
+        import json as _json
+        from app.services.openai_client import OpenAIClientWithRetry
+        client = OpenAIClientWithRetry(api_key=OPENAI_API_KEY, default_model=LLM_MODEL)
+
+        # Test gpt-4o-mini (used for MCQ grading)
+        start = time.time()
+        resp = client.create_chat_completion(
+            messages=[{"role": "user", "content": "Say OK"}],
+            model="gpt-4o-mini", max_tokens=5
+        )
+        results["openai"]["gpt-4o-mini"] = {
+            "status": "ok",
+            "response_time_ms": int((time.time() - start) * 1000),
+            "response": resp.choices[0].message.content.strip()
+        }
+
+        # Test default model (used for text/essay grading)
+        start = time.time()
+        resp = client.create_chat_completion(
+            messages=[{"role": "user", "content": "Say OK"}],
+            model=LLM_MODEL, max_tokens=5
+        )
+        results["openai"][LLM_MODEL] = {
+            "status": "ok",
+            "response_time_ms": int((time.time() - start) * 1000),
+            "response": resp.choices[0].message.content.strip()
+        }
+
+        # Test JSON structured output parsing (the actual failure mode)
+        start = time.time()
+        json_resp = client.create_chat_completion(
+            messages=[{"role": "user", "content": 'Respond with only this JSON: {"is_correct": true, "explanation": "test"}'}],
+            model="gpt-4o-mini", max_tokens=50, temperature=0.0
+        )
+        raw_json = json_resp.choices[0].message.content.strip()
+        # Try parsing — this is where real feedback often fails
+        if raw_json.startswith("```"):
+            raw_json = raw_json.split("```")[1]
+            if raw_json.startswith("json"):
+                raw_json = raw_json[4:]
+            raw_json = raw_json.strip()
+        parsed = _json.loads(raw_json)
+        results["openai"]["json_parse_test"] = {
+            "status": "ok",
+            "response_time_ms": int((time.time() - start) * 1000),
+            "raw_response": json_resp.choices[0].message.content.strip()[:200],
+            "parsed_keys": list(parsed.keys())
+        }
+    except _json.JSONDecodeError as je:
+        results["openai"]["json_parse_test"] = {
+            "status": "fail",
+            "error_type": "JSONDecodeError",
+            "error": str(je)[:200],
+            "raw_response": raw_json[:200] if 'raw_json' in dir() else None
+        }
+    except Exception as e:
+        results["openai"]["error"] = f"{type(e).__name__}: {str(e)}"
+
+    # 2. Test database
+    db = SessionLocal()
+    try:
+        from app.models.ai_feedback import AIFeedback
+        from sqlalchemy import func
+
+        total = db.query(func.count(AIFeedback.id)).scalar()
+        statuses = dict(
+            db.query(AIFeedback.generation_status, func.count())
+            .group_by(AIFeedback.generation_status).all()
+        )
+
+        # Count fallback feedbacks
+        completed = db.query(AIFeedback).filter(
+            AIFeedback.generation_status == 'completed'
+        ).all()
+        fallback_count = sum(
+            1 for fb in completed
+            if fb.feedback_data and fb.feedback_data.get('fallback', False)
+        )
+
+        results["database"]["status"] = "ok"
+        results["feedback_stats"] = {
+            "total": total,
+            "by_status": statuses,
+            "fallback_stuck_as_completed": fallback_count
+        }
+    except Exception as e:
+        results["database"]["error"] = f"{type(e).__name__}: {str(e)}"
+    finally:
+        db.close()
+
+    # 3. Job queue stats
+    try:
+        from app.services.feedback_worker import get_queue_stats
+        results["job_queue"] = get_queue_stats()
+    except Exception as e:
+        results["job_queue"]["error"] = f"{type(e).__name__}: {str(e)}"
+
+    return results

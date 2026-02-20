@@ -116,7 +116,7 @@ def delete_feedback(db: Session, feedback_id: UUID) -> bool:
 def create_pending_feedback(
     db: Session,
     answer_id: UUID,
-    timeout_seconds: int = 120
+    timeout_seconds: int = 45
 ) -> AIFeedback:
     """
     Create a placeholder feedback row BEFORE generation starts.
@@ -125,7 +125,7 @@ def create_pending_feedback(
     Args:
         db: Database session
         answer_id: UUID of the student answer
-        timeout_seconds: Maximum time allowed for generation (default 120s)
+        timeout_seconds: Maximum time allowed for generation (default 45s)
 
     Returns:
         AIFeedback object with status='pending' and feedback_data=None

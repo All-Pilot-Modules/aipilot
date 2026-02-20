@@ -47,7 +47,7 @@ class AIFeedback(Base):
     can_retry = Column(Boolean, nullable=False, default=False, server_default='false')
 
     # Timeout configuration
-    timeout_seconds = Column(Integer, nullable=False, default=120, server_default='120')
+    timeout_seconds = Column(Integer, nullable=False, default=45, server_default='45')
 
     # Performance tracking
     generation_duration = Column(Integer, nullable=True)  # Seconds taken to generate

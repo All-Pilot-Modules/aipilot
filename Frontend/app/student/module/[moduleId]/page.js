@@ -103,6 +103,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   const [feedbackStatus, setFeedbackStatus] = useState(null); // Track real-time feedback generation status
   const [isPolling, setIsPolling] = useState(false); // Track if we're actively polling
   const [pollCount, setPollCount] = useState(0); // Track number of polling attempts
+  const [useSSE, setUseSSE] = useState(true); // Try SSE first, fall back to polling
+  const eventSourceRef = useRef(null); // Ref for SSE EventSource connection
   const [answeredQuestions, setAnsweredQuestions] = useState({}); // Track which questions were answered
   const [expandedRubrics, setExpandedRubrics] = useState({}); // Track which rubric breakdowns are expanded
   const [hasTeacherGrades, setHasTeacherGrades] = useState(false); // Track if teacher has graded any work
@@ -514,7 +516,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   }, [moduleId, loadFeedbackForAnswers]);
 
   const loadModuleContent = useCallback(async (access, retryCount = 0) => {
-    const MAX_RETRIES = 5; // Maximum number of automatic retries
+    const MAX_RETRIES = 2; // Page-level retries (apiClient already retries internally)
 
     try {
       setLoading(true);
@@ -532,7 +534,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
           apiClient.get(`/api/student/modules/${moduleId}/questions`)
         ]);
       } catch (error) {
-        // If core data fails due to connection issue, retry automatically
+        // If core data fails due to connection issue, retry at page level
+        // (apiClient already retried 2-3 times internally, so this is a last resort)
         const isConnectionError = error.message?.includes('fetch') ||
                                  error.message?.includes('timeout') ||
                                  error.message?.includes('AbortError') ||
@@ -540,17 +543,14 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
         if (isConnectionError) {
           if (retryCount < MAX_RETRIES) {
-            console.log(`Connection issue (attempt ${retryCount + 1}/${MAX_RETRIES}), retrying in 2 seconds...`, error.message);
-            // DON'T set loading to false - keep skeleton visible during retry
-            // DON'T set error - we're still trying
+            const delay = 3000 * (retryCount + 1); // 3s, 6s
+            console.log(`Connection issue (page retry ${retryCount + 1}/${MAX_RETRIES}), retrying in ${delay / 1000}s...`, error.message);
             setTimeout(() => {
-              console.log('Retrying module load...');
               loadModuleContent(access, retryCount + 1);
-            }, 2000);
-            return; // Return WITHOUT throwing - keeps loading state active
+            }, delay);
+            return;
           } else {
             console.error(`Max retries (${MAX_RETRIES}) reached, giving up`);
-            // After max retries, show error page with retry button
             throw {
               message: 'Unable to connect to the server after multiple attempts. Please check your connection and try again.',
               canRetry: true,
@@ -760,47 +760,114 @@ const StudentModuleContent = memo(function StudentModuleContent() {
     loadFeedbackForAnswersRef.current = loadFeedbackForAnswers;
   }, [checkFeedbackStatus, loadFeedbackForAnswers]);
 
-  // Effect to handle polling when feedback is being generated
+  // Effect to handle feedback updates — SSE first, polling fallback
   useEffect(() => {
     if (!isPolling || !moduleAccess || !submissionStatus) {
-      console.log('⏸️ Polling paused:', { isPolling, hasAccess: !!moduleAccess, hasStatus: !!submissionStatus });
+      console.log('⏸️ Feedback monitoring paused:', { isPolling, hasAccess: !!moduleAccess, hasStatus: !!submissionStatus });
       return;
     }
 
-    const MAX_POLLS = 180; // Stop after 180 polls (6 minutes at 2s intervals)
+    const MAX_POLL_TIME = 6 * 60 * 1000; // Stop after 6 minutes total
     const currentAttempt = submissionStatus.current_attempt || 1;
+    const attemptToWatch = currentAttempt - 1;
+    let stopped = false;
 
-    console.log(`🚀 =====================================`);
-    console.log(`🚀 POLLING STARTED`);
-    console.log(`🚀 Attempt to monitor: ${currentAttempt - 1}`);
-    console.log(`🚀 Module ID: ${moduleId}`);
-    console.log(`🚀 Student ID: ${moduleAccess.studentId}`);
-    console.log(`🚀 =====================================`);
+    // ── SSE path ──
+    if (useSSE) {
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const sseUrl = `${API_BASE_URL}/api/ai-feedback/stream/${moduleId}?student_id=${encodeURIComponent(moduleAccess.studentId)}&attempt=${attemptToWatch}`;
+
+      console.log(`📡 SSE connecting: ${sseUrl}`);
+      const es = new EventSource(sseUrl);
+      eventSourceRef.current = es;
+
+      es.addEventListener('progress', async (e) => {
+        if (stopped) return;
+        try {
+          const data = JSON.parse(e.data);
+          console.log(`📡 SSE progress: ${data.ready}/${data.total} (${data.percentage}%)`);
+          if (stopped) return;
+          setFeedbackStatus(prev => ({ ...prev, ...data, feedback_ready: data.ready, total_questions: data.total, progress_percentage: data.percentage }));
+          setPollCount(prev => prev + 1);
+          // Reload feedback to show newly completed items
+          await loadFeedbackForAnswersRef.current(moduleAccess);
+        } catch (err) {
+          if (!stopped) console.warn('SSE progress parse error:', err);
+        }
+      });
+
+      es.addEventListener('complete', async (e) => {
+        if (stopped) return;
+        try {
+          const data = JSON.parse(e.data);
+          console.log(`🎉 SSE complete: ${data.ready}/${data.total}`);
+          if (stopped) return;
+          setFeedbackStatus(prev => ({ ...prev, all_complete: true, feedback_ready: data.ready, total_questions: data.total }));
+          await loadFeedbackForAnswersRef.current(moduleAccess);
+          if (stopped) return;
+          setIsPolling(false);
+          setPollCount(0);
+        } catch (err) {
+          if (!stopped) console.warn('SSE complete parse error:', err);
+        }
+        es.close();
+        eventSourceRef.current = null;
+      });
+
+      es.addEventListener('timeout', (e) => {
+        console.log('⏱️ SSE timeout — server closed stream');
+        es.close();
+        eventSourceRef.current = null;
+        setIsPolling(false);
+      });
+
+      es.onerror = (err) => {
+        if (stopped) return;
+        console.warn('⚠️ SSE error — falling back to polling', err);
+        es.close();
+        eventSourceRef.current = null;
+        // Fall back to polling
+        setUseSSE(false);
+        // isPolling stays true, so the effect re-runs with useSSE=false
+      };
+
+      return () => {
+        console.log('🛑 Closing SSE connection');
+        stopped = true;
+        es.close();
+        eventSourceRef.current = null;
+        setPollCount(0);
+      };
+    }
+
+    // ── Polling fallback ──
+    console.log(`🚀 POLLING STARTED (fallback) — attempt ${attemptToWatch}, module ${moduleId}`);
 
     let pollCount = 0;
-    let pollInterval = null;
+    let pollStart = Date.now();
+    let timeoutId = null;
 
-    // Polling function - uses latest callbacks via refs
+    const getDelay = () => {
+      const elapsed = Date.now() - pollStart;
+      if (elapsed < 30000) return 2000;
+      if (elapsed < 150000) return 5000;
+      return 10000;
+    };
+
     const doPoll = async () => {
+      if (stopped) return;
       pollCount++;
-      const timestamp = new Date().toLocaleTimeString();
-      console.log(`\n🔄 ========== Poll #${pollCount}/${MAX_POLLS} at ${timestamp} ==========`);
+      const elapsed = Date.now() - pollStart;
 
-      setPollCount(pollCount); // Update UI counter
+      setPollCount(pollCount);
 
-      // Stop polling after max attempts
-      if (pollCount >= MAX_POLLS) {
-        console.log('⏱️ Polling timeout - stopping after 6 minutes');
-        if (pollInterval) clearInterval(pollInterval);
+      if (elapsed >= MAX_POLL_TIME) {
+        console.log('⏱️ Polling timeout — stopping after 6 minutes');
         setIsPolling(false);
-
-        // Trigger cleanup for stale feedback
         try {
-          console.log('🧹 Triggering cleanup for stale feedback...');
           await apiClient.post(
             `/api/student/modules/${moduleId}/cleanup-feedback?student_id=${moduleAccess.studentId}`
           );
-          console.log('✅ Cleanup completed, reloading feedback...');
           await loadFeedbackForAnswersRef.current(moduleAccess);
         } catch (error) {
           console.error('Failed to cleanup stale feedback:', error);
@@ -808,42 +875,33 @@ const StudentModuleContent = memo(function StudentModuleContent() {
         return;
       }
 
-      // Check feedback status and load new feedback using latest callback via ref
       try {
-        console.log(`📞 Calling checkFeedbackStatus (via ref)...`);
-        const allComplete = await checkFeedbackStatusRef.current(moduleAccess, currentAttempt - 1);
+        const allComplete = await checkFeedbackStatusRef.current(moduleAccess, attemptToWatch);
 
         if (allComplete) {
-          console.log(`🎉 ========== ALL FEEDBACK COMPLETE! ==========`);
-          if (pollInterval) clearInterval(pollInterval);
+          console.log('🎉 ALL FEEDBACK COMPLETE!');
           setIsPolling(false);
           setPollCount(0);
-        } else {
-          console.log(`⏳ Still generating... (${pollCount}/${MAX_POLLS})`);
+          return;
         }
       } catch (error) {
         console.log(`⚠️ Poll #${pollCount} failed (will retry):`, error.message);
-        // Don't stop polling on errors, just continue
       }
+
+      const delay = getDelay();
+      console.log(`⏳ Poll #${pollCount} done — next in ${delay / 1000}s`);
+      timeoutId = setTimeout(doPoll, delay);
     };
 
-    // Start polling immediately, then every 2 seconds
-    console.log('▶️ Executing first poll NOW...');
-    doPoll(); // First poll happens immediately
+    doPoll();
 
-    pollInterval = setInterval(() => {
-      doPoll();
-    }, 2000); // Then poll every 2 seconds
-
-    // Cleanup function
     return () => {
-      console.log('🛑 ===== STOPPING POLLING INTERVAL =====');
-      if (pollInterval) {
-        clearInterval(pollInterval);
-      }
+      console.log('🛑 STOPPING POLLING');
+      stopped = true;
+      if (timeoutId) clearTimeout(timeoutId);
       setPollCount(0);
     };
-  }, [isPolling, moduleAccess, submissionStatus, moduleId]); // Minimal deps to avoid recreating interval
+  }, [isPolling, moduleAccess, submissionStatus, moduleId, useSSE]); // useSSE added to re-run on fallback
 
   const handleStartTest = () => {
     router.push(`/student/test/${moduleId}`);
@@ -868,8 +926,12 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       // Reload feedback to show retry buttons
       await loadFeedbackForAnswers(moduleAccess);
 
-      // Stop polling if active
+      // Stop polling/SSE if active
       setIsPolling(false);
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
 
       // Show alert with results
       if (result.total_fixed > 0) {
@@ -906,7 +968,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       if (result.success && result.answers_retried > 0) {
         alert(`${result.message || `Started regenerating ${result.answers_retried} failed/missing feedback. This may take a few minutes. The page will update automatically.`}`);
 
-        // Start polling again to show progress
+        // Reset SSE and start monitoring again
+        setUseSSE(true); // Try SSE first for the new batch
         setIsPolling(true);
         setPollCount(0);
       } else if (result.success && result.answers_retried === 0) {
@@ -1344,12 +1407,12 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
                         {(() => {
                           const questionTypeCounts = [
-                            { type: 'mcq', label: 'Multiple Choice', color: 'bg-green-500', count: questions.filter(q => q.type === 'mcq').length },
-                            { type: 'mcq_multiple', label: 'MCQ (Multiple)', color: 'bg-emerald-500', count: questions.filter(q => q.type === 'mcq_multiple').length },
-                            { type: 'short', label: 'Short Answer', color: 'bg-yellow-500', count: questions.filter(q => q.type === 'short').length },
-                            { type: 'long', label: 'Long Answer', color: 'bg-purple-500', count: questions.filter(q => q.type === 'long').length },
-                            { type: 'fill_blank', label: 'Fill in Blanks', color: 'bg-blue-500', count: questions.filter(q => q.type === 'fill_blank').length },
-                            { type: 'multi_part', label: 'Multi-Part', color: 'bg-pink-500', count: questions.filter(q => q.type === 'multi_part').length }
+                            { type: 'mcq', label: 'Multiple Choice', color: 'bg-green-500', count: questions.filter(q => q?.type === 'mcq').length },
+                            { type: 'mcq_multiple', label: 'MCQ (Multiple)', color: 'bg-emerald-500', count: questions.filter(q => q?.type === 'mcq_multiple').length },
+                            { type: 'short', label: 'Short Answer', color: 'bg-yellow-500', count: questions.filter(q => q?.type === 'short').length },
+                            { type: 'long', label: 'Long Answer', color: 'bg-purple-500', count: questions.filter(q => q?.type === 'long').length },
+                            { type: 'fill_blank', label: 'Fill in Blanks', color: 'bg-blue-500', count: questions.filter(q => q?.type === 'fill_blank').length },
+                            { type: 'multi_part', label: 'Multi-Part', color: 'bg-pink-500', count: questions.filter(q => q?.type === 'multi_part').length }
                           ];
 
                           return questionTypeCounts
@@ -1779,7 +1842,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       const allAttemptsDone = submissionStatus?.all_attempts_done || false;
                       const currentAttempt = submissionStatus?.current_attempt || 1;
                       const maxAttempts = submissionStatus?.max_attempts || 2;
-                      const latestAttemptWithFeedback = Math.max(...Object.keys(feedbackByAttempt).map(Number));
+                      const attemptKeys = Object.keys(feedbackByAttempt).map(Number);
+                      const latestAttemptWithFeedback = attemptKeys.length > 0 ? Math.max(...attemptKeys) : 0;
 
                       // Only show button if:
                       // 1. There are incorrect answers
