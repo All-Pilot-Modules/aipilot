@@ -2,7 +2,7 @@
 Dynamic prompt builder for AI feedback
 Builds prompts based on rubric settings, question type, and RAG context
 """
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 def build_mcq_feedback_prompt(
@@ -12,7 +12,8 @@ def build_mcq_feedback_prompt(
     correct_answer: str,
     is_correct: Optional[bool],
     rubric: Dict[str, Any],
-    rag_context: Optional[Dict[str, Any]] = None
+    rag_context: Optional[Dict[str, Any]] = None,
+    previous_feedback: Optional[List[Dict[str, Any]]] = None
 ) -> str:
     """
     Build prompt for MCQ feedback generation
@@ -25,6 +26,7 @@ def build_mcq_feedback_prompt(
         is_correct: Whether the answer is correct (None if no correct answer set)
         rubric: Rubric configuration
         rag_context: Retrieved course material context
+        previous_feedback: Optional list of previous attempt feedback for progressive feedback
 
     Returns:
         Complete prompt string for AI
@@ -78,6 +80,11 @@ def build_mcq_feedback_prompt(
     # 3. RAG context if available
     if rag_context and rag_context.get("has_context"):
         prompt_parts.append(rag_context["formatted_context"])
+        prompt_parts.append("")
+
+    # 3b. Previous feedback context for progressive feedback
+    if previous_feedback:
+        prompt_parts.append(_build_previous_feedback_section(previous_feedback))
         prompt_parts.append("")
 
     # 4. Grading criteria
@@ -193,7 +200,8 @@ def build_text_feedback_prompt(
     student_answer: str,
     reference_answer: str,
     rubric: Dict[str, Any],
-    rag_context: Optional[Dict[str, Any]] = None
+    rag_context: Optional[Dict[str, Any]] = None,
+    previous_feedback: Optional[List[Dict[str, Any]]] = None
 ) -> str:
     """
     Build prompt for text-based (short/essay) feedback generation
@@ -205,6 +213,7 @@ def build_text_feedback_prompt(
         reference_answer: Reference/expected answer
         rubric: Rubric configuration
         rag_context: Retrieved course material context
+        previous_feedback: Optional list of previous attempt feedback for progressive feedback
 
     Returns:
         Complete prompt string for AI
@@ -259,6 +268,11 @@ def build_text_feedback_prompt(
     # 3. RAG context if available
     if rag_context and rag_context.get("has_context"):
         prompt_parts.append(rag_context["formatted_context"])
+        prompt_parts.append("")
+
+    # 3b. Previous feedback context for progressive feedback
+    if previous_feedback:
+        prompt_parts.append(_build_previous_feedback_section(previous_feedback))
         prompt_parts.append("")
 
     # 4. Grading criteria
@@ -377,6 +391,48 @@ def build_text_feedback_prompt(
         prompt_parts.append("=" * 80)
 
     return "\n".join(prompt_parts)
+
+
+def _build_previous_feedback_section(previous_feedback: List[Dict[str, Any]]) -> str:
+    """
+    Build a prompt section describing previous attempts' feedback for progressive feedback.
+
+    Args:
+        previous_feedback: List of dicts with keys: attempt, ai_feedback, score, student_answer
+
+    Returns:
+        Formatted prompt section string
+    """
+    lines = []
+    lines.append("=" * 60)
+    lines.append("📚 PREVIOUS ATTEMPTS CONTEXT (for progressive feedback)")
+    lines.append("=" * 60)
+    lines.append("The student has attempted this question before. Below is their history:")
+    lines.append("")
+
+    for entry in sorted(previous_feedback, key=lambda x: x.get("attempt", 0)):
+        attempt_num = entry.get("attempt", "?")
+        student_ans = entry.get("student_answer", "N/A")
+        score = entry.get("score")
+        ai_fb = entry.get("ai_feedback", "No feedback available")
+
+        lines.append(f"--- Attempt {attempt_num} ---")
+        lines.append(f"Student Answer: {student_ans}")
+        if score is not None:
+            lines.append(f"Score: {score}%")
+        lines.append(f"Feedback Given: {ai_fb}")
+        lines.append("")
+
+    lines.append("⚠️ PROGRESSIVE FEEDBACK INSTRUCTIONS:")
+    lines.append("- DO NOT repeat feedback that was already given in previous attempts")
+    lines.append("- BUILD UPON prior feedback — go deeper, address what the student still hasn't grasped")
+    lines.append("- If the student made the SAME mistake again, address the persistent misconception directly")
+    lines.append("- If the student IMPROVED, acknowledge the improvement and guide them further")
+    lines.append("- Provide NEW insights, hints, or explanations not covered in previous feedback")
+    lines.append("- Reference what was said before only briefly (e.g., 'As noted previously...') to add new depth")
+    lines.append("=" * 60)
+
+    return "\n".join(lines)
 
 
 def format_grading_criteria(criteria: Dict[str, Any]) -> str:

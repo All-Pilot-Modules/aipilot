@@ -2,57 +2,24 @@
 
 import { Button } from '@/components/ui/button';
 import Link from 'next/link';
-import { Facebook, Instagram, Youtube, Twitter } from 'lucide-react';
-import { FadeIn, SlideInLeft, Float } from './AnimationWrapper';
+import { FadeIn, Float } from './AnimationWrapper';
 
 export default function Footer() {
   const footerLinks = [
     {
-      title: 'PLATFORM',
-      links: [
-        { label: 'Module Builder', href: '/modules' },
-        { label: 'Assignment Features', href: '/features' },
-        { label: 'AI Feedback', href: '/ai-feedback' },
-        { label: 'Analytics', href: '/analytics' }
-      ]
-    },
-    {
-      title: 'FEATURES',
-      links: [
-        { label: 'AI Analytics', href: '/features#analytics' },
-        { label: 'Test Creation', href: '/features#tests' },
-        { label: 'Grading', href: '/features#grading' },
-        { label: 'Student Dashboard', href: '/features#students' },
-        { label: 'Mastery Learning', href: '/features#mastery' },
-      ]
-    },
-    {
       title: 'RESOURCES',
       links: [
+        { label: 'User Manual', href: '/user-manual' },
         { label: 'Help Center', href: '/help' },
-        { label: 'Documentation', href: '/docs' },
-        { label: 'Blog', href: '/blog' },
-        { label: 'About', href: '/about' }
-      ]
-    },
-    {
-      title: 'COMPANY',
-      links: [
         { label: 'About', href: '/about' },
-        { label: 'Branding', href: '/branding' },
-        { label: 'Affiliates', href: '/affiliates' },
-        { label: 'Reviews', href: '/reviews' }
       ]
     },
     {
       title: 'SUPPORT',
       links: [
         { label: 'Contact Us', href: '/contact' },
-        { label: 'Help center', href: '/help' },
-        { label: 'Getting started', href: '/start' },
-        { label: 'Hire a Pro', href: '/pros' }
       ]
-    }
+    },
   ];
 
   return (
@@ -97,15 +64,15 @@ export default function Footer() {
       {/* 2. Main Footer Links */}
       <div className="bg-[#a8d3e6] pt-12 pb-20">
         <div className="max-w-7xl mx-auto px-6">
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-12 mb-20">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-12 mb-20">
             {/* Brand Logo */}
-            <div className="col-span-2 md:col-span-1">
+            <div className="col-span-2 md:col-span-2">
               <Link href="/" className="text-2xl font-black text-[#1a212c]">
                 ai pilot
               </Link>
             </div>
 
-            {/* Dynamic Link Columns */}
+            {/* Link Columns */}
             {footerLinks.map((column) => (
               <div key={column.title} className="col-span-1">
                 <h3 className="text-[11px] font-black tracking-widest text-[#1a212c] uppercase mb-6">
@@ -129,13 +96,6 @@ export default function Footer() {
 
           {/* 3. Bottom Bar */}
           <div className="flex flex-col md:flex-row justify-between items-center pt-8 border-t border-[#1a212c]/10">
-            <div className="flex gap-6 mb-6 md:mb-0">
-              <Twitter className="w-5 h-5 text-[#1a212c] cursor-pointer hover:opacity-70" />
-              <Facebook className="w-5 h-5 text-[#1a212c] cursor-pointer hover:opacity-70" />
-              <Instagram className="w-5 h-5 text-[#1a212c] cursor-pointer hover:opacity-70" />
-              <Youtube className="w-5 h-5 text-[#1a212c] cursor-pointer hover:opacity-70" />
-            </div>
-
             <div className="flex flex-col md:flex-row items-center gap-6 text-sm font-medium text-[#1a212c]/70">
               <span>AI Pilot, Inc. © {new Date().getFullYear()}</span>
               <div className="flex gap-6">

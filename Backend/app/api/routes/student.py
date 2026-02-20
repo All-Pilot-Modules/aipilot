@@ -1,7 +1,7 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from uuid import UUID
-from typing import List
+from typing import List, Optional
 import logging
 
 from app.schemas.student_answer import StudentAnswerCreate, StudentAnswerOut, StudentAnswerUpdate
@@ -22,190 +22,10 @@ from app.crud.module import get_module_by_access_code, get_module_by_id
 from app.models.module import Module
 from app.crud.document import get_documents_by_module, get_documents_by_module_for_students
 from app.database import get_db
+from app.services.feedback_worker import create_feedback_job
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-
-# 🎯 Background task to generate feedback asynchronously with PARALLEL processing
-def generate_feedback_background(student_id: str, module_id: str, attempt: int, answer_ids: List[str]):
-    """
-    Background task to generate AI feedback for multiple answers IN PARALLEL.
-    This runs asynchronously and generates feedback for all questions concurrently
-    to significantly reduce total generation time.
-    """
-    import concurrent.futures
-    import time
-    from app.database import SessionLocal
-    from app.services.ai_feedback import AIFeedbackService
-    from app.models.student_answer import StudentAnswer
-
-    def generate_single_feedback(answer_id: str):
-        """Generate feedback for a single answer (runs in thread pool)"""
-        # Each thread gets its own database session
-        db = SessionLocal()
-        try:
-            # Get the answer
-            answer = db.query(StudentAnswer).filter(StudentAnswer.id == answer_id).first()
-            if not answer:
-                logger.error(f"❌ Answer {answer_id} not found")
-                # Mark feedback as failed
-                from app.crud.ai_feedback import mark_feedback_failed
-                mark_feedback_failed(db, answer_id, "Answer not found", "data_error")
-                return {"success": False, "answer_id": answer_id, "error": "Answer not found"}
-
-            logger.info(f"🔄 Generating feedback for question {answer.question_id}, answer {answer_id}")
-
-            # Generate feedback
-            feedback_service = AIFeedbackService()
-            feedback = feedback_service.generate_instant_feedback(
-                db=db,
-                student_answer=answer,
-                question_id=str(answer.question_id),
-                module_id=module_id
-            )
-
-            logger.info(f"✅ Feedback generated for question {answer.question_id}")
-            return {"success": True, "answer_id": answer_id, "question_id": str(answer.question_id)}
-
-        except Exception as e:
-            logger.error(f"❌ Failed to generate feedback for answer {answer_id}: {str(e)}")
-            import traceback
-            traceback.print_exc()
-
-            # CRITICAL: Mark feedback as failed so it doesn't stay stuck
-            try:
-                from app.crud.ai_feedback import mark_feedback_failed
-                mark_feedback_failed(db, answer_id, str(e), "generation_error")
-            except Exception as mark_error:
-                logger.error(f"❌ Failed to mark feedback as failed: {str(mark_error)}")
-
-            return {"success": False, "answer_id": answer_id, "error": str(e)}
-        finally:
-            db.close()
-
-    try:
-        logger.info(f"🎯 Starting PARALLEL background feedback generation for {len(answer_ids)} answers")
-        start_time = time.time()
-
-        # Use ThreadPoolExecutor to generate feedback in parallel
-        # Max workers = min(3, number of questions) to avoid database connection exhaustion
-        # IMPORTANT: Reduced from 10 to 3 to prevent Supabase connection pool exhaustion
-        max_workers = min(3, len(answer_ids))
-        logger.info(f"🚀 Using {max_workers} parallel threads for feedback generation")
-
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            # Submit all feedback generation tasks
-            future_to_answer = {
-                executor.submit(generate_single_feedback, answer_id): answer_id
-                for answer_id in answer_ids
-            }
-
-            # Wait for all tasks to complete
-            completed = 0
-            failed = 0
-            for future in concurrent.futures.as_completed(future_to_answer):
-                answer_id = future_to_answer[future]
-                try:
-                    result = future.result()
-                    if result["success"]:
-                        completed += 1
-                        logger.info(f"✅ [{completed}/{len(answer_ids)}] Feedback completed for {result['question_id']}")
-                    else:
-                        failed += 1
-                        logger.error(f"❌ [{completed + failed}/{len(answer_ids)}] Feedback failed for {answer_id}")
-                except Exception as exc:
-                    failed += 1
-                    logger.error(f"❌ Task generated exception for {answer_id}: {exc}")
-                    # Ensure feedback is marked as failed even if future.result() crashed
-                    try:
-                        db_safety = SessionLocal()
-                        from app.crud.ai_feedback import mark_feedback_failed
-                        mark_feedback_failed(db_safety, answer_id, f"Exception: {str(exc)}", "generation_error")
-                        db_safety.close()
-                    except:
-                        pass
-
-        elapsed_time = time.time() - start_time
-        logger.info(f"✅ PARALLEL feedback generation completed for attempt {attempt}")
-        logger.info(f"📊 Results: {completed} succeeded, {failed} failed out of {len(answer_ids)} total")
-        logger.info(f"⏱️  Total time: {elapsed_time:.2f} seconds ({elapsed_time/len(answer_ids):.2f}s per question average)")
-
-        # Calculate total score for this test submission
-        logger.info(f"🔢 Calculating total score for attempt {attempt}")
-        db = SessionLocal()
-        try:
-            from app.models.ai_feedback import AIFeedback
-            from app.models.question import Question
-            from app.models.test_submission import TestSubmission
-            from uuid import UUID
-
-            # Get all answers for this attempt to get their questions
-            answers = db.query(StudentAnswer).filter(
-                StudentAnswer.student_id == student_id,
-                StudentAnswer.module_id == UUID(module_id),
-                StudentAnswer.attempt == attempt
-            ).all()
-
-            total_points_possible = 0.0
-            total_points_earned = 0.0
-
-            for answer in answers:
-                # Get the question to know points possible
-                question = db.query(Question).filter(Question.id == answer.question_id).first()
-                if question:
-                    total_points_possible += question.points
-
-                    # Get the feedback for this answer
-                    feedback = db.query(AIFeedback).filter(
-                        AIFeedback.answer_id == answer.id
-                    ).first()
-
-                    if feedback and feedback.points_earned is not None:
-                        total_points_earned += feedback.points_earned
-
-            # Calculate percentage
-            percentage_score = (total_points_earned / total_points_possible * 100) if total_points_possible > 0 else 0
-
-            # Update the test submission
-            submission = db.query(TestSubmission).filter(
-                TestSubmission.student_id == student_id,
-                TestSubmission.module_id == UUID(module_id),
-                TestSubmission.attempt == attempt
-            ).first()
-
-            if submission:
-                submission.total_points_possible = total_points_possible
-                submission.total_points_earned = total_points_earned
-                submission.percentage_score = percentage_score
-                db.commit()
-                logger.info(f"✅ Test score updated: {total_points_earned}/{total_points_possible} points ({percentage_score:.1f}%)")
-            else:
-                logger.warning(f"⚠️  Test submission not found for attempt {attempt}")
-
-        except Exception as score_error:
-            logger.error(f"❌ Failed to calculate total score: {str(score_error)}")
-            import traceback
-            traceback.print_exc()
-        finally:
-            db.close()
-
-    except Exception as e:
-        logger.error(f"❌ Background feedback generation CRASHED: {str(e)}")
-        import traceback
-        traceback.print_exc()
-
-        # CRITICAL: Mark ALL remaining pending/generating feedback as failed
-        # This prevents UI from being stuck in loading state
-        try:
-            db_cleanup = SessionLocal()
-            from app.crud.ai_feedback import cleanup_stale_feedback
-            from uuid import UUID
-            marked = cleanup_stale_feedback(db_cleanup, UUID(module_id), student_id)
-            logger.error(f"🧹 Emergency cleanup: Marked {marked} feedback rows as failed after crash")
-            db_cleanup.close()
-        except Exception as cleanup_error:
-            logger.error(f"❌ Emergency cleanup also failed: {str(cleanup_error)}")
 
 
 # 🔍 Join module with access code
@@ -406,19 +226,43 @@ def submit_student_answer(
 
     if should_generate_feedback:
         try:
-            print(f"🎯 ENDPOINT: should_generate_feedback=True, attempt={answer_data.attempt}, max_attempts={max_attempts}")
-            print(f"🎯 ENDPOINT: created_answer.id={created_answer.id}, answer_data={created_answer.answer}")
+            # Build progressive feedback context from previous attempts
+            previous_feedback_context = None
+            if answer_data.attempt > 1:
+                from app.models.student_answer import StudentAnswer
+                from app.crud.ai_feedback import get_feedback_by_answer
+
+                prev_answers = db.query(StudentAnswer).filter(
+                    StudentAnswer.student_id == answer_data.student_id,
+                    StudentAnswer.question_id == answer_data.question_id,
+                    StudentAnswer.attempt < answer_data.attempt
+                ).order_by(StudentAnswer.attempt).all()
+
+                if prev_answers:
+                    previous_feedback_context = []
+                    for prev in prev_answers:
+                        fb = get_feedback_by_answer(db, prev.id)
+                        if fb and fb.generation_status == 'completed' and fb.feedback_data:
+                            previous_feedback_context.append({
+                                "attempt": prev.attempt,
+                                "ai_feedback": fb.feedback_data.get("explanation", ""),
+                                "score": fb.score,
+                                "student_answer": str(prev.answer)
+                            })
+                    if previous_feedback_context:
+                        logger.info(f"📚 Built progressive context from {len(previous_feedback_context)} previous attempt(s) for question {answer_data.question_id}")
+                    else:
+                        previous_feedback_context = None
 
             # Generate AI feedback
             feedback_service = AIFeedbackService()
-            print(f"🎯 ENDPOINT: Calling generate_instant_feedback...")
             feedback = feedback_service.generate_instant_feedback(
                 db=db,
                 student_answer=created_answer,
                 question_id=str(answer_data.question_id),
-                module_id=module_id
+                module_id=module_id,
+                previous_feedback_context=previous_feedback_context
             )
-            print(f"🎯 ENDPOINT: Feedback generated, checking if saved...")
 
             # Return enhanced response with feedback
             return {
@@ -594,15 +438,10 @@ def get_module_feedback(
     Returns filtered feedback without technical metadata, including teacher grades if available
     IMPORTANT: Also includes teacher-only grades (where teacher graded but no AI feedback exists)
     """
-    from app.crud.ai_feedback import get_student_module_feedback, cleanup_stale_feedback
+    from app.crud.ai_feedback import get_student_module_feedback
     from app.models.student_answer import StudentAnswer
     from app.models.teacher_grade import TeacherGrade
     from app.models.question import Question
-
-    # Cleanup any stale feedback (silent failures from crashed background tasks)
-    marked_failed = cleanup_stale_feedback(db, module_id, student_id)
-    if marked_failed > 0:
-        logger.info(f"🧹 Marked {marked_failed} stale feedback rows as failed")
 
     # Get all feedback for student
     feedback_list = get_student_module_feedback(db, student_id, module_id)
@@ -859,18 +698,30 @@ def save_student_answer(
 
 # 🎯 Submit entire test with feedback generation
 @router.post("/modules/{module_id}/submit-test")
-def submit_test(
+async def submit_test(
     module_id: UUID,
+    request: Request,
     student_id: str = Query(..., description="Student ID"),
     attempt: int = Query(1, description="Attempt number", ge=1),
-    background_tasks: BackgroundTasks = None,
     db: Session = Depends(get_db)
 ):
     """
     Mark a test as submitted for a specific attempt.
-    This creates a TestSubmission record and triggers ASYNC feedback generation.
-    Returns immediately - feedback is generated in the background.
+    Creates a TestSubmission record and inserts FeedbackJob rows into the
+    persistent job queue.  The background worker picks them up automatically.
+    Accepts optional body: { previous_feedback_context: [...] } for progressive feedback.
     """
+    # Parse optional request body for previous feedback context
+    previous_feedback_context = None
+    try:
+        body = await request.json()
+        if body and isinstance(body, dict):
+            previous_feedback_context = body.get("previous_feedback_context")
+            if previous_feedback_context:
+                logger.info(f"Received previous_feedback_context with {len(previous_feedback_context)} attempt(s)")
+    except Exception:
+        pass
+
     from app.crud.test_submission import (
         create_submission,
         has_submitted_attempt,
@@ -925,21 +776,22 @@ def submit_test(
         questions_count=len(answers)
     )
 
-    logger.info(f"✅ Test submitted - {len(answers)} questions")
+    logger.info(f"Test submitted - {len(answers)} questions")
 
-    # Trigger async feedback generation ONLY if not final attempt
+    # Enqueue feedback jobs ONLY if not final attempt
     if attempt < max_attempts:
         answer_ids = [str(answer.id) for answer in answers]
-        logger.info(f"🚀 Triggering background feedback generation for {len(answer_ids)} answers")
+        logger.info(f"Enqueuing {len(answer_ids)} feedback jobs")
 
-        # Add background task
-        if background_tasks:
-            background_tasks.add_task(
-                generate_feedback_background,
+        for answer in answers:
+            create_feedback_job(
+                db=db,
+                answer_id=answer.id,
                 student_id=student_id,
                 module_id=str(module_id),
                 attempt=attempt,
-                answer_ids=answer_ids
+                priority=1,
+                previous_feedback_context=previous_feedback_context,
             )
 
         return {
@@ -947,10 +799,10 @@ def submit_test(
             "submission_id": str(submission.id),
             "attempt": attempt,
             "questions_submitted": len(answers),
-            "answer_ids": answer_ids,  # NEW: for frontend polling
+            "answer_ids": answer_ids,
             "can_retry": True,
             "max_attempts": max_attempts,
-            "feedback_status": "generating",  # NEW: indicates feedback is being generated
+            "feedback_status": "generating",
             "message": "Test submitted! Feedback is being generated in the background."
         }
     else:
@@ -962,7 +814,7 @@ def submit_test(
             "questions_submitted": len(answers),
             "can_retry": False,
             "max_attempts": max_attempts,
-            "feedback_status": "none",  # No feedback for final attempt
+            "feedback_status": "none",
             "message": "Final attempt submitted successfully!"
         }
 
@@ -1027,10 +879,11 @@ def get_feedback_status(
 ):
     """
     Check the status of feedback generation for a student's test submission.
+    Uses the FeedbackJob queue as the source of truth.
     Returns which questions have feedback ready and which are still pending.
-    Used for real-time polling in the frontend.
     """
     from app.models.student_answer import StudentAnswer
+    from app.models.feedback_job import FeedbackJob
     from app.crud.ai_feedback import get_feedback_by_answer
 
     # Get all answers for this attempt
@@ -1049,26 +902,84 @@ def get_feedback_status(
             "all_complete": True
         }
 
-    # Check which answers have feedback COMPLETED (not just existing)
+    # Build answer_id set for quick lookup
+    answer_ids = {answer.id for answer in answers}
+
+    # Get all jobs for this student/module/attempt in one query
+    jobs = db.query(FeedbackJob).filter(
+        FeedbackJob.student_id == student_id,
+        FeedbackJob.module_id == module_id,
+        FeedbackJob.attempt == attempt,
+    ).all()
+    jobs_by_answer = {job.answer_id: job for job in jobs}
+
     feedback_status = []
     ready_count = 0
+    queued_count = 0
 
     for answer in answers:
         feedback = get_feedback_by_answer(db, answer.id)
-        # IMPORTANT: Only count as ready if generation_status is "completed"
-        # Don't count "pending", "generating", "failed", or "timeout" as ready
+        job = jobs_by_answer.get(answer.id)
+
         is_completed = feedback is not None and feedback.generation_status == 'completed'
 
         if is_completed:
-            ready_count += 1
+            # Check if this is a FALLBACK that should be upgraded with real AI
+            is_fallback = (feedback.feedback_data or {}).get('fallback', False)
+            if is_fallback:
+                # Check if there's already an active job for this answer
+                has_active_job = job and job.status in ('queued', 'processing')
+                retries_exhausted = job and job.status == 'failed' and job.retry_count >= job.max_retries
+
+                if retries_exhausted:
+                    # All retries failed — accept fallback and stop polling
+                    ready_count += 1
+                elif not has_active_job:
+                    # Enqueue an upgrade job
+                    create_feedback_job(
+                        db=db,
+                        answer_id=answer.id,
+                        student_id=student_id,
+                        module_id=str(module_id),
+                        attempt=attempt,
+                        priority=1,
+                    )
+                    logger.info(f"Auto-upgrading fallback feedback for answer {answer.id}")
+                # Don't count fallback as ready — keep polling until real AI replaces it
+            else:
+                ready_count += 1
+        elif feedback and feedback.generation_status in ['failed', 'timeout']:
+            # If no active job exists, enqueue a retry
+            has_active_job = job and job.status in ('queued', 'processing')
+            retries_exhausted = job and job.status == 'failed' and job.retry_count >= job.max_retries
+
+            if retries_exhausted:
+                # Accept as done — can't retry further
+                ready_count += 1
+            elif not has_active_job:
+                create_feedback_job(
+                    db=db,
+                    answer_id=answer.id,
+                    student_id=student_id,
+                    module_id=str(module_id),
+                    attempt=attempt,
+                    priority=1,
+                )
+                queued_count += 1
+
+        # Determine job status for this answer
+        job_status = job.status if job else None
+        is_fallback = is_completed and (feedback.feedback_data or {}).get('fallback', False)
 
         feedback_status.append({
             "question_id": str(answer.question_id),
             "answer_id": str(answer.id),
             "has_feedback": feedback is not None,
-            "is_completed": is_completed,
+            "is_completed": is_completed and not is_fallback,
+            "is_fallback": is_fallback,
             "generation_status": feedback.generation_status if feedback else None,
-            "feedback_id": str(feedback.id) if feedback else None
+            "job_status": job_status,
+            "feedback_id": str(feedback.id) if feedback else None,
         })
 
     total = len(answers)
@@ -1081,7 +992,8 @@ def get_feedback_status(
         "feedback_pending": pending,
         "progress_percentage": int((ready_count / total) * 100) if total > 0 else 0,
         "all_complete": all_complete,
-        "questions": feedback_status
+        "auto_retried": queued_count,
+        "questions": feedback_status,
     }
 
 # 🧹 Cleanup stale feedback (called by frontend after timeout)
@@ -1171,33 +1083,24 @@ def regenerate_all_failed_feedback(
 ):
     """
     Regenerate all failed/timeout feedback for a specific attempt.
-    This is a bulk retry operation.
-
-    Returns:
-        Status of retry operations
+    Inserts new FeedbackJob rows — the worker picks them up automatically.
     """
-    from app.crud.ai_feedback import get_feedback_by_answer
     from app.models.student_answer import StudentAnswer
     from app.models.ai_feedback import AIFeedback
-    from app.services.ai_feedback import AIFeedbackService
 
-    logger.info(f"🔄 Regenerate all feedback requested for module {module_id}, student {student_id}, attempt {attempt}")
+    logger.info(f"Regenerate all feedback requested for module {module_id}, student {student_id}, attempt {attempt}")
 
     # Get module to check max_attempts
     module = get_module_by_id(db, str(module_id))
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
 
-    # Get max attempts from module settings (default to 2)
     max_attempts = 2
     if module.assignment_config:
         multiple_attempts_config = module.assignment_config.get("features", {}).get("multiple_attempts", {})
         max_attempts = multiple_attempts_config.get("max_attempts", 2)
 
-    # IMPORTANT: Only regenerate feedback for attempts that should have AI feedback
-    # Final attempt (attempt >= max_attempts) is for teacher manual grading
     if attempt >= max_attempts:
-        logger.warning(f"❌ Cannot regenerate feedback for attempt {attempt} - this is the final attempt reserved for teacher grading (max_attempts={max_attempts})")
         raise HTTPException(
             status_code=400,
             detail=f"Cannot regenerate AI feedback for attempt {attempt}. This is the final attempt reserved for teacher manual grading. AI feedback is only available for attempts 1-{max_attempts - 1}."
@@ -1213,11 +1116,27 @@ def regenerate_all_failed_feedback(
     if not answers:
         raise HTTPException(status_code=404, detail="No answers found for this attempt")
 
-    # Find which ones have failed/timeout feedback
+    # Find which ones have failed/timeout feedback and enqueue retry jobs
     failed_answer_ids = []
     for answer in answers:
         feedback = db.query(AIFeedback).filter(AIFeedback.answer_id == answer.id).first()
-        if feedback and feedback.generation_status in ['failed', 'timeout'] and feedback.can_retry:
+        if feedback and feedback.generation_status in ['failed', 'timeout']:
+            # Reset the ai_feedback row so the worker can regenerate
+            feedback.generation_status = 'pending'
+            feedback.generation_progress = 0
+            feedback.error_message = None
+            feedback.error_type = None
+            feedback.completed_at = None
+            db.commit()
+
+            create_feedback_job(
+                db=db,
+                answer_id=answer.id,
+                student_id=student_id,
+                module_id=str(module_id),
+                attempt=attempt,
+                priority=1,
+            )
             failed_answer_ids.append(str(answer.id))
 
     if not failed_answer_ids:
@@ -1229,71 +1148,15 @@ def regenerate_all_failed_feedback(
             "retried_count": 0
         }
 
-    logger.info(f"📊 Found {len(failed_answer_ids)} failed feedback to retry")
-
-    # Trigger regeneration for all failed feedback
-    from app.database import SessionLocal
-    from app.crud.ai_feedback import reset_feedback_for_retry
-    import threading
-
-    def regenerate_all():
-        """Background thread to regenerate all failed feedback"""
-        # Create a new database session for this thread
-        thread_db = SessionLocal()
-        feedback_service = AIFeedbackService()
-
-        try:
-            for answer_id_str in failed_answer_ids:
-                try:
-                    answer_id = UUID(answer_id_str)
-                    logger.info(f"🔄 Retrying feedback for answer {answer_id}")
-
-                    # Reset feedback for retry
-                    feedback = reset_feedback_for_retry(thread_db, answer_id)
-
-                    if not feedback:
-                        logger.error(f"❌ Failed to reset feedback for answer {answer_id}")
-                        continue
-
-                    # Get the student answer
-                    answer = thread_db.query(StudentAnswer).filter(StudentAnswer.id == answer_id).first()
-
-                    if not answer:
-                        logger.error(f"❌ Answer {answer_id} not found")
-                        continue
-
-                    # Trigger regeneration
-                    result = feedback_service.generate_instant_feedback(
-                        db=thread_db,
-                        student_answer=answer,
-                        question_id=str(answer.question_id),
-                        module_id=str(answer.module_id)
-                    )
-
-                    logger.info(f"✅ Retry queued for answer {answer_id}")
-
-                except Exception as e:
-                    logger.error(f"❌ Error retrying feedback for answer {answer_id_str}: {e}")
-                    continue
-
-        except Exception as e:
-            logger.error(f"❌ Error in bulk regeneration: {e}")
-        finally:
-            thread_db.close()
-            logger.info(f"🏁 Bulk regeneration completed for {len(failed_answer_ids)} answers")
-
-    # Start background thread
-    thread = threading.Thread(target=regenerate_all)
-    thread.daemon = True
-    thread.start()
+    logger.info(f"Enqueued {len(failed_answer_ids)} retry jobs")
 
     return {
         "success": True,
-        "message": f"Started regenerating {len(failed_answer_ids)} failed feedback",
+        "message": f"Enqueued {len(failed_answer_ids)} feedback retries",
         "total_answers": len(answers),
         "failed_count": len(failed_answer_ids),
         "retried_count": len(failed_answer_ids),
-        "answer_ids": failed_answer_ids
+        "answer_ids": failed_answer_ids,
     }
 
 

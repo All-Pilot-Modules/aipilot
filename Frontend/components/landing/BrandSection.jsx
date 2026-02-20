@@ -20,9 +20,9 @@ const stats = [
 
 export default function BrandSection() {
   return (
-    <section className="py-24 bg-[#FAF9F6] border-y border-slate-200/50 overflow-hidden">
-      <div className="max-w-7xl mx-auto px-6">
-        
+    <section className="py-24 bg-[#EEF2FF] border-y border-slate-200/50 overflow-hidden">
+      <div className="max-w-7xl mx-auto px-6 w-full">
+
         {/* Section Header */}
         <FadeIn className="text-center mb-16">
           <p className="text-[11px] font-black tracking-[0.3em] text-slate-400 uppercase">
@@ -33,9 +33,9 @@ export default function BrandSection() {
         {/* Logo Carousel - Pro Level Infinite Scroll Effect */}
         <div className="relative group">
           {/* Fading Edges Mask */}
-          <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#FAF9F6] to-transparent z-10" />
-          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#FAF9F6] to-transparent z-10" />
-          
+          <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#EEF2FF] to-transparent z-10" />
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#EEF2FF] to-transparent z-10" />
+
           <div className="flex gap-12 items-center animate-scroll whitespace-nowrap">
             {/* Duplicating brands for seamless loop */}
             {[...brands, ...brands].map((brand, index) => (
@@ -61,7 +61,7 @@ export default function BrandSection() {
                 <div className="absolute -top-6 -left-2 text-8xl font-black opacity-[0.03] pointer-events-none select-none">
                   {idx + 1}
                 </div>
-                
+
                 <div className="text-5xl md:text-7xl font-black text-[#1a212c] tracking-tighter mb-2 transition-transform group-hover:-translate-y-1 duration-300">
                   {stat.value}
                 </div>
@@ -77,16 +77,6 @@ export default function BrandSection() {
         </div>
       </div>
 
-      {/* Tailwind Animation for Scroll (Add to global.css) */}
-      <style jsx>{`
-        @keyframes scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
-        }
-        .animate-scroll {
-          animation: scroll 30s linear infinite;
-        }
-      `}</style>
     </section>
   );
 }

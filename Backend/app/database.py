@@ -5,15 +5,15 @@ from sqlalchemy.pool import NullPool
 import os
 from app.core.config import DATABASE_URL
 
-# Add connection pool settings to handle timeouts and stale connections
-# IMPORTANT: Reduced pool size to prevent Supabase connection exhaustion
-# In Session Mode, Supabase has strict connection limits
+# Connection pool for 500 concurrent students + 10 worker threads.
+# pool_size=20 keeps connections warm; max_overflow=30 allows bursting to 50.
 engine = create_engine(
     DATABASE_URL,
-    pool_pre_ping=True,  # Verify connections before using them
-    pool_recycle=3600,   # Recycle connections after 1 hour
-    pool_size=3,         # Maximum number of connections to keep in pool (reduced from default 5)
-    max_overflow=5,      # Maximum additional connections when pool is full (reduced from default 10)
+    pool_pre_ping=True,   # Verify connections before using them
+    pool_recycle=1800,     # Recycle connections every 30 min (Supabase can drop idle ones)
+    pool_size=20,          # Warm connections (10 worker threads + API request threads)
+    max_overflow=30,       # Burst up to 50 total under load (500 students)
+    pool_timeout=30,       # Fail fast if pool is exhausted (seconds)
     connect_args={
         "connect_timeout": 10,
         "keepalives": 1,

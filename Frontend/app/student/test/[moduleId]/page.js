@@ -720,9 +720,28 @@ const StudentTestPage = memo(function StudentTestPage() {
       // Small delay to ensure database commits are complete
       await new Promise(resolve => setTimeout(resolve, 500));
 
+      // Build previous feedback context for attempt 2+ so the backend AI
+      // can give progressive, non-repetitive feedback referencing past attempts
+      let previousFeedbackContext = null;
+      if (currentAttempt >= 2 && previousAttempts.length > 0) {
+        previousFeedbackContext = previousAttempts
+          .filter(pa => pa.attemptNumber < currentAttempt)
+          .map(pa => ({
+            attempt: pa.attemptNumber,
+            feedback: Object.entries(pa.feedback).map(([questionId, fb]) => ({
+              question_id: questionId,
+              ai_feedback: fb.ai_feedback || fb.feedback_text || null,
+              score: fb.score ?? null,
+              student_answer: pa.answers[questionId]?.value ?? null,
+            })),
+          }));
+        console.log(`📚 Sending previous feedback context for ${previousFeedbackContext.length} attempt(s)`);
+      }
+
       // Use the new batch submission endpoint
       const response = await apiClient.post(
-        `/api/student/modules/${moduleId}/submit-test?student_id=${moduleAccess.studentId}&attempt=${currentAttempt}`
+        `/api/student/modules/${moduleId}/submit-test?student_id=${moduleAccess.studentId}&attempt=${currentAttempt}`,
+        previousFeedbackContext ? { previous_feedback_context: previousFeedbackContext } : undefined
       );
 
       const result = response?.data || response || {};

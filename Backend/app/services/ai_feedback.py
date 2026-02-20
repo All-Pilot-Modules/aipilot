@@ -14,7 +14,8 @@ from app.services.rag_retriever import get_context_for_feedback
 from app.services.prompt_builder import (
     build_mcq_feedback_prompt,
     build_text_feedback_prompt,
-    should_include_context
+    should_include_context,
+    _build_previous_feedback_section
 )
 from app.crud.ai_feedback import (
     create_feedback,
@@ -42,7 +43,8 @@ class AIFeedbackService:
         db: Session,
         student_answer: StudentAnswer,
         question_id: str,
-        module_id: str
+        module_id: str,
+        previous_feedback_context: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """
         Generate instant AI feedback for student submission with rubric and RAG support
@@ -52,6 +54,8 @@ class AIFeedbackService:
             student_answer: StudentAnswer object
             question_id: UUID of the question
             module_id: UUID of the module (for getting AI model config and rubric)
+            previous_feedback_context: Optional list of per-question previous attempt feedback.
+                Format: [{ attempt: int, ai_feedback: str, score: int, student_answer: str }]
 
         Returns:
             Dict with feedback data
@@ -63,13 +67,18 @@ class AIFeedbackService:
             if existing_feedback:
                 # Check status of existing feedback
                 if existing_feedback.generation_status == 'completed':
-                    # Only return if feedback_data actually exists (not NULL)
                     if existing_feedback.feedback_data:
-                        logger.info(f"✅ Returning existing completed feedback for answer {student_answer.id}")
-                        return self._feedback_model_to_dict(existing_feedback)
+                        # Check if this is fallback that should be upgraded
+                        is_fallback = existing_feedback.feedback_data.get('fallback', False)
+                        if is_fallback:
+                            logger.info(f"Fallback feedback detected for answer {student_answer.id} — regenerating with real AI")
+                            # Continue with generation (don't return early)
+                        else:
+                            logger.info(f"Returning existing completed feedback for answer {student_answer.id}")
+                            return self._feedback_model_to_dict(existing_feedback)
                     else:
                         # Status says 'completed' but data is NULL - regenerate
-                        logger.warning(f"⚠️ Status is 'completed' but feedback_data is NULL - regenerating for answer {student_answer.id}")
+                        logger.warning(f"Status is 'completed' but feedback_data is NULL - regenerating for answer {student_answer.id}")
                         # Continue with generation
 
                 elif existing_feedback.generation_status in ['pending', 'generating']:
@@ -98,7 +107,7 @@ class AIFeedbackService:
                 existing_feedback = create_pending_feedback(
                     db=db,
                     answer_id=student_answer.id,
-                    timeout_seconds=120  # 2 minutes timeout
+                    timeout_seconds=45  # 45 second timeout
                 )
 
             # ========== STEP 3: Update status to 'generating' ==========
@@ -112,26 +121,32 @@ class AIFeedbackService:
             # ========== STEP 4: Load question and module data ==========
             question = get_question_by_id(db, question_id)
             if not question:
-                mark_feedback_failed(
-                    db=db,
-                    answer_id=student_answer.id,
-                    error_message="Question not found",
-                    error_type="data_error"
-                )
-                return self._error_response("Question not found")
+                logger.error(f"❌ Question {question_id} not found — returning fallback feedback")
+                fallback = self._build_universal_fallback(student_answer, question_id, module_id, db)
+                try:
+                    complete_feedback_generation(db=db, answer_id=student_answer.id,
+                        feedback_data={"explanation": fallback["explanation"], "fallback": True},
+                        is_correct=None, score=None, points_earned=0, points_possible=0,
+                        criterion_scores={}, confidence_level="low", ai_model="fallback")
+                except Exception:
+                    pass
+                return fallback
 
             update_feedback_status(db, student_answer.id, 'generating', 20)
 
             # Get module configuration
             module = db.query(Module).filter(Module.id == module_id).first()
             if not module:
-                mark_feedback_failed(
-                    db=db,
-                    answer_id=student_answer.id,
-                    error_message="Module not found",
-                    error_type="data_error"
-                )
-                return self._error_response("Module not found")
+                logger.error(f"❌ Module {module_id} not found — returning fallback feedback")
+                fallback = self._build_universal_fallback(student_answer, question_id, module_id, db)
+                try:
+                    complete_feedback_generation(db=db, answer_id=student_answer.id,
+                        feedback_data={"explanation": fallback["explanation"], "fallback": True},
+                        is_correct=None, score=None, points_earned=0, points_possible=0,
+                        criterion_scores={}, confidence_level="low", ai_model="fallback")
+                except Exception:
+                    pass
+                return fallback
 
             # Get rubric configuration (merges with defaults)
             rubric = get_module_rubric(db, module_id)
@@ -163,7 +178,7 @@ class AIFeedbackService:
                         student_answer=student_answer_text,
                         module_id=module_id,
                         max_chunks=rag_settings.get("max_context_chunks", 3),
-                        similarity_threshold=rag_settings.get("similarity_threshold", 0.7),
+                        similarity_threshold=rag_settings.get("similarity_threshold", 0.3),
                         include_document_locations=rag_settings.get("include_document_locations", True)
                     )
                     logger.info(f"✅ RAG context retrieved: has_context={rag_context.get('has_context', False)}")
@@ -182,13 +197,17 @@ class AIFeedbackService:
             update_feedback_status(db, student_answer.id, 'generating', 50)
 
             # ========== STEP 5: Generate feedback based on question type ==========
+            # Use GPT-4o-mini for MCQ types — binary grading doesn't need full GPT-4
+            mcq_model = "gpt-4o-mini"
+
             if question.type == 'mcq':
                 feedback = self._analyze_mcq_answer(
                     student_answer=student_answer_text,
                     question=question,
-                    ai_model=ai_model,
+                    ai_model=mcq_model,
                     rubric=rubric,
-                    rag_context=rag_context
+                    rag_context=rag_context,
+                    previous_feedback=previous_feedback_context
                 )
             elif question.type == 'fill_blank':
                 feedback = self._analyze_fill_blank_answer(
@@ -196,15 +215,17 @@ class AIFeedbackService:
                     question=question,
                     ai_model=ai_model,
                     rubric=rubric,
-                    rag_context=rag_context
+                    rag_context=rag_context,
+                    previous_feedback=previous_feedback_context
                 )
             elif question.type == 'mcq_multiple':
                 feedback = self._analyze_mcq_multiple_answer(
                     student_answer=student_answer.answer,
                     question=question,
-                    ai_model=ai_model,
+                    ai_model=mcq_model,
                     rubric=rubric,
-                    rag_context=rag_context
+                    rag_context=rag_context,
+                    previous_feedback=previous_feedback_context
                 )
             elif question.type == 'multi_part':
                 feedback = self._analyze_multi_part_answer(
@@ -212,7 +233,8 @@ class AIFeedbackService:
                     question=question,
                     ai_model=ai_model,
                     rubric=rubric,
-                    rag_context=rag_context
+                    rag_context=rag_context,
+                    previous_feedback=previous_feedback_context
                 )
             else:
                 # Default to text answer for short/long types
@@ -221,10 +243,12 @@ class AIFeedbackService:
                     question=question,
                     ai_model=ai_model,
                     rubric=rubric,
-                    rag_context=rag_context
+                    rag_context=rag_context,
+                    previous_feedback=previous_feedback_context
                 )
 
             # Prepare feedback data for storage
+            is_fallback = feedback.get("fallback", False)
             feedback_data = {
                 "explanation": feedback.get("explanation", ""),
                 "improvement_hint": feedback.get("improvement_hint"),
@@ -234,12 +258,19 @@ class AIFeedbackService:
                 "selected_option": feedback.get("selected_option"),
                 "correct_option": feedback.get("correct_option"),
                 "available_options": feedback.get("available_options"),
-                "model_used": ai_model,
+                "model_used": "fallback" if is_fallback else ai_model,
                 "confidence_level": feedback.get("confidence_level", "medium"),
                 "feedback_type": feedback.get("feedback_type"),
                 "used_rag": rag_context is not None and rag_context.get("has_context", False),
-                "rag_sources": rag_context.get("sources", []) if rag_context and rag_context.get("has_context") else None
+                "rag_sources": rag_context.get("sources", []) if rag_context and rag_context.get("has_context") else None,
+                "fallback": is_fallback,
+                "error_type": feedback.get("_error_type"),
+                "error_message": feedback.get("_error_message"),
             }
+
+            # If this is fallback, mark the model accordingly so upgrades are triggered
+            if is_fallback:
+                ai_model = "fallback"
 
             update_feedback_status(db, student_answer.id, 'generating', 90)
 
@@ -265,14 +296,24 @@ class AIFeedbackService:
             except Exception as db_error:
                 logger.error(f"❌ Failed to save feedback to database: {str(db_error)}")
                 logger.exception("Full traceback:")
-                # Mark as failed
-                mark_feedback_failed(
-                    db=db,
-                    answer_id=student_answer.id,
-                    error_message=f"Database error: {str(db_error)}",
-                    error_type="database_error"
-                )
-                raise
+                # Retry the save once after rollback
+                try:
+                    db.rollback()
+                    db_feedback = complete_feedback_generation(
+                        db=db,
+                        answer_id=student_answer.id,
+                        feedback_data=feedback_data,
+                        is_correct=feedback.get("is_correct"),
+                        score=feedback.get("correctness_score"),
+                        points_earned=feedback.get("points_earned"),
+                        points_possible=feedback.get("points_possible"),
+                        criterion_scores=feedback.get("criterion_scores"),
+                        confidence_level=feedback.get("confidence_level"),
+                        ai_model=ai_model
+                    )
+                    logger.info(f"✅ Feedback saved on retry after rollback")
+                except Exception:
+                    logger.error("❌ DB save failed even after retry — returning feedback without persisting")
 
             # Return complete feedback for API response
             return {
@@ -288,18 +329,34 @@ class AIFeedbackService:
             logger.error(f"❌ Error generating feedback: {str(e)}")
             logger.exception("Full traceback:")
 
-            # Mark feedback as failed
+            # NEVER fail — always give the student fallback feedback
+            fallback = self._build_universal_fallback(student_answer, question_id, module_id, db)
             try:
-                mark_feedback_failed(
+                fallback_data = {
+                    "explanation": fallback.get("explanation", ""),
+                    "improvement_hint": fallback.get("improvement_hint"),
+                    "concept_explanation": fallback.get("concept_explanation"),
+                    "confidence_level": "low",
+                    "feedback_type": fallback.get("feedback_type", "fallback"),
+                    "fallback": True
+                }
+                complete_feedback_generation(
                     db=db,
                     answer_id=student_answer.id,
-                    error_message=str(e),
-                    error_type="generation_error"
+                    feedback_data=fallback_data,
+                    is_correct=fallback.get("is_correct"),
+                    score=fallback.get("correctness_score"),
+                    points_earned=fallback.get("points_earned"),
+                    points_possible=fallback.get("points_possible"),
+                    criterion_scores={},
+                    confidence_level="low",
+                    ai_model="fallback"
                 )
-            except:
-                logger.error("Failed to mark feedback as failed")
+                logger.info(f"🛟 Saved fallback feedback for answer {student_answer.id}")
+            except Exception:
+                logger.error("❌ Even fallback save failed — returning in-memory fallback")
 
-            return self._error_response(f"Failed to generate feedback: {str(e)}")
+            return fallback
     
     def _get_ai_model_from_module(self, module: Optional[Module]) -> str:
         """Extract AI model from module configuration or use default"""
@@ -337,7 +394,8 @@ class AIFeedbackService:
         question: Question,
         ai_model: str,
         rubric: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]] = None
+        rag_context: Optional[Dict[str, Any]] = None,
+        previous_feedback: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Analyze multiple choice question answer with rubric and RAG support"""
 
@@ -378,7 +436,8 @@ class AIFeedbackService:
             correct_answer=correct_answer,
             is_correct=is_correct,
             rubric=rubric,
-            rag_context=rag_context
+            rag_context=rag_context,
+            previous_feedback=previous_feedback
         )
 
         # 🎯 LOG: OpenAI API call details
@@ -457,7 +516,7 @@ class AIFeedbackService:
             logger.info("💾 PARSED FEEDBACK DATA:")
             logger.info(f"   ✓ is_correct: {feedback.get('is_correct')}")
             logger.info(f"   ✓ correctness_score: {correctness_score}%")
-            logger.info(f"   ✓ points_earned: {points_earned:.2f if points_earned else 0} / {question.points}")
+            logger.info(f"   ✓ points_earned: {(points_earned or 0):.2f} / {question.points}")
             logger.info(f"   ✓ confidence: {confidence}")
             logger.info(f"   ✓ explanation: {feedback.get('explanation', '')[:100]}...")
             logger.info(f"   ✓ improvement_hint: {feedback.get('improvement_hint', '')[:100]}...")
@@ -467,16 +526,34 @@ class AIFeedbackService:
 
         except json.JSONDecodeError as je:
             logger.error(f"JSON decode error: {str(je)}, Response: {feedback_text}")
-            return self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points)
+            fb = self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points, question.text)
+            fb["_error_type"] = "JSONDecodeError"
+            fb["_error_message"] = str(je)[:200]
+            return fb
+        except openai.AuthenticationError as e:
+            logger.error(f"OpenAI authentication error: {str(e)}")
+            fb = self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points, question.text)
+            fb["_error_type"] = "AuthenticationError"
+            fb["_error_message"] = str(e)[:200]
+            return fb
         except openai.APITimeoutError as e:
-            logger.error(f"⏱️ OpenAI timeout after retries: {str(e)}")
-            return self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points)
+            logger.error(f"OpenAI timeout after retries: {str(e)}")
+            fb = self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points, question.text)
+            fb["_error_type"] = "APITimeoutError"
+            fb["_error_message"] = str(e)[:200]
+            return fb
         except openai.RateLimitError as e:
-            logger.error(f"🚫 OpenAI rate limit exceeded: {str(e)}")
-            return self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points)
+            logger.error(f"OpenAI rate limit exceeded: {str(e)}")
+            fb = self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points, question.text)
+            fb["_error_type"] = "RateLimitError"
+            fb["_error_message"] = str(e)[:200]
+            return fb
         except Exception as e:
             logger.error(f"OpenAI API error: {str(e)}")
-            return self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points)
+            fb = self._fallback_mcq_feedback(student_answer, correct_answer, options, is_correct, question.points, question.text)
+            fb["_error_type"] = type(e).__name__
+            fb["_error_message"] = str(e)[:200]
+            return fb
     
     def _analyze_text_answer(
         self,
@@ -484,7 +561,8 @@ class AIFeedbackService:
         question: Question,
         ai_model: str,
         rubric: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]] = None
+        rag_context: Optional[Dict[str, Any]] = None,
+        previous_feedback: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Analyze text-based (short/essay) question answer with rubric and RAG support"""
 
@@ -503,7 +581,8 @@ class AIFeedbackService:
             student_answer=student_answer,
             reference_answer=correct_answer,
             rubric=rubric,
-            rag_context=rag_context
+            rag_context=rag_context,
+            previous_feedback=previous_feedback
         )
 
         # 🎯 LOG: OpenAI API call details
@@ -593,16 +672,34 @@ class AIFeedbackService:
 
         except json.JSONDecodeError as je:
             logger.error(f"JSON decode error: {str(je)}, Response: {feedback_text}")
-            return self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points)
+            fb = self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points, question.text)
+            fb["_error_type"] = "JSONDecodeError"
+            fb["_error_message"] = str(je)[:200]
+            return fb
+        except openai.AuthenticationError as e:
+            logger.error(f"OpenAI authentication error: {str(e)}")
+            fb = self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points, question.text)
+            fb["_error_type"] = "AuthenticationError"
+            fb["_error_message"] = str(e)[:200]
+            return fb
         except openai.APITimeoutError as e:
-            logger.error(f"⏱️ OpenAI timeout after retries: {str(e)}")
-            return self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points)
+            logger.error(f"OpenAI timeout after retries: {str(e)}")
+            fb = self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points, question.text)
+            fb["_error_type"] = "APITimeoutError"
+            fb["_error_message"] = str(e)[:200]
+            return fb
         except openai.RateLimitError as e:
-            logger.error(f"🚫 OpenAI rate limit exceeded: {str(e)}")
-            return self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points)
+            logger.error(f"OpenAI rate limit exceeded: {str(e)}")
+            fb = self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points, question.text)
+            fb["_error_type"] = "RateLimitError"
+            fb["_error_message"] = str(e)[:200]
+            return fb
         except Exception as e:
             logger.error(f"OpenAI API error: {str(e)}")
-            return self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points)
+            fb = self._fallback_text_feedback(student_answer, correct_answer, question.type, question.points, question.text)
+            fb["_error_type"] = type(e).__name__
+            fb["_error_message"] = str(e)[:200]
+            return fb
     
     def _format_options(self, options: Dict[str, str]) -> str:
         """Format MCQ options for prompt"""
@@ -617,28 +714,50 @@ class AIFeedbackService:
         correct_answer: str,
         options: Dict[str, str],
         is_correct: bool,
-        question_points: float = 1.0
+        question_points: float = 1.0,
+        question_text: str = ""
     ) -> Dict[str, Any]:
-        """Fallback feedback when AI fails"""
-        # Get the correct option text for better feedback
-        correct_option_text = options.get(correct_answer, correct_answer) if options else correct_answer
-        correct_display = f"{correct_answer} ({correct_option_text})" if options else correct_answer
-
-        # Calculate points
+        """Fallback feedback when AI fails — NEVER reveals the correct answer."""
         correctness_score = 100 if is_correct else 0
         points_earned = (correctness_score / 100.0) * question_points
+
+        # Build question-aware feedback instead of generic boilerplate
+        selected_text = options.get(student_answer, student_answer) if options else student_answer
+
+        if is_correct:
+            explanation = f"Your answer '{selected_text}' is correct. You demonstrated a solid understanding of this topic."
+            hint = "Great work! Keep building on this knowledge."
+            concept = f"This question tests your understanding of a key concept. Your correct answer shows you grasp the material well."
+        else:
+            explanation = (
+                f"Your selection '{selected_text}' is not the best answer for this question. "
+                f"Think carefully about what the question is really asking and revisit the relevant topic in your course materials."
+            )
+            hint = (
+                f"Re-read the question: \"{question_text[:120]}{'...' if len(question_text) > 120 else ''}\" "
+                f"Consider what each option means in context and which one most directly addresses the question."
+            ) if question_text else (
+                "Re-read the question carefully and consider all options. "
+                "Think about the underlying concept being tested."
+            )
+            concept = (
+                f"This question is about: \"{question_text[:150]}{'...' if len(question_text) > 150 else ''}\" "
+                f"Review the section in your course materials that covers this topic."
+            ) if question_text else (
+                "Review the related section in your course materials to understand the concept this question covers."
+            )
 
         return {
             "is_correct": is_correct,
             "correctness_score": correctness_score,
             "points_earned": round(points_earned, 2),
             "points_possible": question_points,
-            "criterion_scores": {},  # Empty for fallback
-            "confidence_level": "low",  # Fallback has low confidence
+            "criterion_scores": {},
+            "confidence_level": "low",
             "feedback_type": "mcq",
-            "explanation": f"Your answer is {'correct' if is_correct else 'incorrect'}. The correct answer is {correct_display}.",
-            "improvement_hint": "Review the question and consider the key concepts being tested." if not is_correct else "Well done!",
-            "concept_explanation": "Please review the related course material.",
+            "explanation": explanation,
+            "improvement_hint": hint,
+            "concept_explanation": concept,
             "selected_option": student_answer,
             "correct_option": correct_answer,
             "available_options": options,
@@ -650,26 +769,46 @@ class AIFeedbackService:
         student_answer: str,
         correct_answer: str,
         question_type: str,
-        question_points: float = 1.0
+        question_points: float = 1.0,
+        question_text: str = ""
     ) -> Dict[str, Any]:
         """Fallback feedback for text answers when AI fails"""
         # Neutral score when AI unavailable
         correctness_score = 50
         points_earned = (correctness_score / 100.0) * question_points
 
+        if question_text:
+            explanation = (
+                f"Your answer has been submitted for the question: "
+                f"\"{question_text[:120]}{'...' if len(question_text) > 120 else ''}\" "
+                f"Detailed AI analysis is temporarily unavailable, but your teacher will review your response."
+            )
+            hint = (
+                f"Review the course materials related to this topic and compare your answer "
+                f"with what the materials explain about the concepts covered in this question."
+            )
+            concept = (
+                f"This question covers: \"{question_text[:150]}{'...' if len(question_text) > 150 else ''}\" "
+                f"Look for this topic in your course materials for a deeper understanding."
+            )
+        else:
+            explanation = "Your answer has been submitted. Detailed AI analysis is temporarily unavailable."
+            hint = "Review the course materials related to this topic."
+            concept = "Please refer to course materials for concept review."
+
         return {
             "is_correct": len(student_answer.strip()) > 0,
             "correctness_score": correctness_score,
             "points_earned": round(points_earned, 2),
             "points_possible": question_points,
-            "criterion_scores": {},  # Empty for fallback
-            "confidence_level": "low",  # Fallback has low confidence
+            "criterion_scores": {},
+            "confidence_level": "low",
             "feedback_type": question_type,
-            "explanation": "Your answer has been submitted. Please compare with the reference answer.",
+            "explanation": explanation,
             "strengths": ["Answer provided"],
             "weaknesses": ["Detailed analysis unavailable"],
-            "improvement_hint": "Review the reference answer and course materials.",
-            "concept_explanation": "Please refer to course materials for concept review.",
+            "improvement_hint": hint,
+            "concept_explanation": concept,
             "missing_concepts": [],
             "reference_answer": correct_answer,
             "fallback": True
@@ -688,13 +827,97 @@ class AIFeedbackService:
             "confidence_level": "low"
         }
 
+    def _build_universal_fallback(self, student_answer, question_id, module_id, db) -> Dict[str, Any]:
+        """
+        Build fallback feedback that ALWAYS succeeds, regardless of what went wrong.
+        This ensures the student never sees a failed state.
+        Includes question text for context-aware fallback messages.
+        """
+        try:
+            question = get_question_by_id(db, question_id)
+        except Exception:
+            question = None
+
+        q_type = question.type if question else "unknown"
+        q_points = question.points if question else 1.0
+        q_text = question.text if question else ""
+
+        if q_type == 'mcq':
+            correct_answer = (question.correct_option_id or question.correct_answer) if question else None
+            options = question.options or {} if question else {}
+            answer_text = self._extract_answer_text(student_answer.answer) if student_answer else ""
+            is_correct = None
+            if correct_answer and answer_text:
+                is_correct = answer_text.upper() == correct_answer.upper()
+            score = 100 if is_correct else (0 if is_correct is not None else None)
+            points_earned = (score / 100.0) * q_points if score is not None else 0
+
+            selected_text = options.get(answer_text, answer_text) if options else answer_text
+
+            if is_correct:
+                explanation = f"Your answer '{selected_text}' is correct. Good understanding of this topic."
+            elif is_correct is not None:
+                explanation = (
+                    f"Your selection '{selected_text}' is not the best answer. "
+                    f"Think about what the question is really asking and review the relevant topic."
+                )
+            else:
+                explanation = "Your answer has been recorded."
+
+            return {
+                "is_correct": is_correct,
+                "correctness_score": score,
+                "points_earned": round(points_earned, 2),
+                "points_possible": q_points,
+                "criterion_scores": {},
+                "confidence_level": "low",
+                "feedback_type": "mcq",
+                "explanation": explanation,
+                "improvement_hint": (
+                    f"Re-read: \"{q_text[:120]}{'...' if len(q_text) > 120 else ''}\" "
+                    f"and consider what each option means in context."
+                ) if q_text else "Review the question and related course materials.",
+                "concept_explanation": (
+                    f"This question covers: \"{q_text[:150]}{'...' if len(q_text) > 150 else ''}\" "
+                    f"Find this topic in your course materials."
+                ) if q_text else "Review your course materials for this topic.",
+                "fallback": True
+            }
+        else:
+            # Generic fallback for text, fill_blank, mcq_multiple, multi_part, or unknown
+            return {
+                "is_correct": None,
+                "correctness_score": 50,
+                "points_earned": round(0.5 * q_points, 2),
+                "points_possible": q_points,
+                "criterion_scores": {},
+                "confidence_level": "low",
+                "feedback_type": q_type,
+                "explanation": (
+                    f"Your answer has been submitted. Detailed AI feedback is temporarily unavailable, "
+                    f"but your teacher will review your response."
+                ),
+                "improvement_hint": (
+                    f"Review the course materials related to: "
+                    f"\"{q_text[:120]}{'...' if len(q_text) > 120 else ''}\""
+                ) if q_text else "Review the course materials related to this question.",
+                "concept_explanation": (
+                    f"This question covers: \"{q_text[:150]}{'...' if len(q_text) > 150 else ''}\" "
+                    f"Look for this topic in your course materials."
+                ) if q_text else "Refer to your course materials for this topic.",
+                "strengths": ["Answer submitted"],
+                "weaknesses": [],
+                "fallback": True
+            }
+
     def _analyze_fill_blank_answer(
         self,
         student_answer: Dict[str, Any],
         question: Question,
         ai_model: str,
         rubric: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]] = None
+        rag_context: Optional[Dict[str, Any]] = None,
+        previous_feedback: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Analyze fill-in-the-blank question answer with AI semantic matching"""
         from app.services.question_grading import QuestionGradingService
@@ -705,7 +928,14 @@ class AIFeedbackService:
 
         if not blank_configs:
             logger.error(f"Fill-blank question {question.id} has no blank configurations")
-            return self._error_response("Question configuration error")
+            return {
+                "is_correct": None, "correctness_score": 50,
+                "points_earned": round(0.5 * question.points, 2), "points_possible": question.points,
+                "criterion_scores": {}, "confidence_level": "low", "feedback_type": "fill_blank",
+                "explanation": "Your answer has been recorded. Detailed feedback is temporarily unavailable, but your teacher will review your response.",
+                "improvement_hint": "Review the course materials related to this question.",
+                "concept_explanation": "Please refer to your course materials.", "fallback": True
+            }
 
         # Extract student answers from answer data
         # Format: {"blanks": {0: "answer1", 1: "answer2", ...}}
@@ -737,6 +967,16 @@ class AIFeedbackService:
         num_correct = sum(1 for r in grading_result['blank_results'] if r['is_correct'])
         num_incorrect = len(grading_result['blank_results']) - num_correct
 
+        # Build previous feedback section if available
+        previous_feedback_section = ""
+        if previous_feedback:
+            previous_feedback_section = "\n" + _build_previous_feedback_section(previous_feedback) + "\n"
+
+        # Build RAG context section if available
+        rag_section = ""
+        if rag_context and rag_context.get("has_context"):
+            rag_section = "\n" + rag_context["formatted_context"] + "\n"
+
         prompt = f"""You are an educational AI providing feedback on a fill-in-the-blank answer.
 
 Question: {question.text}
@@ -746,7 +986,7 @@ Grading Results (INTERNAL - For AI analysis only):
 
 Score: {grading_result['earned_points']}/{grading_result['total_points']} ({grading_result['percentage']:.1f}%)
 Correct blanks: {num_correct}, Incorrect blanks: {num_incorrect}
-
+{rag_section}{previous_feedback_section}
 ⚠️ CRITICAL INSTRUCTION: NEVER reveal the accepted/correct answers for any blank in your feedback. DO NOT tell the student what the correct answer should be. Instead:
 
 1. **Analyze the question content**: Understand what topic/concept this question is testing
@@ -763,7 +1003,7 @@ Provide constructive, DETAILED, and CONTEXTUAL feedback in JSON format:
 {{
     "explanation": "Detailed analysis of their performance. Start by explaining how many blanks they filled correctly (e.g., 'You correctly filled X out of Y blanks'). Then provide insight into what this question is testing - what topic or concept is it about? Why is this knowledge important? Be specific to THIS question's content and subject matter.",
 
-    "improvement_hint": "Specific, contextual guidance related to THIS question's topic. Don't just say 'review the context' - instead, help them understand what type of knowledge or concepts they need for these specific blanks. For example: 'Consider the technical terminology related to [topic]' or 'Think about the grammatical structure needed here - this sentence is describing [concept]'. Reference the actual subject matter.",
+    "improvement_hint": "Specific, contextual guidance related to THIS question's topic. {("If course material sources are provided above, ALWAYS include an EXACT document reference like 'Review [Document Name], Page X' or 'See the section on [topic] in [Document]'. " if rag_context and rag_context.get('has_context') else "")}Don't just say 'review the context' - instead, help them understand what type of knowledge or concepts they need for these specific blanks.",
 
     "concept_explanation": "Explain the key concept, topic, or knowledge domain that THIS specific question is testing. What should students understand about [this topic] to fill in these blanks correctly? Be specific to the question content - what subject area is this? What principles or terminology are relevant?"
 }}
@@ -777,9 +1017,9 @@ Example of BAD feedback (too generic - AVOID THIS):
 Make your feedback detailed, contextual, and helpful!"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=ai_model,
+            response = self.client.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
+                model=ai_model,
                 temperature=0.4,
                 max_tokens=600
             )
@@ -816,6 +1056,8 @@ Make your feedback detailed, contextual, and helpful!"""
 
         except Exception as e:
             logger.error(f"AI feedback generation failed for fill-blank: {str(e)}")
+            _fill_blank_error_type = type(e).__name__
+            _fill_blank_error_message = str(e)[:200]
             # Return grading results without AI-generated text and WITHOUT revealing correct answers
 
             # Build detailed explanation from blank results WITHOUT revealing which blanks are wrong
@@ -853,7 +1095,9 @@ Make your feedback detailed, contextual, and helpful!"""
                 "concept_explanation": "Fill-in-the-blank questions test your understanding of specific terms and concepts. Read the entire sentence or paragraph carefully, paying attention to clues in the surrounding text. Make sure your answers are grammatically correct and contextually appropriate.",
                 "grading_details": grading_result,
                 "feedback_type": "fill_blank",
-                "fallback": True
+                "fallback": True,
+                "_error_type": _fill_blank_error_type,
+                "_error_message": _fill_blank_error_message,
             }
 
     def _analyze_mcq_multiple_answer(
@@ -862,7 +1106,8 @@ Make your feedback detailed, contextual, and helpful!"""
         question: Question,
         ai_model: str,
         rubric: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]] = None
+        rag_context: Optional[Dict[str, Any]] = None,
+        previous_feedback: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Analyze multiple-correct MCQ answer"""
         from app.services.question_grading import QuestionGradingService
@@ -880,7 +1125,14 @@ Make your feedback detailed, contextual, and helpful!"""
 
         if not correct_option_ids:
             logger.error(f"MCQ-multiple question {question.id} has no correct options configured")
-            return self._error_response("Question configuration error")
+            return {
+                "is_correct": None, "correctness_score": 50,
+                "points_earned": round(0.5 * question.points, 2), "points_possible": question.points,
+                "criterion_scores": {}, "confidence_level": "low", "feedback_type": "mcq_multiple",
+                "explanation": "Your answer has been recorded. Detailed feedback is temporarily unavailable, but your teacher will review your response.",
+                "improvement_hint": "Review the course materials related to this question.",
+                "concept_explanation": "Please refer to your course materials.", "fallback": True
+            }
 
         # Extract selected options from answer data
         # Format: {"selected_options": ["A", "B", "C"]}
@@ -901,6 +1153,16 @@ Make your feedback detailed, contextual, and helpful!"""
         selected_text = ", ".join([f"{opt}: {options.get(opt, '')}" for opt in selected_options])
         correct_text = ", ".join([f"{opt}: {options.get(opt, '')}" for opt in correct_option_ids])
 
+        # Build previous feedback section if available
+        previous_feedback_section = ""
+        if previous_feedback:
+            previous_feedback_section = "\n" + _build_previous_feedback_section(previous_feedback) + "\n"
+
+        # Build RAG context section if available
+        rag_section = ""
+        if rag_context and rag_context.get("has_context"):
+            rag_section = "\n" + rag_context["formatted_context"] + "\n"
+
         prompt = f"""You are an educational AI providing feedback on a multiple-choice question with multiple correct answers.
 
 Question: {question.text}
@@ -917,7 +1179,7 @@ Grading:
 - Incorrectly selected: {', '.join(grading_result['incorrectly_selected']) or 'None'}
 - Missed correct options: {', '.join(grading_result['missed_correct']) or 'None'}
 - Score: {grading_result['score']:.1f}%
-
+{rag_section}{previous_feedback_section}
 ⚠️ CRITICAL INSTRUCTION: NEVER reveal which specific options are correct in your feedback. DO NOT mention option letters/IDs (A, B, C, etc.) as being correct or incorrect. Instead:
 
 1. **Analyze the question content**: Understand what topic/concept this question is testing
@@ -934,13 +1196,13 @@ Provide constructive, DETAILED, and CONTEXTUAL feedback in JSON format:
 {{
     "explanation": "Detailed analysis of their performance. Start by acknowledging what they selected and explain the performance (e.g., 'You selected X option(s), and got Y correct'). Then provide insight into what this question is testing and why understanding [specific concept] is important. Be specific to THIS question's content.",
 
-    "improvement_hint": "Specific, contextual guidance related to THIS question's topic. Don't just say 'review all options' - instead, help them think about the specific concepts, principles, or criteria they should consider when evaluating the options. Reference the actual subject matter of the question. Guide them to think differently about the topic being tested.",
+    "improvement_hint": "Specific, contextual guidance related to THIS question's topic. {("If course material sources are provided above, ALWAYS include an EXACT document reference like 'Review [Document Name], Page X' or 'See the section on [topic] in [Document]'. " if rag_context and rag_context.get('has_context') else "")}Don't just say 'review all options' - instead, help them think about the specific concepts they should consider.",
 
     "concept_explanation": "Explain the key concept or principle that THIS specific question is testing. What should students understand about [this topic] to answer correctly? What's the learning objective? Be specific to the question content, not generic."
 }}
 
 Example of GOOD feedback (detailed and contextual):
-- "This question tests your understanding of data structures in computer science. When selecting the best data structure for a task, consider factors like time complexity, space efficiency, and the specific operations you need to perform..."
+- "This question tests your understanding of data structures in computer science. To better understand this, review Lab 3, Page 5, the section on arrays vs linked lists..."
 
 Example of BAD feedback (too generic - AVOID THIS):
 - "Review all the options carefully. Think about what makes an option correct."
@@ -948,9 +1210,9 @@ Example of BAD feedback (too generic - AVOID THIS):
 Make your feedback detailed, contextual, and helpful!"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=ai_model,
+            response = self.client.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
+                model=ai_model,
                 temperature=0.4,
                 max_tokens=700
             )
@@ -990,6 +1252,8 @@ Make your feedback detailed, contextual, and helpful!"""
 
         except Exception as e:
             logger.error(f"AI feedback generation failed for mcq-multiple: {str(e)}")
+            _mcq_mult_error_type = type(e).__name__
+            _mcq_mult_error_message = str(e)[:200]
 
             # Build comprehensive fallback feedback WITHOUT revealing correct answers
             correctly_selected = grading_result.get('correctly_selected', [])
@@ -1051,7 +1315,9 @@ Make your feedback detailed, contextual, and helpful!"""
                 "correct_options": correct_option_ids,
                 "available_options": options,
                 "feedback_type": "mcq_multiple",
-                "fallback": True
+                "fallback": True,
+                "_error_type": _mcq_mult_error_type,
+                "_error_message": _mcq_mult_error_message,
             }
 
     def _analyze_multi_part_answer(
@@ -1060,7 +1326,8 @@ Make your feedback detailed, contextual, and helpful!"""
         question: Question,
         ai_model: str,
         rubric: Dict[str, Any],
-        rag_context: Optional[Dict[str, Any]] = None
+        rag_context: Optional[Dict[str, Any]] = None,
+        previous_feedback: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """Analyze multi-part question answer"""
         # Get extended config with sub-questions
@@ -1069,7 +1336,14 @@ Make your feedback detailed, contextual, and helpful!"""
 
         if not sub_questions:
             logger.error(f"Multi-part question {question.id} has no sub-questions configured")
-            return self._error_response("Question configuration error")
+            return {
+                "is_correct": None, "correctness_score": 50,
+                "points_earned": round(0.5 * question.points, 2), "points_possible": question.points,
+                "criterion_scores": {}, "confidence_level": "low", "feedback_type": "multi_part",
+                "explanation": "Your answer has been recorded. Detailed feedback is temporarily unavailable, but your teacher will review your response.",
+                "improvement_hint": "Review the course materials related to this question.",
+                "concept_explanation": "Please refer to your course materials.", "fallback": True
+            }
 
         # Extract sub-answers from answer data
         # Format: {"sub_answers": {"1a": "answer", "1b": {"selected_option": "A"}, ...}}
@@ -1116,9 +1390,9 @@ Respond in JSON format:
     "reasoning": "brief explanation"
 }}"""
 
-                        response = self.client.chat.completions.create(
-                            model=ai_model,
+                        response = self.client.create_chat_completion(
                             messages=[{"role": "user", "content": grade_prompt}],
+                            model=ai_model,
                             temperature=0.3,
                             max_tokens=300
                         )
@@ -1180,6 +1454,16 @@ Respond in JSON format:
         correct_count = sum(1 for r in sub_results if r['is_correct'])
         total_count = len(sub_results)
 
+        # Build previous feedback section if available
+        previous_feedback_section = ""
+        if previous_feedback:
+            previous_feedback_section = "\n" + _build_previous_feedback_section(previous_feedback) + "\n"
+
+        # Build RAG context section if available
+        rag_section = ""
+        if rag_context and rag_context.get("has_context"):
+            rag_section = "\n" + rag_context["formatted_context"] + "\n"
+
         prompt = f"""You are an educational AI providing feedback on a multi-part question.
 
 Main Question: {question.text}
@@ -1189,7 +1473,7 @@ Sub-questions performance (INTERNAL - For AI analysis only):
 
 Total Score: {earned_points}/{total_points} ({score:.1f}%)
 Correct sub-questions: {correct_count}/{total_count}
-
+{rag_section}{previous_feedback_section}
 ⚠️ CRITICAL INSTRUCTION: NEVER reveal which specific sub-questions (by ID like "1a", "1b", etc.) are correct or incorrect in your feedback. DO NOT tell the student which parts they got wrong. Instead:
 
 1. **Analyze the question content**: Understand what overall topic/concept this multi-part question is testing
@@ -1206,13 +1490,13 @@ Provide constructive, DETAILED, and CONTEXTUAL feedback in JSON format:
 {{
     "explanation": "Detailed analysis of their overall performance. Start by explaining how many parts they answered correctly (e.g., 'You answered X out of Y parts correctly'). Then provide insight into what this multi-part question is testing - what is the overall topic? How do the different parts relate to this topic? Why is understanding this important? Be specific to THIS question's content and subject matter.",
 
-    "improvement_hint": "Specific, contextual guidance related to THIS question's overall topic. Don't just say 'review all parts' - instead, help them understand the key concepts they need to grasp to answer all parts successfully. For example: 'Consider how [concept A] relates to [concept B] in the context of [topic]' or 'Think about the progression from [idea] to [result] when considering all the parts together'. Guide them to think holistically about the topic.",
+    "improvement_hint": "Specific, contextual guidance related to THIS question's overall topic. {("If course material sources are provided above, ALWAYS include an EXACT document reference like 'Review [Document Name], Page X' or 'See the section on [topic] in [Document]'. " if rag_context and rag_context.get('has_context') else "")}Don't just say 'review all parts' - instead, help them understand the key concepts they need to grasp to answer all parts successfully.",
 
-    "concept_explanation": "Explain the overarching concept or principle that connects all the sub-questions together. What is the main learning objective? How do the different parts build on each other? Be specific to this question's topic - what subject area is this? What should students understand to answer all parts correctly?"
+    "concept_explanation": "Explain the overarching concept or principle that connects all the sub-questions together. What is the main learning objective? How do the different parts build on each other? Be specific to this question's topic."
 }}
 
 Example of GOOD feedback (detailed and contextual):
-- "This multi-part question tests your understanding of photosynthesis and how its different stages work together. The parts explore the light-dependent and light-independent reactions and how they connect. Consider the flow of energy and matter through the entire process..."
+- "This multi-part question tests your understanding of photosynthesis. To review this topic, see Lab 4, Pages 2-3, the section on light-dependent reactions..."
 
 Example of BAD feedback (too generic - AVOID THIS):
 - "Review each part carefully and make sure you understand what each one is asking."
@@ -1220,9 +1504,9 @@ Example of BAD feedback (too generic - AVOID THIS):
 Make your feedback detailed, contextual, and helpful!"""
 
         try:
-            response = self.client.chat.completions.create(
-                model=ai_model,
+            response = self.client.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
+                model=ai_model,
                 temperature=0.4,
                 max_tokens=700
             )
@@ -1260,6 +1544,8 @@ Make your feedback detailed, contextual, and helpful!"""
 
         except Exception as e:
             logger.error(f"AI feedback generation failed for multi-part: {str(e)}")
+            _multi_part_error_type = type(e).__name__
+            _multi_part_error_message = str(e)[:200]
 
             # Build detailed explanation from sub-results WITHOUT revealing which parts are wrong
             correct_count = sum(1 for r in sub_results if r['is_correct'])
@@ -1295,7 +1581,9 @@ Make your feedback detailed, contextual, and helpful!"""
                 "sub_total_points": total_points,  # Sub-question points (for internal tracking)
                 "sub_earned_points": earned_points,  # Sub-question earned points (for internal tracking)
                 "feedback_type": "multi_part",
-                "fallback": True
+                "fallback": True,
+                "_error_type": _multi_part_error_type,
+                "_error_message": _multi_part_error_message,
             }
 
     def _feedback_model_to_dict(self, feedback_model) -> Dict[str, Any]:

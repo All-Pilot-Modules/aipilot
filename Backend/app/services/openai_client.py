@@ -38,14 +38,14 @@ class OpenAIClientWithRetry:
         """
         self.client = openai.OpenAI(
             api_key=api_key,
-            timeout=90.0,  # 90 second timeout per request
+            timeout=30.0,  # 30 second timeout per request
             max_retries=0   # We handle retries ourselves for better control
         )
         self.default_model = default_model
 
     @retry(
-        stop=stop_after_attempt(3),  # Try up to 3 times
-        wait=wait_exponential(multiplier=1, min=2, max=10),  # 2s, 4s, 8s delays
+        stop=stop_after_attempt(2),  # Try up to 2 times (fits within 45s stale window)
+        wait=wait_exponential(multiplier=1, min=2, max=5),  # 2s, then 4s delay
         retry=retry_if_exception_type((
             openai.APITimeoutError,
             openai.APIConnectionError,
@@ -89,7 +89,7 @@ class OpenAIClientWithRetry:
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=90.0,  # Explicit timeout
+                timeout=30.0,  # Explicit timeout
                 **kwargs
             )
 
@@ -97,7 +97,7 @@ class OpenAIClientWithRetry:
             return response
 
         except openai.APITimeoutError as e:
-            logger.error(f"⏱️ OpenAI API timeout after 90s: {e}")
+            logger.error(f"⏱️ OpenAI API timeout after 30s: {e}")
             raise  # Will trigger retry via tenacity
 
         except openai.RateLimitError as e:

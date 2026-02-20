@@ -287,7 +287,7 @@ export default function FeaturesSection() {
                         variant="ghost"
                         className="group h-auto p-0 hover:bg-transparent text-slate-900 font-bold text-lg inline-flex items-center"
                       >
-                        <Link href="/learn-more">
+                        <Link href="/user-manual">
                           <span className="bg-[#2d201c] text-white px-6 py-3 rounded-full flex items-center group-hover:bg-slate-800 transition-colors">
                             Learn more
                             <ChevronRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />

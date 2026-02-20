@@ -123,11 +123,11 @@ const DashboardContent = memo(function DashboardContent() {
   }, []);
 
   // Load recent activities
-  const loadRecentActivities = useCallback(async (moduleId) => {
+  const loadRecentActivities = useCallback(async (moduleId, prefetchedAnswers = null) => {
     setLoadingActivities(true);
     try {
       // Get recent student answers
-      const answersData = await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
+      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
 
       if (Array.isArray(answersData)) {
         // Sort by timestamp and take last 10
@@ -154,10 +154,10 @@ const DashboardContent = memo(function DashboardContent() {
   }, []);
 
   // Load action items (things needing attention)
-  const loadActionItems = useCallback(async (moduleId) => {
+  const loadActionItems = useCallback(async (moduleId, prefetchedAnswers = null) => {
     setLoadingActions(true);
     try {
-      const answersData = await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
+      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
 
       if (Array.isArray(answersData)) {
         // Count submissions that need manual grading (marked for teacher review)
@@ -200,10 +200,10 @@ const DashboardContent = memo(function DashboardContent() {
   }, [moduleData.totalStudents]);
 
   // Load performance metrics
-  const loadPerformanceMetrics = useCallback(async (moduleId) => {
+  const loadPerformanceMetrics = useCallback(async (moduleId, prefetchedAnswers = null) => {
     setLoadingMetrics(true);
     try {
-      const answersData = await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
+      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
 
       if (Array.isArray(answersData) && answersData.length > 0) {
         // Calculate average score
@@ -237,9 +237,9 @@ const DashboardContent = memo(function DashboardContent() {
   }, [moduleData.totalStudents]);
 
   // Load progress data for chart
-  const loadProgressData = useCallback(async (moduleId) => {
+  const loadProgressData = useCallback(async (moduleId, prefetchedAnswers = null) => {
     try {
-      const answersData = await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
+      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
 
       if (Array.isArray(answersData) && answersData.length > 0) {
         // Group submissions by date (last 7 days)
@@ -308,9 +308,9 @@ const DashboardContent = memo(function DashboardContent() {
   }, []);
 
   // Load score distribution for chart
-  const loadScoreDistribution = useCallback(async (moduleId) => {
+  const loadScoreDistribution = useCallback(async (moduleId, prefetchedAnswers = null) => {
     try {
-      const answersData = await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
+      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
 
       if (Array.isArray(answersData) && answersData.length > 0) {
         // Filter answers with scores
@@ -357,6 +357,9 @@ const DashboardContent = memo(function DashboardContent() {
     }
 
     setLoadingModuleData(true);
+    setLoadingActivities(true);
+    setLoadingActions(true);
+    setLoadingMetrics(true);
     try {
       const modules = await apiClient.get(`/api/modules?teacher_id=${userId}`);
       const currentModule = modules.find(m => m.name === moduleName);
@@ -364,58 +367,85 @@ const DashboardContent = memo(function DashboardContent() {
       if (currentModule) {
         setModuleId(currentModule.id);
 
-        // Load real data
+        // Single batched call — backend computes everything and caches for 30s
         try {
-          // Get students count (from student-answers endpoint - count unique students)
-          let studentsCount = 0;
-          try {
-            const answersData = await apiClient.get(`/api/student-answers/?module_id=${currentModule.id}`);
-            if (Array.isArray(answersData)) {
-              const uniqueStudents = new Set(answersData.map(a => a.student_id));
-              studentsCount = uniqueStudents.size;
-            }
-          } catch (err) {
-            console.log('No student answers yet');
-          }
-
-          // Get questions count (all questions for teacher dashboard)
-          const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${currentModule.id}&status=all`);
-          const questionsCount = Array.isArray(questionsData) ? questionsData.length : 0;
-
-          // Get documents count (need teacher_id parameter)
-          const documentsData = await apiClient.get(`/api/documents?teacher_id=${userId}&module_id=${currentModule.id}`);
-          const documentsCount = Array.isArray(documentsData) ? documentsData.length : 0;
+          const metrics = await apiClient.get(
+            `/api/modules/${currentModule.id}/dashboard-metrics?teacher_id=${userId}`
+          );
 
           setModuleData({
-            accessCode: currentModule.access_code,
-            totalStudents: studentsCount,
-            totalQuestions: questionsCount,
-            totalDocuments: documentsCount
+            accessCode: metrics.access_code,
+            totalStudents: metrics.total_students,
+            totalQuestions: metrics.total_questions,
+            totalDocuments: metrics.total_documents
           });
+
+          setPerformanceMetrics({
+            averageScore: metrics.average_score,
+            completionRate: metrics.completion_rate,
+            aiFeedbackCount: metrics.ai_feedback_count,
+            totalSubmissions: metrics.total_submissions
+          });
+
+          setActionItems({
+            pendingGrades: metrics.action_items.pending_grades,
+            inactiveStudents: metrics.action_items.inactive_students,
+            lowPerformanceQuestions: metrics.action_items.low_performance_questions
+          });
+
+          // Score distribution — add colors client-side
+          const colors = [
+            'bg-red-500 dark:bg-red-600',
+            'bg-orange-500 dark:bg-orange-600',
+            'bg-yellow-500 dark:bg-yellow-600',
+            'bg-blue-500 dark:bg-blue-600',
+            'bg-emerald-500 dark:bg-emerald-600'
+          ];
+          setScoreDistribution(
+            (metrics.score_distribution || []).map((r, i) => ({ ...r, color: colors[i] }))
+          );
+
+          // Activity chart — convert dateKey strings to date objects for chart
+          setProgressData(
+            (metrics.activity_chart || []).map(d => ({
+              ...d,
+              date: new Date(d.dateKey)
+            }))
+          );
+
+          // Recent activity
+          setRecentActivities(
+            (metrics.recent_activity || []).map(a => ({
+              id: a.id,
+              type: 'submission',
+              studentName: `Student ${a.student_id}`,
+              questionText: `Question`,
+              timestamp: a.timestamp,
+              score: a.score
+            }))
+          );
+
+          // Rubric summary
+          if (metrics.rubric_summary) {
+            setRubricSummary(metrics.rubric_summary);
+          }
         } catch (error) {
-          console.error('Failed to load module stats:', error);
+          console.error('Failed to load dashboard metrics:', error);
           setModuleData(prev => ({
             ...prev,
             accessCode: currentModule.access_code
           }));
         }
-
-        // Load rubric summary
-        loadRubricSummary(currentModule.id);
-
-        // Load dynamic dashboard data
-        loadRecentActivities(currentModule.id);
-        loadActionItems(currentModule.id);
-        loadPerformanceMetrics(currentModule.id);
-        loadProgressData(currentModule.id);
-        loadScoreDistribution(currentModule.id);
       }
     } catch (error) {
       console.error('Failed to load module data:', error);
     } finally {
       setLoadingModuleData(false);
+      setLoadingActivities(false);
+      setLoadingActions(false);
+      setLoadingMetrics(false);
     }
-  }, [user, moduleName, loadRubricSummary, loadRecentActivities, loadActionItems, loadPerformanceMetrics, loadProgressData, loadScoreDistribution]);
+  }, [user, moduleName]);
 
   // Load real module data from database
   useEffect(() => {

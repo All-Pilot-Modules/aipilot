@@ -1,8 +1,10 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
-import DashboardPage from "@/components/dashboard/DashboardPage";
-import LandingPage from "@/components/landing/LandingPage";
+import dynamic from "next/dynamic";
+
+const DashboardPage = dynamic(() => import("@/components/dashboard/DashboardPage"));
+const LandingPage = dynamic(() => import("@/components/landing/LandingPage"));
 
 export default function Home() {
   const { user, loading, isAuthenticated } = useAuth();

@@ -1,5 +1,6 @@
 'use client';
 
+import Image from 'next/image';
 import { ArrowRight } from 'lucide-react';
 import { FadeIn, StaggerContainer, StaggerItem, ScaleIn } from './AnimationWrapper';
 
@@ -59,10 +60,12 @@ export default function TestimonialsSection() {
               <div className="group cursor-pointer">
                 {/* Image Container with Custom Podia Border Radius */}
                 <div className={`relative ${t.bgColor} rounded-[2.5rem] overflow-hidden mb-6 aspect-[4/5] shadow-sm transition-transform duration-500 group-hover:-translate-y-2`}>
-                  <img
+                  <Image
                     src={t.image}
                     alt={t.name}
-                    className="w-full h-full object-cover mix-blend-multiply opacity-90 grayscale group-hover:grayscale-0 transition-all duration-700"
+                    fill
+                    sizes="(max-width: 768px) 100vw, 25vw"
+                    className="object-cover mix-blend-multiply opacity-90 grayscale group-hover:grayscale-0 transition-all duration-700"
                   />
                   {/* Floating Quote Icon */}
                   <div className="absolute bottom-6 left-6 bg-white rounded-2xl p-4 shadow-xl max-w-[80%] opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
