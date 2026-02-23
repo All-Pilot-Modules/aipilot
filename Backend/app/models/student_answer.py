@@ -21,4 +21,5 @@ class StudentAnswer(Base):
         UniqueConstraint('student_id', 'question_id', 'attempt', name='uix_student_question_attempt'),
         Index('ix_student_answers_module_id', 'module_id'),
         Index('ix_student_answers_student_module', 'student_id', 'module_id'),
+        Index('ix_student_answers_student_module_attempt', 'student_id', 'module_id', 'attempt'),
     )

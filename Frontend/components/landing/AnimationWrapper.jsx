@@ -98,30 +98,36 @@ export function StaggerItem({ children, className = '' }) {
   );
 }
 
-// Parallax effect
+// Parallax effect — uses rAF throttling + direct DOM transform (no state re-renders)
 export function Parallax({ children, speed = 0.5, className = '' }) {
-  const [offsetY, setOffsetY] = useState(0);
   const ref = useRef(null);
+  const innerRef = useRef(null);
+  const rafId = useRef(null);
 
   useEffect(() => {
     const handleScroll = () => {
-      if (ref.current) {
-        const rect = ref.current.getBoundingClientRect();
-        const scrolled = window.pageYOffset;
-        const rate = scrolled * speed;
-        setOffsetY(rate);
-      }
+      if (rafId.current) return; // Already scheduled
+      rafId.current = requestAnimationFrame(() => {
+        if (innerRef.current) {
+          const rate = window.pageYOffset * speed;
+          innerRef.current.style.transform = `translateY(${rate}px)`;
+        }
+        rafId.current = null;
+      });
     };
 
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      if (rafId.current) cancelAnimationFrame(rafId.current);
+    };
   }, [speed]);
 
   return (
     <div ref={ref} className={className}>
-      <motion.div style={{ y: offsetY }}>
+      <div ref={innerRef} style={{ willChange: 'transform' }}>
         {children}
-      </motion.div>
+      </div>
     </div>
   );
 }

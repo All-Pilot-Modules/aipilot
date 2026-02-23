@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, Suspense, memo } from "react";
+import { useState, useEffect, useCallback, useRef, Suspense, memo, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
@@ -110,16 +110,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   const [hasTeacherGrades, setHasTeacherGrades] = useState(false); // Track if teacher has graded any work
   const [cleaningUp, setCleaningUp] = useState(false); // Track cleanup in progress
   const [regeneratingAll, setRegeneratingAll] = useState(false); // Track regenerate all in progress
-  const [feedbackUpdateCounter, setFeedbackUpdateCounter] = useState(0); // Force re-render when feedback updates
-
   // Consent modal state
   const [showConsentModal, setShowConsentModal] = useState(false);
   const [consentChecked, setConsentChecked] = useState(false);
-
-  // Debug: Track consent modal state changes
-  useEffect(() => {
-    console.log('🟢 CONSENT MODAL STATE CHANGED:', { showConsentModal, consentChecked, moduleData: !!moduleData, moduleAccess: !!moduleAccess });
-  }, [showConsentModal, consentChecked, moduleData, moduleAccess]);
 
   // Survey status state
   const [surveySubmitted, setSurveySubmitted] = useState(false);
@@ -127,6 +120,74 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
   // Check if chatbot is enabled based on module settings
   const isChatbotEnabled = moduleData?.assignment_config?.features?.chatbot_feedback?.enabled ?? true;
+
+  // Memoize expensive computations to avoid recalculating on every render
+  const questionTypeCounts = useMemo(() => {
+    if (!questions || questions.length === 0) return [];
+    const counts = {};
+    for (const q of questions) {
+      const t = q?.type || 'unknown';
+      counts[t] = (counts[t] || 0) + 1;
+    }
+    const typeConfig = {
+      mcq: { label: 'Multiple Choice', color: 'bg-green-500' },
+      mcq_multiple: { label: 'MCQ (Multiple)', color: 'bg-emerald-500' },
+      short: { label: 'Short Answer', color: 'bg-yellow-500' },
+      long: { label: 'Long Answer', color: 'bg-purple-500' },
+      fill_blank: { label: 'Fill in Blanks', color: 'bg-blue-500' },
+      multi_part: { label: 'Multi-Part', color: 'bg-pink-500' },
+    };
+    return Object.entries(counts)
+      .filter(([type]) => typeConfig[type])
+      .map(([type, count]) => ({ type, count, ...typeConfig[type] }));
+  }, [questions]);
+
+  // Memoize feedback score calculations (runs on every render otherwise)
+  const feedbackStats = useMemo(() => {
+    const entries = Object.values(feedbackData);
+    const total = entries.length;
+    if (total === 0) return { correctCount: 0, total: 0, percentage: 0 };
+
+    const correctCount = entries.filter(f => {
+      if (f.teacher_grade) return f.teacher_grade.points_awarded >= f.points_possible;
+      return f.is_correct;
+    }).length;
+
+    let totalPointsEarned = 0;
+    let totalPointsPossible = 0;
+    for (const f of entries) {
+      if (f.teacher_grade) {
+        totalPointsEarned += f.teacher_grade.points_awarded || 0;
+        totalPointsPossible += f.points_possible || 0;
+      } else {
+        const scoreValue = f.correctness_score ?? f.score ?? 0;
+        const pointsPossible = f.points_possible || 1;
+        const score = scoreValue > 1 ? scoreValue / 100 : scoreValue;
+        totalPointsEarned += score * pointsPossible;
+        totalPointsPossible += pointsPossible;
+      }
+    }
+
+    const percentage = totalPointsPossible > 0
+      ? Math.round((totalPointsEarned / totalPointsPossible) * 100)
+      : 0;
+
+    return { correctCount, total, percentage };
+  }, [feedbackData]);
+
+  // Memoize visible attempts for the attempt selector
+  const visibleAttempts = useMemo(() => {
+    const maxAttempts = submissionStatus?.max_attempts || 2;
+    return Object.keys(feedbackByAttempt)
+      .filter(attemptNum => {
+        const isFinalAttempt = Number(attemptNum) >= maxAttempts;
+        if (isFinalAttempt) {
+          return Object.values(feedbackByAttempt[attemptNum]).some(f => f.teacher_grade);
+        }
+        return true;
+      })
+      .sort((a, b) => Number(a) - Number(b));
+  }, [feedbackByAttempt, submissionStatus]);
 
   // Check if student has submitted consent for this module
   const checkConsentStatus = useCallback(async (access) => {
@@ -211,14 +272,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   useEffect(() => {
     const currentFeedback = feedbackByAttempt[selectedAttempt] || {};
     const feedbackCount = Object.keys(currentFeedback).length;
-    console.log(`🔄 [useEffect] Updating feedbackData for attempt ${selectedAttempt}: ${feedbackCount} items (counter: ${feedbackUpdateCounter})`);
+    console.log(`[useEffect] Updating feedbackData for attempt ${selectedAttempt}: ${feedbackCount} items`);
 
-    // Create new object references at the top level to ensure React detects changes
-    const newFeedbackData = Object.keys(currentFeedback).reduce((acc, key) => {
-      acc[key] = currentFeedback[key];
-      return acc;
-    }, {});
-    setFeedbackData(newFeedbackData);
+    setFeedbackData({ ...currentFeedback });
 
     // Log the actual feedback IDs for debugging
     if (feedbackCount > 0) {
@@ -301,7 +357,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
     };
 
     updateAnsweredQuestionsForAttempt();
-  }, [selectedAttempt, feedbackByAttempt, feedbackUpdateCounter, moduleAccess, moduleId]);
+  }, [selectedAttempt, feedbackByAttempt, moduleAccess, moduleId]);
 
   const loadFeedbackForAnswers = useCallback(async (access) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -379,8 +435,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
         return { ...byAttempt }; // Return new reference
       });
 
-      // Increment counter to force re-render of dependent components
-      setFeedbackUpdateCounter(prev => prev + 1);
+      // feedbackByAttempt state update above already triggers dependent useEffects
 
       // Note: feedbackData will be set by the useEffect when selectedAttempt is determined
       // Don't set it here as selectedAttempt might still be the default value (1)
@@ -566,62 +621,58 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       // Set data
       const moduleInfo = moduleResponse.data || moduleResponse;
 
-      // Fetch teacher information if available - non-critical, fail gracefully
-      if (moduleInfo.teacher_id) {
-        try {
-          const teacherResponse = await apiClient.get(`/api/users/${moduleInfo.teacher_id}`);
-          const teacherData = teacherResponse.data || teacherResponse;
-          moduleInfo.teacher_name = teacherData.name || teacherData.email || 'Instructor';
-        } catch (err) {
-          console.log('Teacher info not available (non-critical):', err.message || err);
-          moduleInfo.teacher_name = 'Instructor';
-        }
-      }
-
-      setModuleData(moduleInfo);
       setDocuments(documentsResponse.data || documentsResponse);
 
       const questionsData = questionsResponse.data || questionsResponse;
       setQuestions(questionsData);
 
-      // Check survey status - non-critical, fail gracefully
-      if (access.studentId) {
-        try {
-          const surveyStatusResponse = await apiClient.get(
-            `/api/student/modules/${moduleId}/survey/status?student_id=${access.studentId}`
-          );
-          setSurveySubmitted(surveyStatusResponse.has_submitted || false);
-          setSurveyRequired(moduleInfo.survey_required || false);
-          console.log('📋 Survey status:', surveyStatusResponse);
-        } catch (err) {
-          console.log('Survey status not available (non-critical):', err.message || err);
-          setSurveySubmitted(false);
-          setSurveyRequired(moduleInfo.survey_required || false);
-        }
+      // Run secondary calls in parallel — all non-critical, failures don't block
+      const [teacherResult, surveyResult, submissionResult] = await Promise.allSettled([
+        // Teacher info
+        moduleInfo.teacher_id
+          ? apiClient.get(`/api/users/${moduleInfo.teacher_id}`).then(r => r.data || r)
+          : Promise.resolve(null),
+        // Survey status
+        access.studentId
+          ? apiClient.get(`/api/student/modules/${moduleId}/survey/status?student_id=${access.studentId}`)
+          : Promise.resolve(null),
+        // Submission status
+        access.studentId && questionsData.length > 0
+          ? apiClient.get(`/api/student/modules/${moduleId}/submission-status?student_id=${access.studentId}`)
+          : Promise.resolve(null)
+      ]);
+
+      // Process teacher info
+      if (teacherResult.status === 'fulfilled' && teacherResult.value) {
+        const teacherData = teacherResult.value;
+        moduleInfo.teacher_name = teacherData.name || teacherData.email || 'Instructor';
+      } else {
+        moduleInfo.teacher_name = 'Instructor';
+      }
+      setModuleData(moduleInfo);
+
+      // Process survey status
+      if (surveyResult.status === 'fulfilled' && surveyResult.value) {
+        setSurveySubmitted(surveyResult.value.has_submitted || false);
+        setSurveyRequired(moduleInfo.survey_required || false);
+      } else {
+        setSurveySubmitted(false);
+        setSurveyRequired(moduleInfo.survey_required || false);
+      }
+
+      // Process submission status
+      let status = null;
+      if (submissionResult.status === 'fulfilled' && submissionResult.value) {
+        status = submissionResult.value?.data || submissionResult.value || {};
+        setSubmissionStatus(status);
+      } else if (access.studentId && questionsData.length > 0) {
+        status = { current_attempt: 1, submissions: [], can_submit_again: true, all_attempts_done: false };
+        setSubmissionStatus(status);
       }
 
       if (access.studentId && questionsData.length > 0) {
-        // Use the new submission-status endpoint to get submission state
-        let status = null;
-        try {
-          const statusResponse = await apiClient.get(
-            `/api/student/modules/${moduleId}/submission-status?student_id=${access.studentId}`
-          );
-          status = statusResponse?.data || statusResponse || {};
-          setSubmissionStatus(status);
-          console.log(`📊 Submission status loaded:`, status);
-        } catch (err) {
-          // Handle both "not found" and connection errors gracefully
-          console.log('Submission status not available (will retry via polling):', err.message || err);
-          status = { current_attempt: 1, submissions: [], can_submit_again: true, all_attempts_done: false };
-          setSubmissionStatus(status);
-        }
-
         // Load feedback from database - always succeeds, returns empty object on error
-        const feedbackMap = await loadFeedbackForAnswers(access).catch(err => {
-          console.log('Feedback loading failed (will retry via polling):', err);
-          return {}; // Return empty feedback map
-        });
+        const feedbackMap = await loadFeedbackForAnswers(access).catch(() => ({}));
 
         // Determine which attempt to show by default
         // Priority: Use the most recently completed submission (even if feedback is still generating)
@@ -1352,10 +1403,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                             </div>
                           </div>
                           <Button
-                            onClick={() => {
-                              const feedbackTab = document.querySelector('[value="feedback"]');
-                              if (feedbackTab) feedbackTab.click();
-                            }}
+                            onClick={() => setActiveTab('feedback')}
                             className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg ring-2 ring-blue-600/20 flex-shrink-0 w-full sm:w-auto"
                             size="lg"
                           >
@@ -1405,25 +1453,12 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                   <CardContent>
                     <div className="space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                        {(() => {
-                          const questionTypeCounts = [
-                            { type: 'mcq', label: 'Multiple Choice', color: 'bg-green-500', count: questions.filter(q => q?.type === 'mcq').length },
-                            { type: 'mcq_multiple', label: 'MCQ (Multiple)', color: 'bg-emerald-500', count: questions.filter(q => q?.type === 'mcq_multiple').length },
-                            { type: 'short', label: 'Short Answer', color: 'bg-yellow-500', count: questions.filter(q => q?.type === 'short').length },
-                            { type: 'long', label: 'Long Answer', color: 'bg-purple-500', count: questions.filter(q => q?.type === 'long').length },
-                            { type: 'fill_blank', label: 'Fill in Blanks', color: 'bg-blue-500', count: questions.filter(q => q?.type === 'fill_blank').length },
-                            { type: 'multi_part', label: 'Multi-Part', color: 'bg-pink-500', count: questions.filter(q => q?.type === 'multi_part').length }
-                          ];
-
-                          return questionTypeCounts
-                            .filter(item => item.count > 0)
-                            .map(item => (
-                              <div key={item.type} className="flex items-center gap-2">
-                                <div className={`w-2 h-2 ${item.color} rounded-full`}></div>
-                                <span>{item.count} {item.label}</span>
-                              </div>
-                            ));
-                        })()}
+                        {questionTypeCounts.map(item => (
+                          <div key={item.type} className="flex items-center gap-2">
+                            <div className={`w-2 h-2 ${item.color} rounded-full`}></div>
+                            <span>{item.count} {item.label}</span>
+                          </div>
+                        ))}
                       </div>
 
                       {moduleData?.instructions && (
@@ -1525,25 +1560,6 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
           {/* Feedback Tab */}
           <TabsContent value="feedback" className="space-y-6">
-            {/* DEBUG: Show feedback data state */}
-            {process.env.NODE_ENV === 'development' && (
-              <div className="mb-4 p-4 bg-blue-50 dark:bg-blue-950 rounded-lg text-xs font-mono space-y-2">
-                <div className="font-bold mb-2">FEEDBACK DATA DEBUG</div>
-                <div>FeedbackData entries: {Object.keys(feedbackData).length}</div>
-                <div>FeedbackByAttempt[{selectedAttempt}] entries: {Object.keys(feedbackByAttempt[selectedAttempt] || {}).length}</div>
-                <div>Questions count: {questions?.length || 0}</div>
-                <div>Update Counter: {feedbackUpdateCounter}</div>
-                {Object.keys(feedbackData).length > 0 && (
-                  <div className="mt-2 pt-2 border-t border-blue-200">
-                    <div className="font-bold mb-1">First Feedback Sample:</div>
-                    <div className="text-xs overflow-auto max-h-40">
-                      {JSON.stringify(Object.values(feedbackData)[0], null, 2)}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
             {/* Show beautiful loading banner when actively generating feedback */}
             {isPolling && feedbackStatus && (
               <FeedbackGeneratingBanner
@@ -1561,33 +1577,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
             ) : Object.keys(feedbackData).length > 0 ? (
               <>
                 {/* Attempt Selector - Only show attempts that have AI feedback OR teacher grades */}
-                {(() => {
-                  const maxAttempts = submissionStatus?.max_attempts || 2;
-
-                  // Filter attempts to show: only include final attempts if they have teacher grades
-                  const visibleAttempts = Object.keys(feedbackByAttempt)
-                    .filter(attemptNum => {
-                      const attemptNumber = Number(attemptNum);
-                      const isFinalAttempt = attemptNumber >= maxAttempts;
-
-                      // If it's a final attempt, only show if it has teacher grades
-                      if (isFinalAttempt) {
-                        const attemptFeedback = feedbackByAttempt[attemptNum];
-                        const hasTeacherGrade = Object.values(attemptFeedback).some(f => f.teacher_grade);
-                        return hasTeacherGrade;
-                      }
-
-                      // Non-final attempts are always shown
-                      return true;
-                    })
-                    .sort((a, b) => Number(a) - Number(b));
-
-                  // Only show selector if there are multiple visible attempts
-                  if (visibleAttempts.length <= 1) {
-                    return null;
-                  }
-
-                  return (
+                {visibleAttempts.length > 1 && (
                     <div className="flex items-center gap-2 mb-4">
                       <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View Attempt:</span>
                       <div className="flex gap-2">
@@ -1604,8 +1594,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                         ))}
                       </div>
                     </div>
-                  );
-                })()}
+                )}
 
                 {/* Teacher Grades Available Banner */}
                 {(() => {
@@ -1709,53 +1698,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 Feedback for Attempt {selectedAttempt}
                               </h3>
                               <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
-                            {(() => {
-                              // Count correct answers, prioritizing teacher grades over AI feedback
-                              const correctCount = Object.values(feedbackData).filter(f => {
-                                // If teacher graded, consider it correct only if full points awarded
-                                if (f.teacher_grade) {
-                                  return f.teacher_grade.points_awarded >= f.points_possible;
-                                }
-                                // Otherwise use AI's is_correct
-                                return f.is_correct;
-                              }).length;
-                              return `${correctCount} out of ${Object.keys(feedbackData).length} correct`;
-                            })()}
+                            {`${feedbackStats.correctCount} out of ${feedbackStats.total} correct`}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
                         <div className="text-4xl font-bold text-blue-600">
-                          {(() => {
-                            // Calculate percentage based on points, not just correct/incorrect count
-                            const totalQuestions = Object.keys(feedbackData).length;
-                            if (totalQuestions === 0) return 0;
-
-                            // Calculate actual points earned vs possible
-                            let totalPointsEarned = 0;
-                            let totalPointsPossible = 0;
-
-                            Object.values(feedbackData).forEach(f => {
-                              if (f.teacher_grade) {
-                                // Use teacher's points
-                                totalPointsEarned += f.teacher_grade.points_awarded || 0;
-                                totalPointsPossible += f.points_possible || 0;
-                              } else {
-                                // Use AI's score - try correctness_score first, then score as fallback
-                                const scoreValue = f.correctness_score !== null && f.correctness_score !== undefined
-                                  ? f.correctness_score
-                                  : (f.score !== null && f.score !== undefined ? f.score : 0);
-
-                                const pointsPossible = f.points_possible || 1;
-                                const score = scoreValue > 1 ? scoreValue / 100 : scoreValue;
-                                totalPointsEarned += score * pointsPossible;
-                                totalPointsPossible += pointsPossible;
-                              }
-                            });
-
-                            if (totalPointsPossible === 0) return 0;
-                            return Math.round((totalPointsEarned / totalPointsPossible) * 100);
-                          })()}%
+                          {feedbackStats.percentage}%
                         </div>
                         <p className="text-sm text-gray-600 dark:text-gray-400">Progress on Attempt {selectedAttempt}</p>
                       </div>
@@ -2015,25 +1964,6 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                     {questions.map((question, index) => {
                       const feedback = feedbackData[question.id];
                       const isAnswered = answeredQuestions[question.id];
-
-                      // Debug logging for feedback state
-                      if (index < 3) { // Only log first 3 questions to avoid spam
-                        console.log(`📋 Q${index + 1} (ID: ${question.id}):`, {
-                          hasFeedback: !!feedback,
-                          status: feedback?.generation_status,
-                          hasExplanation: !!feedback?.explanation,
-                          hasScore: feedback?.correctness_score !== undefined,
-                          isCorrect: feedback?.is_correct,
-                          feedbackKeys: feedback ? Object.keys(feedback).join(', ') : 'no feedback',
-                        });
-                      }
-
-                      // Log ALL question IDs vs feedbackData keys on first question
-                      if (index === 0) {
-                        console.log('🔑 All Question IDs:', questions.map(q => q.id));
-                        console.log('🔑 FeedbackData Keys:', Object.keys(feedbackData));
-                        console.log('🔑 Do they match?', questions.every(q => feedbackData[q.id] !== undefined));
-                      }
 
                       return (
                         <Card

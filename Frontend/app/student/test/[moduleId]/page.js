@@ -51,6 +51,23 @@ const PrefillControlPanel = dynamic(() => import("@/components/PrefillControlPan
   ssr: false
 });
 
+// Self-updating timer that doesn't trigger parent re-renders
+const TimerDisplay = memo(function TimerDisplay({ startTime }) {
+  const [display, setDisplay] = useState('00:00');
+  useEffect(() => {
+    const formatTime = (seconds) => {
+      const mins = Math.floor(seconds / 60);
+      const secs = seconds % 60;
+      return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    };
+    const interval = setInterval(() => {
+      setDisplay(formatTime(Math.floor((Date.now() - startTime) / 1000)));
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
+  return <>{display}</>;
+});
+
 const StudentTestPage = memo(function StudentTestPage() {
   const params = useParams();
   const router = useRouter();
@@ -71,7 +88,6 @@ const StudentTestPage = memo(function StudentTestPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [currentQuestion, setCurrentQuestion] = useState(0);
-  const [timeSpent, setTimeSpent] = useState(0);
   const [startTime] = useState(Date.now());
   const [isCompleted, setIsCompleted] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null); // 'saving', 'saved', 'error'
@@ -307,19 +323,13 @@ const StudentTestPage = memo(function StudentTestPage() {
     setModuleAccess(access);
     loadTestData(access);
 
-    // Track time spent
-    const interval = setInterval(() => {
-      setTimeSpent(Math.floor((Date.now() - startTime) / 1000));
-    }, 1000);
-
     return () => {
-      clearInterval(interval);
       // Cleanup auto-save timeout on unmount
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
     };
-  }, [moduleId, router, startTime, loadTestData]);
+  }, [moduleId, router, loadTestData]);
 
   const updateAnswer = (questionId, answer) => {
     // Check if answer is the same to prevent duplicate API calls
@@ -1008,12 +1018,6 @@ const StudentTestPage = memo(function StudentTestPage() {
     });
   };
 
-  const formatTime = (seconds) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   const getAnsweredCount = () => {
     return Object.keys(answers).filter(qId => {
       const answer = answers[qId];
@@ -1182,7 +1186,7 @@ const StudentTestPage = memo(function StudentTestPage() {
             <div className="flex items-center gap-4">
               <div className="text-sm text-gray-600 dark:text-gray-400">
                 <Clock className="w-4 h-4 inline mr-1" />
-                {formatTime(timeSpent)}
+                <TimerDisplay startTime={startTime} />
               </div>
               <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-300">
                 Attempt {attempts[questions[0]?.id] || 1}

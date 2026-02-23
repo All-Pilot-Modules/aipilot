@@ -95,8 +95,7 @@ def get_context_for_feedback(
         Document.is_testbank == False  # Don't use testbank docs for context
     ).all()
 
-    print(f"RAG DEBUG: Looking for documents in module {module_id}")
-    print(f"   Found {len(documents)} embedded documents")
+    logger.debug(f"RAG: Looking for documents in module {module_id}, found {len(documents)} embedded")
 
     if not documents:
         all_docs = db.query(Document).filter(Document.module_id == module_id).all()

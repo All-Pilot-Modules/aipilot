@@ -82,6 +82,45 @@ def create_feedback_job(
     return job
 
 
+def create_feedback_jobs_batch(
+    db,
+    answer_ids: list,
+    student_id: str,
+    module_id: str,
+    attempt: int,
+    priority: int = 1,
+    previous_feedback_context=None,
+):
+    """
+    Insert multiple FeedbackJob rows in a single commit.
+    Much faster than calling create_feedback_job() in a loop (1 commit vs N commits).
+    """
+    previous_json = None
+    if previous_feedback_context:
+        try:
+            previous_json = json.dumps(previous_feedback_context)
+        except Exception:
+            previous_json = None
+
+    mid = module_id if isinstance(module_id, UUID) else UUID(str(module_id))
+    jobs = []
+    for answer_id in answer_ids:
+        job = FeedbackJob(
+            answer_id=answer_id if isinstance(answer_id, UUID) else UUID(str(answer_id)),
+            student_id=student_id,
+            module_id=mid,
+            attempt=attempt,
+            priority=priority,
+            previous_feedback_json=previous_json,
+        )
+        db.add(job)
+        jobs.append(job)
+
+    db.commit()
+    logger.info(f"[worker] Created {len(jobs)} jobs in batch for student {student_id} attempt {attempt}")
+    return jobs
+
+
 def recover_stale_jobs():
     """
     Called once at startup.
@@ -472,8 +511,14 @@ def calculate_test_score(student_id: str, module_id: str, attempt: int):
 
         mid = UUID(module_id) if isinstance(module_id, str) else module_id
 
-        answers = (
-            db.query(StudentAnswer)
+        # Single JOIN: answers + questions + feedback in one query (not N+1)
+        rows = (
+            db.query(
+                Question.points,
+                AIFeedback.points_earned,
+            )
+            .join(StudentAnswer, StudentAnswer.question_id == Question.id)
+            .outerjoin(AIFeedback, AIFeedback.answer_id == StudentAnswer.id)
             .filter(
                 StudentAnswer.student_id == student_id,
                 StudentAnswer.module_id == mid,
@@ -485,14 +530,11 @@ def calculate_test_score(student_id: str, module_id: str, attempt: int):
         total_points_possible = 0.0
         total_points_earned = 0.0
 
-        for answer in answers:
-            question = db.query(Question).filter(Question.id == answer.question_id).first()
-            if question:
-                total_points_possible += question.points
-
-                feedback = db.query(AIFeedback).filter(AIFeedback.answer_id == answer.id).first()
-                if feedback and feedback.points_earned is not None:
-                    total_points_earned += feedback.points_earned
+        for q_points, fb_points_earned in rows:
+            if q_points is not None:
+                total_points_possible += q_points
+            if fb_points_earned is not None:
+                total_points_earned += fb_points_earned
 
         percentage_score = (
             (total_points_earned / total_points_possible * 100) if total_points_possible > 0 else 0

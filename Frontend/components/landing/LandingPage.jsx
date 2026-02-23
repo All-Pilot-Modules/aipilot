@@ -1,10 +1,13 @@
+import dynamic from 'next/dynamic';
 import HeroSection from './HeroSection';
-import FeaturesSection from './FeaturesSection';
 import HowItWorksSection from './HowItWorksSection';
 import BrandSection from './BrandSection';
-import TestimonialsSection from './TestimonialsSection';
-import StudentAccessSection from './StudentAccessSection';
-import Footer from './Footer';
+
+// Lazy-load below-the-fold sections (user won't see these on initial paint)
+const FeaturesSection = dynamic(() => import('./FeaturesSection'));
+const TestimonialsSection = dynamic(() => import('./TestimonialsSection'));
+const StudentAccessSection = dynamic(() => import('./StudentAccessSection'));
+const Footer = dynamic(() => import('./Footer'));
 
 export default function LandingPage() {
   return (
@@ -14,10 +17,12 @@ export default function LandingPage() {
         <HowItWorksSection />
         <BrandSection />
         <FeaturesSection />
-        <TestimonialsSection />
+        {/* <TestimonialsSection /> */}
         <StudentAccessSection />
       </main>
       <Footer />
     </div>
   );
 }
+
+
