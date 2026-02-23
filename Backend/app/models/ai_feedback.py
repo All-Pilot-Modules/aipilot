@@ -61,4 +61,5 @@ class AIFeedback(Base):
     __table_args__ = (
         Index('ix_ai_feedback_answer_id', 'answer_id'),
         Index('ix_ai_feedback_generated_at', 'generated_at'),
+        Index('ix_ai_feedback_generation_status', 'generation_status'),
     )

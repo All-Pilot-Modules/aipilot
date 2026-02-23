@@ -22,7 +22,7 @@ from app.crud.module import get_module_by_access_code, get_module_by_id
 from app.models.module import Module
 from app.crud.document import get_documents_by_module, get_documents_by_module_for_students
 from app.database import get_db
-from app.services.feedback_worker import create_feedback_job
+from app.services.feedback_worker import create_feedback_job, create_feedback_jobs_batch
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -43,14 +43,6 @@ def join_module_with_code(
     from app.models.student_enrollment import StudentEnrollment
     from datetime import datetime, timezone
 
-    print(f"🔍 Searching for access code: '{access_code}' (length: {len(access_code)})")
-
-    # Debug: Check all modules and their access codes
-    all_modules = db.query(Module).all()
-    print(f"📊 Total modules in database: {len(all_modules)}")
-    for i, mod in enumerate(all_modules[:5]):  # Show first 5 modules
-        print(f"  Module {i+1}: name='{mod.name}', access_code='{mod.access_code}', active={mod.is_active}")
-
     # Try exact match first
     module = get_module_by_access_code(db, access_code.strip())
     if not module:
@@ -60,10 +52,10 @@ def join_module_with_code(
             # Try case-insensitive search
             module = db.query(Module).filter(Module.access_code.ilike(access_code.strip())).first()
             if not module:
-                print(f"❌ No module found with access code: '{access_code}'")
+                logger.debug(f"No module found with access code: '{access_code}'")
                 raise HTTPException(status_code=404, detail="Invalid access code")
 
-    print(f"✅ Found module: '{module.name}' with access code: '{module.access_code}'")
+    logger.debug(f"Found module: '{module.name}'")
 
     if not module.is_active:
         raise HTTPException(status_code=400, detail="Module is not active")
@@ -87,9 +79,9 @@ def join_module_with_code(
             db.add(enrollment)
             db.commit()
             db.refresh(enrollment)
-            print(f"✅ Created enrollment for student {student_id} in module {module.name}")
+            logger.debug(f"Created enrollment for student {student_id}")
         else:
-            print(f"ℹ️ Student {student_id} already enrolled in module {module.name}")
+            logger.debug(f"Student {student_id} already enrolled")
 
     return module
 
@@ -132,12 +124,12 @@ def get_module_questions(
     if include_all:
         # Return all questions (for teachers viewing feedback critiques)
         questions = db.query(Question).filter(Question.module_id == module_id).all()
-        print(f"📚 Teacher endpoint: Returning {len(questions)} total questions for module {module_id}")
+        logger.debug(f"Returning {len(questions)} total questions for module {module_id}")
         return questions
     else:
         # SECURITY: Only return active questions to students
         questions = get_questions_by_status(db, module_id, QuestionStatus.ACTIVE)
-        print(f"🔒 Student endpoint: Returning {len(questions)} active questions for module {module_id}")
+        logger.debug(f"Returning {len(questions)} active questions for module {module_id}")
         return questions
 
 # ❓ Get all questions for a document (assignment)
@@ -163,7 +155,7 @@ def get_assignment_questions(
         Question.status == QuestionStatus.ACTIVE
     ).order_by(Question.question_order.nulls_last(), Question.id).all()
 
-    print(f"🔒 Student endpoint: Returning {len(questions)} active questions for document {document_id}")
+    logger.debug(f"Returning {len(questions)} active questions for document {document_id}")
     return questions
 
 # ✅ Submit answer for a question with instant AI feedback
@@ -434,108 +426,99 @@ def get_module_feedback(
     db: Session = Depends(get_db)
 ):
     """
-    Get all AI feedback for a student in a module (student-friendly view)
-    Returns filtered feedback without technical metadata, including teacher grades if available
-    IMPORTANT: Also includes teacher-only grades (where teacher graded but no AI feedback exists)
+    Get all AI feedback for a student in a module (student-friendly view).
+    Uses JOINs to fetch feedback + answers + teacher grades in minimal queries.
     """
-    from app.crud.ai_feedback import get_student_module_feedback
+    from app.models.ai_feedback import AIFeedback
     from app.models.student_answer import StudentAnswer
     from app.models.teacher_grade import TeacherGrade
     from app.models.question import Question
+    from sqlalchemy.orm import aliased
 
-    # Get all feedback for student
-    feedback_list = get_student_module_feedback(db, student_id, module_id)
+    # Single JOIN query: feedback + answer in one shot
+    feedback_rows = db.query(AIFeedback, StudentAnswer).join(
+        StudentAnswer, AIFeedback.answer_id == StudentAnswer.id
+    ).filter(
+        StudentAnswer.student_id == student_id,
+        StudentAnswer.module_id == module_id
+    ).order_by(AIFeedback.generated_at.desc()).all()
 
-    # Track which answer_ids we've processed (to avoid duplicates)
+    # Collect all answer_ids to batch-fetch teacher grades
+    all_answer_ids = [answer.id for _, answer in feedback_rows]
+
+    # Batch-fetch all teacher grades in one query
+    teacher_grades_list = db.query(TeacherGrade).filter(
+        TeacherGrade.student_id == student_id,
+        TeacherGrade.module_id == module_id
+    ).all()
+    teacher_grades_by_answer = {tg.answer_id: tg for tg in teacher_grades_list}
+
     processed_answer_ids = set()
-
-    # Transform to student-friendly format
     student_feedback = []
-    for feedback in feedback_list:
-        # Get the associated answer to find question_id
-        answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first()
-        if not answer:
-            continue
 
+    for feedback, answer in feedback_rows:
         processed_answer_ids.add(feedback.answer_id)
-
-        # Check if teacher has graded this answer
-        teacher_grade = db.query(TeacherGrade).filter(
-            TeacherGrade.answer_id == feedback.answer_id
-        ).first()
-
-        # Extract only student-relevant fields from feedback_data
+        teacher_grade = teacher_grades_by_answer.get(feedback.answer_id)
         data = feedback.feedback_data or {}
 
-        student_view = {
+        student_feedback.append({
             "id": str(feedback.id),
-            "answer_id": str(feedback.answer_id),  # Include answer_id for frontend mapping
+            "answer_id": str(feedback.answer_id),
             "question_id": str(answer.question_id),
-            "attempt": answer.attempt,  # Include attempt number for frontend grouping
+            "attempt": answer.attempt,
             "is_correct": feedback.is_correct,
             "score": feedback.score,
-            "correctness_score": feedback.score,  # Alias for frontend compatibility
+            "correctness_score": feedback.score,
             "explanation": data.get("explanation", ""),
             "improvement_hint": data.get("improvement_hint"),
             "concept_explanation": data.get("concept_explanation"),
             "strengths": data.get("strengths"),
             "weaknesses": data.get("weaknesses"),
             "generated_at": feedback.generated_at.isoformat() if feedback.generated_at else None,
-            # Points and rubric-based scoring
             "points_earned": feedback.points_earned,
             "points_possible": feedback.points_possible,
-            "criterion_scores": feedback.criterion_scores,  # Rubric breakdown
-            # Only show RAG usage as boolean, not sources
+            "criterion_scores": feedback.criterion_scores,
             "has_course_materials": data.get("used_rag", False),
-            # For MCQ, include answer info
             "selected_option": data.get("selected_option"),
             "correct_option": data.get("correct_option"),
             "available_options": data.get("available_options"),
-            # For new question types, include grading details
-            "grading_details": data.get("grading_details"),  # blank_results, sub_results, etc.
-            "selected_options": data.get("selected_options"),  # For MCQ Multiple
-            "sub_results": data.get("sub_results"),  # For Multi-Part
-            # Teacher grade if available
+            "grading_details": data.get("grading_details"),
+            "selected_options": data.get("selected_options"),
+            "sub_results": data.get("sub_results"),
             "teacher_grade": {
                 "points_awarded": teacher_grade.points_awarded,
                 "feedback_text": teacher_grade.feedback_text,
                 "graded_at": teacher_grade.graded_at.isoformat() if teacher_grade.graded_at else None
             } if teacher_grade else None,
             "is_teacher_graded": teacher_grade is not None,
-            # Generation status for polling
             "generation_status": feedback.generation_status,
             "generation_progress": feedback.generation_progress,
             "error_message": feedback.error_message,
             "can_retry": feedback.can_retry if feedback.generation_status in ['failed', 'timeout'] else False
-        }
+        })
 
-        student_feedback.append(student_view)
-
-    # IMPORTANT: Also get teacher grades that don't have AI feedback yet
-    # This happens when teacher manually grades without AI feedback being generated
-    teacher_only_grades = db.query(TeacherGrade).filter(
+    # Teacher-only grades (no AI feedback) — single query with JOIN
+    teacher_only_query = db.query(TeacherGrade, StudentAnswer, Question).join(
+        StudentAnswer, TeacherGrade.answer_id == StudentAnswer.id
+    ).join(
+        Question, StudentAnswer.question_id == Question.id
+    ).filter(
         TeacherGrade.student_id == student_id,
         TeacherGrade.module_id == module_id,
-        ~TeacherGrade.answer_id.in_(processed_answer_ids) if processed_answer_ids else True
-    ).all()
+    )
+    if processed_answer_ids:
+        teacher_only_query = teacher_only_query.filter(
+            ~TeacherGrade.answer_id.in_(processed_answer_ids)
+        )
+    teacher_only_rows = teacher_only_query.all()
 
-    for teacher_grade in teacher_only_grades:
-        # Get the answer and question details
-        answer = db.query(StudentAnswer).filter(StudentAnswer.id == teacher_grade.answer_id).first()
-        if not answer:
-            continue
-
-        question = db.query(Question).filter(Question.id == answer.question_id).first()
-        if not question:
-            continue
-
-        # Create a feedback entry with only teacher grade (no AI feedback)
-        student_view = {
-            "id": None,  # No AI feedback ID
+    for teacher_grade, answer, question in teacher_only_rows:
+        student_feedback.append({
+            "id": None,
             "answer_id": str(answer.id),
             "question_id": str(answer.question_id),
             "attempt": answer.attempt,
-            "is_correct": None,  # No AI feedback
+            "is_correct": None,
             "score": None,
             "correctness_score": None,
             "explanation": "",
@@ -544,7 +527,7 @@ def get_module_feedback(
             "strengths": None,
             "weaknesses": None,
             "generated_at": None,
-            "points_earned": None,  # AI didn't score this
+            "points_earned": None,
             "points_possible": question.points,
             "criterion_scores": None,
             "has_course_materials": False,
@@ -554,16 +537,13 @@ def get_module_feedback(
             "grading_details": None,
             "selected_options": None,
             "sub_results": None,
-            # Teacher grade (the main data here)
             "teacher_grade": {
                 "points_awarded": teacher_grade.points_awarded,
                 "feedback_text": teacher_grade.feedback_text,
                 "graded_at": teacher_grade.graded_at.isoformat() if teacher_grade.graded_at else None
             },
             "is_teacher_graded": True
-        }
-
-        student_feedback.append(student_view)
+        })
 
     return student_feedback
 
@@ -783,16 +763,16 @@ async def submit_test(
         answer_ids = [str(answer.id) for answer in answers]
         logger.info(f"Enqueuing {len(answer_ids)} feedback jobs")
 
-        for answer in answers:
-            create_feedback_job(
-                db=db,
-                answer_id=answer.id,
-                student_id=student_id,
-                module_id=str(module_id),
-                attempt=attempt,
-                priority=1,
-                previous_feedback_context=previous_feedback_context,
-            )
+        # Batch insert all jobs in a single commit (not 28 individual commits)
+        create_feedback_jobs_batch(
+            db=db,
+            answer_ids=[answer.id for answer in answers],
+            student_id=student_id,
+            module_id=str(module_id),
+            attempt=attempt,
+            priority=1,
+            previous_feedback_context=previous_feedback_context,
+        )
 
         return {
             "success": True,
@@ -879,12 +859,11 @@ def get_feedback_status(
 ):
     """
     Check the status of feedback generation for a student's test submission.
-    Uses the FeedbackJob queue as the source of truth.
-    Returns which questions have feedback ready and which are still pending.
+    Uses JOINs to batch-fetch answers + feedback + jobs in 3 queries (not N+1).
     """
     from app.models.student_answer import StudentAnswer
+    from app.models.ai_feedback import AIFeedback
     from app.models.feedback_job import FeedbackJob
-    from app.crud.ai_feedback import get_feedback_by_answer
 
     # Get all answers for this attempt
     answers = db.query(StudentAnswer).filter(
@@ -902,10 +881,15 @@ def get_feedback_status(
             "all_complete": True
         }
 
-    # Build answer_id set for quick lookup
-    answer_ids = {answer.id for answer in answers}
+    answer_ids = [answer.id for answer in answers]
 
-    # Get all jobs for this student/module/attempt in one query
+    # Batch-fetch ALL feedback for these answers in one query
+    all_feedback = db.query(AIFeedback).filter(
+        AIFeedback.answer_id.in_(answer_ids)
+    ).all()
+    feedback_by_answer = {fb.answer_id: fb for fb in all_feedback}
+
+    # Batch-fetch ALL jobs in one query
     jobs = db.query(FeedbackJob).filter(
         FeedbackJob.student_id == student_id,
         FeedbackJob.module_id == module_id,
@@ -918,24 +902,20 @@ def get_feedback_status(
     queued_count = 0
 
     for answer in answers:
-        feedback = get_feedback_by_answer(db, answer.id)
+        feedback = feedback_by_answer.get(answer.id)
         job = jobs_by_answer.get(answer.id)
 
         is_completed = feedback is not None and feedback.generation_status == 'completed'
 
         if is_completed:
-            # Check if this is a FALLBACK that should be upgraded with real AI
             is_fallback = (feedback.feedback_data or {}).get('fallback', False)
             if is_fallback:
-                # Check if there's already an active job for this answer
                 has_active_job = job and job.status in ('queued', 'processing')
                 retries_exhausted = job and job.status == 'failed' and job.retry_count >= job.max_retries
 
                 if retries_exhausted:
-                    # All retries failed — accept fallback and stop polling
                     ready_count += 1
                 elif not has_active_job:
-                    # Enqueue an upgrade job
                     create_feedback_job(
                         db=db,
                         answer_id=answer.id,
@@ -944,17 +924,13 @@ def get_feedback_status(
                         attempt=attempt,
                         priority=1,
                     )
-                    logger.info(f"Auto-upgrading fallback feedback for answer {answer.id}")
-                # Don't count fallback as ready — keep polling until real AI replaces it
             else:
                 ready_count += 1
         elif feedback and feedback.generation_status in ['failed', 'timeout']:
-            # If no active job exists, enqueue a retry
             has_active_job = job and job.status in ('queued', 'processing')
             retries_exhausted = job and job.status == 'failed' and job.retry_count >= job.max_retries
 
             if retries_exhausted:
-                # Accept as done — can't retry further
                 ready_count += 1
             elif not has_active_job:
                 create_feedback_job(
@@ -967,7 +943,6 @@ def get_feedback_status(
                 )
                 queued_count += 1
 
-        # Determine job status for this answer
         job_status = job.status if job else None
         is_fallback = is_completed and (feedback.feedback_data or {}).get('fallback', False)
 
@@ -1024,10 +999,17 @@ def cleanup_stale_module_feedback(
 
     logger.info(f"📊 Found {len(answers)} answers for student")
 
+    # Batch-fetch ALL feedback in one query (not N+1)
+    answer_ids = [answer.id for answer in answers]
+    all_feedback = db.query(AIFeedback).filter(
+        AIFeedback.answer_id.in_(answer_ids)
+    ).all()
+    feedback_by_answer = {fb.answer_id: fb for fb in all_feedback}
+
     # Check which answers have feedback
     missing_feedback = []
     for answer in answers:
-        feedback = db.query(AIFeedback).filter(AIFeedback.answer_id == answer.id).first()
+        feedback = feedback_by_answer.get(answer.id)
         if not feedback:
             missing_feedback.append(answer.id)
             logger.warning(f"⚠️ Answer {answer.id} has no feedback row - creating failed placeholder")
@@ -1116,10 +1098,17 @@ def regenerate_all_failed_feedback(
     if not answers:
         raise HTTPException(status_code=404, detail="No answers found for this attempt")
 
+    # Batch-fetch ALL feedback in one query (not N+1)
+    answer_ids = [answer.id for answer in answers]
+    all_feedback = db.query(AIFeedback).filter(
+        AIFeedback.answer_id.in_(answer_ids)
+    ).all()
+    feedback_by_answer = {fb.answer_id: fb for fb in all_feedback}
+
     # Find which ones have failed/timeout feedback and enqueue retry jobs
     failed_answer_ids = []
     for answer in answers:
-        feedback = db.query(AIFeedback).filter(AIFeedback.answer_id == answer.id).first()
+        feedback = feedback_by_answer.get(answer.id)
         if feedback and feedback.generation_status in ['failed', 'timeout']:
             # Reset the ai_feedback row so the worker can regenerate
             feedback.generation_status = 'pending'
@@ -1127,17 +1116,19 @@ def regenerate_all_failed_feedback(
             feedback.error_message = None
             feedback.error_type = None
             feedback.completed_at = None
-            db.commit()
-
-            create_feedback_job(
-                db=db,
-                answer_id=answer.id,
-                student_id=student_id,
-                module_id=str(module_id),
-                attempt=attempt,
-                priority=1,
-            )
             failed_answer_ids.append(str(answer.id))
+
+    # Single commit for all resets, then batch-enqueue jobs
+    if failed_answer_ids:
+        db.commit()
+        create_feedback_jobs_batch(
+            db=db,
+            answer_ids=failed_answer_ids,
+            student_id=student_id,
+            module_id=str(module_id),
+            attempt=attempt,
+            priority=1,
+        )
 
     if not failed_answer_ids:
         return {
@@ -1333,26 +1324,23 @@ def get_module_feedback_critiques(
         if critique.feedback_type:
             feedback_types[critique.feedback_type] = feedback_types.get(critique.feedback_type, 0) + 1
 
-    # Build critiques with full context (feedback, answer, question)
+    # Build critiques with full context using JOINs (not N+1)
+    # Single query: critique + feedback + answer + question
+    critique_ids = [c.id for c in critiques]
+    critique_rows = db.query(
+        FeedbackCritique, AIFeedback, StudentAnswer, Question
+    ).join(
+        AIFeedback, FeedbackCritique.feedback_id == AIFeedback.id
+    ).join(
+        StudentAnswer, AIFeedback.answer_id == StudentAnswer.id
+    ).outerjoin(
+        Question, StudentAnswer.question_id == Question.id
+    ).filter(
+        FeedbackCritique.id.in_(critique_ids)
+    ).all()
+
     critiques_with_context = []
-    for c in critiques:
-        # Get the feedback
-        feedback = db.query(AIFeedback).filter(AIFeedback.id == c.feedback_id).first()
-        if not feedback:
-            continue
-
-        # Get the student answer
-        answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first()
-        if not answer:
-            continue
-
-        # Get the question
-        question = db.query(Question).filter(Question.id == answer.question_id).first()
-
-        if not question:
-            logger.warning(f"⚠️ Question not found for answer {answer.id}, question_id: {answer.question_id}")
-
-        # Build feedback data
+    for c, feedback, answer, question in critique_rows:
         feedback_data = feedback.feedback_data or {}
 
         critique_data = {
@@ -1364,7 +1352,6 @@ def get_module_feedback_critiques(
             "feedback_type": c.feedback_type,
             "created_at": c.created_at.isoformat(),
             "updated_at": c.updated_at.isoformat(),
-            # Embedded feedback details
             "feedback": {
                 "id": str(feedback.id),
                 "feedback_text": feedback_data.get("explanation", "") or feedback_data.get("feedback", ""),
@@ -1373,14 +1360,12 @@ def get_module_feedback_critiques(
                 "points_earned": feedback.points_earned,
                 "points_possible": feedback.points_possible
             },
-            # Embedded student answer
             "answer": {
                 "id": str(answer.id),
                 "answer": answer.answer,
                 "attempt": answer.attempt,
                 "submitted_at": answer.submitted_at.isoformat()
             },
-            # Embedded question
             "question": {
                 "id": str(question.id),
                 "text": question.text,
@@ -1396,7 +1381,6 @@ def get_module_feedback_critiques(
             }
         }
 
-        logger.info(f"📦 Critique {c.id}: question={'found' if question else 'NOT FOUND'}, answer={answer.id}")
         critiques_with_context.append(critique_data)
 
     return {

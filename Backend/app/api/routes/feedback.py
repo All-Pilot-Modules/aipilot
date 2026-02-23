@@ -402,8 +402,7 @@ def retry_all_failed_feedback(
     """
     from app.models.student_answer import StudentAnswer
 
-    logger.info(f"🔄 ============ BULK RETRY REQUESTED ============")
-    logger.info(f"🔄 Module: {module_id}, Student: {student_id}, Attempt: {attempt}")
+    logger.info(f"Bulk retry requested for module {module_id}, student {student_id}, attempt {attempt}")
 
     # Get module to validate
     from app.crud.module import get_module_by_id
@@ -433,7 +432,7 @@ def retry_all_failed_feedback(
         StudentAnswer.attempt == attempt
     ).all()
 
-    logger.info(f"📊 Found {len(answers) if answers else 0} total answers for this attempt")
+    logger.info(f"Found {len(answers) if answers else 0} total answers for this attempt")
     if not answers:
         logger.warning(f"⚠️ No answers found for student {student_id}, module {module_id}, attempt {attempt}")
         raise HTTPException(status_code=404, detail="No answers found for this attempt")
@@ -443,10 +442,17 @@ def retry_all_failed_feedback(
     # This is a TEMPORARY feature to fix previously failed feedback
     failed_answer_ids = []
 
-    logger.info(f"🔍 Checking each answer for failed/incomplete feedback...")
+    # Batch-fetch ALL feedback in one query (not N+1)
+    answer_ids = [answer.id for answer in answers]
+    all_feedback = db.query(AIFeedback).filter(
+        AIFeedback.answer_id.in_(answer_ids)
+    ).all()
+    feedback_by_answer = {fb.answer_id: fb for fb in all_feedback}
+
+    logger.info(f"Checking {len(answers)} answers for failed/incomplete feedback...")
     for idx, answer in enumerate(answers, 1):
-        feedback = get_feedback_by_answer(db, answer.id)
-        logger.info(f"📝 [{idx}/{len(answers)}] Answer {answer.id}: feedback_exists={feedback is not None}, status={feedback.generation_status if feedback else 'N/A'}, data_exists={feedback.feedback_data is not None if feedback else 'N/A'}")
+        feedback = feedback_by_answer.get(answer.id)
+        logger.debug(f"[{idx}/{len(answers)}] Answer {answer.id}: feedback_exists={feedback is not None}, status={feedback.generation_status if feedback else 'N/A'}")
 
         # Include if:
         # 1. No feedback exists at all (initial generation crashed before creating record)
@@ -464,13 +470,12 @@ def retry_all_failed_feedback(
 
         elif feedback.generation_status is None:
             # Old feedback record without status tracking - treat as failed
-            logger.info(f"🔧 Including answer {answer.id} - old record without generation_status (NULL)")
+            logger.info(f"Including answer {answer.id} - old record without generation_status (NULL)")
             # Reset retry count and mark for retry
             feedback.generation_status = 'failed'
             feedback.can_retry = True
             feedback.retry_count = 0
             feedback.max_retries = 3
-            db.commit()
             failed_answer_ids.append(str(answer.id))
 
         elif feedback.generation_status not in ['pending', 'generating']:
@@ -502,7 +507,6 @@ def retry_all_failed_feedback(
                     feedback.retry_count = 0
                 if feedback.max_retries is None:
                     feedback.max_retries = 3
-                db.commit()
                 failed_answer_ids.append(str(answer.id))
 
         if feedback and feedback.generation_status in ['failed', 'timeout']:
@@ -530,19 +534,21 @@ def retry_all_failed_feedback(
             "answer_ids": []
         }
 
+    # Single commit for all status resets
+    db.commit()
+
     logger.info(f"Retrying {len(failed_answer_ids)} failed questions via job queue")
 
-    # Enqueue retry jobs — the worker picks them up automatically
-    from app.services.feedback_worker import create_feedback_job
-    for answer_id_str in failed_answer_ids:
-        create_feedback_job(
-            db=db,
-            answer_id=answer_id_str,
-            student_id=student_id,
-            module_id=str(module_id),
-            attempt=attempt,
-            priority=1,
-        )
+    # Batch-enqueue retry jobs (single commit instead of N commits)
+    from app.services.feedback_worker import create_feedback_jobs_batch
+    create_feedback_jobs_batch(
+        db=db,
+        answer_ids=failed_answer_ids,
+        student_id=student_id,
+        module_id=str(module_id),
+        attempt=attempt,
+        priority=1,
+    )
 
     return {
         "success": True,
