@@ -11,10 +11,11 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, User, Edit, Trash2, MoreHorizontal, UserPlus, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson, GraduationCap, Target, BarChart3, Activity, Zap } from "lucide-react";
+import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, TrendingDown, Minus, User, Edit, Trash2, MoreHorizontal, UserPlus, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson, GraduationCap, Target, BarChart3, Activity, Zap, Shield } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useCallback, useRef, Suspense, useMemo, memo } from "react";
 import { apiClient } from "@/lib/auth";
+import { useAPI, prefetchAPI } from "@/lib/useSWR";
 import { useRouter } from "next/navigation";
 
 // Dynamically import AlertDialog components
@@ -28,19 +29,10 @@ const AlertDialogHeader = dynamic(() => import("@/components/ui/alert-dialog").t
 const AlertDialogTitle = dynamic(() => import("@/components/ui/alert-dialog").then(mod => ({ default: mod.AlertDialogTitle })), { ssr: false });
 
 const StudentsPageContent = memo(function StudentsPageContent() {
-  console.log('🚀 [Students Page] Component rendering...');
-
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const moduleName = searchParams.get('module');
-
-  console.log('📊 [Students Page] Initial state:', {
-    user: user,
-    loading,
-    isAuthenticated,
-    moduleName
-  });
 
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
@@ -77,161 +69,156 @@ const StudentsPageContent = memo(function StudentsPageContent() {
     activeDays: moduleData?.assignment_config?.active_days || 7
   };
 
-  // Define fetchModuleData first before using it
-  const fetchModuleData = useCallback(async () => {
+  // --- SWR: Cache modules (stable per session, 5-min dedup) ---
+  const teacherId = user?.id || user?.sub;
+  const { data: modulesData, error: modulesError } = useAPI(
+    teacherId && moduleName ? `/api/modules?teacher_id=${teacherId}` : null,
+    { dedupingInterval: 300000 }
+  );
+
+  // Resolve the specific module from the cached list
+  const resolvedModule = useMemo(() => {
+    if (!modulesData || !moduleName) return null;
+    const modules = modulesData.data || modulesData;
+    return modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase()) || null;
+  }, [modulesData, moduleName]);
+
+  // Update moduleData state when resolved module changes
+  useEffect(() => {
+    if (resolvedModule) {
+      setModuleData(resolvedModule);
+    }
+  }, [resolvedModule]);
+
+  // --- SWR: Cache questions (stable per session, 5-min dedup) ---
+  const moduleId = resolvedModule?.id;
+  const { data: questionsData } = useAPI(
+    moduleId ? `/api/student/modules/${moduleId}/questions` : null,
+    { dedupingInterval: 300000 }
+  );
+  const questions = useMemo(() => questionsData?.data || questionsData || [], [questionsData]);
+
+  // --- Dynamic data: Fetch answers + feedback in PARALLEL (changes frequently, always fresh) ---
+  const fetchDynamicData = useCallback(async (modId) => {
     try {
       setLoadingStudents(true);
       setError('');
 
-      console.log('🔍 [Students Page] Starting fetchModuleData...');
-      console.log('🌐 [Students Page] API URL:', process.env.NEXT_PUBLIC_API_URL);
-      console.log('📋 User object:', user);
-      console.log('📋 Module name from URL:', moduleName);
+      // Fetch answers and feedback in parallel
+      const [moduleAnswersResponse, feedbackResponse] = await Promise.all([
+        apiClient.get(`/api/student-answers/?module_id=${modId}`),
+        apiClient.get(`/api/student/modules/${modId}/feedback`).catch(() => ({ data: [] }))
+      ]);
 
-      // Get teacher ID from user data
-      const teacherId = user?.id || user?.sub;
-      console.log('👤 Teacher ID:', teacherId);
+      const allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
+      const allFeedback = feedbackResponse?.data || feedbackResponse || [];
 
-      if (!teacherId) {
-        console.error('❌ No teacher ID found!');
-        setError('Unable to identify teacher. Please sign in again.');
-        setLoadingStudents(false);
-        return;
-      }
+      // Build feedback lookup
+      const feedbackByAnswerId = {};
+      allFeedback.forEach(feedback => {
+        feedbackByAnswerId[feedback.answer_id] = feedback;
+      });
 
-      // First, get the module ID from module name
-      console.log(`📡 Fetching modules for teacher: ${teacherId}`);
-      const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
-      const modules = modulesResponse.data || modulesResponse;
-      console.log('📚 Modules received:', modules);
-      // eslint-disable-next-line @next/next/no-assign-module-variable
-      const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
-
-      if (!module) {
-        console.error(`❌ Module "${moduleName}" not found in modules:`, modules.map(m => m.name));
-        setError(`Module "${moduleName}" not found in your modules`);
-        setLoadingStudents(false);
-        return;
-      }
-
-      console.log('✅ Module found:', module);
-      setModuleData(module);
-
-      // Get questions for this module
-      console.log(`📡 Fetching questions for module: ${module.id}`);
-      const questionsResponse = await apiClient.get(`/api/student/modules/${module.id}/questions`);
-      const questions = questionsResponse.data || questionsResponse;
-      console.log(`📝 Questions received: ${questions.length} questions`);
-
-      // Get all students who have submitted answers for this module using the optimized API
+      // Extract unique students from answers
       let realStudents = [];
-      let allModuleAnswers = [];
-
-      try {
-        // Use the dedicated API endpoint to get all student answers for this module
-        console.log(`📡 Fetching student answers for module: ${module.id}`);
-        const moduleAnswersResponse = await apiClient.get(`/api/student-answers/?module_id=${module.id}`);
-        allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
-
-        console.log(`📊 Retrieved ${allModuleAnswers.length} answers for module ${module.name}`);
-
-        if (allModuleAnswers.length > 0) {
-          console.log('🔄 [Students Page] Processing student answers...');
-          const studentMap = new Map();
-
-          // Process all answers to extract unique students
-          allModuleAnswers.forEach(answer => {
-            if (answer.student_id) {
-              const studentKey = answer.student_id;
-              if (!studentMap.has(studentKey)) {
-                studentMap.set(studentKey, {
-                  id: answer.student_id,
-                  name: answer.student_id, // Display student banner ID as name
-                  student_id: answer.student_id,
-                  last_access: answer.submitted_at || new Date().toISOString()
-                });
-              } else {
-                // Update last access if this answer is more recent
-                const existing = studentMap.get(studentKey);
-                if (answer.submitted_at && new Date(answer.submitted_at) > new Date(existing.last_access)) {
-                  existing.last_access = answer.submitted_at;
-                }
+      if (allModuleAnswers.length > 0) {
+        const studentMap = new Map();
+        allModuleAnswers.forEach(answer => {
+          if (answer.student_id) {
+            const studentKey = answer.student_id;
+            if (!studentMap.has(studentKey)) {
+              studentMap.set(studentKey, {
+                id: answer.student_id,
+                name: answer.student_id,
+                student_id: answer.student_id,
+                last_access: answer.submitted_at || new Date().toISOString()
+              });
+            } else {
+              const existing = studentMap.get(studentKey);
+              if (answer.submitted_at && new Date(answer.submitted_at) > new Date(existing.last_access)) {
+                existing.last_access = answer.submitted_at;
               }
             }
-          });
-
-          realStudents = Array.from(studentMap.values());
-          console.log(`👥 [Students Page] Found ${realStudents.length} unique students who have started tests in module ${module.name}`);
-          console.log('📋 [Students Page] Student IDs:', realStudents.map(s => s.student_id));
-        } else {
-          console.log('⚠️ [Students Page] No student answers found for this module');
-        }
-      } catch (error) {
-        console.error('Error fetching module student answers:', error);
-      }
-
-      // Get AI feedback for all students in this module
-      let feedbackByAnswerId = {};
-      try {
-        const feedbackResponse = await apiClient.get(`/api/student/modules/${module.id}/feedback`);
-        const allFeedback = feedbackResponse?.data || feedbackResponse || [];
-        allFeedback.forEach(feedback => {
-          feedbackByAnswerId[feedback.answer_id] = feedback;
+          }
         });
-        console.log(`📊 [Students Page] Loaded ${allFeedback.length} AI feedback entries`);
-      } catch (err) {
-        console.log('No AI feedback available yet');
+        realStudents = Array.from(studentMap.values());
       }
 
-      // Calculate actual performance for each student using the answers we already have
-      if (realStudents.length > 0 && questions && questions.length > 0 && allModuleAnswers.length > 0) {
-        console.log('📊 [Students Page] Calculating performance metrics...');
+      // Calculate performance for each student
+      if (realStudents.length > 0 && questions.length > 0 && allModuleAnswers.length > 0) {
+        const isAnswerCorrectForScoring = (answer, question) => {
+          const questionType = (answer.question_type || question?.question_type || '').toLowerCase();
+          const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
+          if (isMCQ) {
+            if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
+              return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
+            }
+            return answer.answer === answer.correct_answer;
+          }
+          const feedback = feedbackByAnswerId[answer.id];
+          if (feedback?.score !== null && feedback?.score !== undefined) {
+            const scorePercent = feedback.score > 1 ? feedback.score : feedback.score * 100;
+            const passingThreshold = moduleData?.assignment_config?.passing_score || 60;
+            return scorePercent >= passingThreshold;
+          }
+          if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
+            return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
+          }
+          return answer.answer === answer.correct_answer;
+        };
+
         const studentsWithPerformance = realStudents.map(student => {
-          // Filter answers for this specific student
           const studentAnswers = allModuleAnswers.filter(answer => answer.student_id === student.student_id);
-
-          // Calculate performance metrics
           const totalQuestions = questions.length;
-
-          // Count UNIQUE questions answered (not total answers, to avoid counting multiple attempts)
           const uniqueQuestionIds = new Set(studentAnswers.map(answer => answer.question_id));
           const answeredQuestions = uniqueQuestionIds.size;
 
-          // For each unique question, get the most recent answer to check correctness
           const correctAnswers = Array.from(uniqueQuestionIds).filter(questionId => {
-            // Get all answers for this question, sorted by date (most recent first)
             const answersForQuestion = studentAnswers
               .filter(answer => answer.question_id === questionId)
               .sort((a, b) => new Date(b.submitted_at) - new Date(a.submitted_at));
-
-            // Check if the most recent answer is correct
             const mostRecentAnswer = answersForQuestion[0];
             const question = questions.find(q => q.id === questionId);
-            const questionType = (mostRecentAnswer.question_type || question?.question_type || '').toLowerCase();
-            const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
-
-            // For MCQ: use binary correct/incorrect
-            if (isMCQ) {
-              if (typeof mostRecentAnswer.answer === 'object' && typeof mostRecentAnswer.correct_answer === 'object') {
-                return JSON.stringify(mostRecentAnswer.answer) === JSON.stringify(mostRecentAnswer.correct_answer);
-              }
-              return mostRecentAnswer.answer === mostRecentAnswer.correct_answer;
-            }
-
-            // For short/essay questions: use AI score with configurable threshold
-            const feedback = feedbackByAnswerId[mostRecentAnswer.id];
-            if (feedback?.score !== null && feedback?.score !== undefined) {
-              const scorePercent = feedback.score > 1 ? feedback.score : feedback.score * 100;
-              const passingThreshold = moduleData?.assignment_config?.passing_score || 60;
-              return scorePercent >= passingThreshold;
-            }
-
-            // Fallback to boolean check if no score available
-            if (typeof mostRecentAnswer.answer === 'object' && typeof mostRecentAnswer.correct_answer === 'object') {
-              return JSON.stringify(mostRecentAnswer.answer) === JSON.stringify(mostRecentAnswer.correct_answer);
-            }
-            return mostRecentAnswer.answer === mostRecentAnswer.correct_answer;
+            return isAnswerCorrectForScoring(mostRecentAnswer, question);
           }).length;
+
+          const attemptSet = new Set(studentAnswers.map(a => a.attempt || 1));
+          const attemptCount = attemptSet.size;
+
+          const studentAnswerIds = studentAnswers.map(a => a.id);
+          const answersWithFeedback = studentAnswerIds.filter(id => feedbackByAnswerId[id]);
+          const answersWithTeacherGrade = answersWithFeedback.filter(id => feedbackByAnswerId[id]?.teacher_grade);
+          let gradeStatus = 'pending';
+          if (answersWithTeacherGrade.length > 0 && answersWithTeacherGrade.length >= answersWithFeedback.length) {
+            gradeStatus = 'all_graded';
+          } else if (answersWithTeacherGrade.length > 0) {
+            gradeStatus = 'partially_graded';
+          } else if (answersWithFeedback.length > 0) {
+            gradeStatus = 'ai_graded';
+          }
+
+          let scoreTrend = null;
+          if (attemptCount >= 2) {
+            const attemptNumbers = Array.from(attemptSet).sort((a, b) => a - b);
+            const latestAttemptNum = attemptNumbers[attemptNumbers.length - 1];
+            const prevAttemptNum = attemptNumbers[attemptNumbers.length - 2];
+
+            const computeAttemptScore = (attemptNum) => {
+              const attemptAnswers = studentAnswers.filter(a => (a.attempt || 1) === attemptNum);
+              if (attemptAnswers.length === 0) return 0;
+              const correct = attemptAnswers.filter(a => {
+                const q = questions.find(qq => qq.id === a.question_id);
+                return isAnswerCorrectForScoring(a, q);
+              }).length;
+              return Math.round((correct / attemptAnswers.length) * 100);
+            };
+
+            const latestScore = computeAttemptScore(latestAttemptNum);
+            const prevScore = computeAttemptScore(prevAttemptNum);
+            if (latestScore > prevScore) scoreTrend = 'up';
+            else if (latestScore < prevScore) scoreTrend = 'down';
+            else scoreTrend = 'same';
+          }
 
           return {
             ...student,
@@ -240,34 +227,19 @@ const StudentsPageContent = memo(function StudentsPageContent() {
             correct_answers: correctAnswers,
             incorrect_answers: answeredQuestions - correctAnswers,
             avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
-            progress: Math.min(100, Math.round((answeredQuestions / totalQuestions) * 100)) // Cap at 100%
+            progress: Math.min(100, Math.round((answeredQuestions / totalQuestions) * 100)),
+            attempt_count: attemptCount,
+            grade_status: gradeStatus,
+            score_trend: scoreTrend
           };
         });
 
-        console.log(`✅ [Students Page] Setting ${studentsWithPerformance.length} students with performance data`);
-        console.log('📊 [Students Page] Sample student:', studentsWithPerformance[0]);
         setStudents(studentsWithPerformance);
       } else {
-        console.log('⚠️ [Students Page] Setting students without performance data:', {
-          studentsCount: realStudents.length,
-          questionsCount: questions?.length || 0,
-          answersCount: allModuleAnswers.length
-        });
         setStudents(realStudents);
       }
-
     } catch (error) {
-      console.error('❌❌❌ [Students Page] CRITICAL ERROR in fetchModuleData:', error);
-      console.error('❌ [Students Page] Error details:', {
-        message: error.message,
-        stack: error.stack,
-        type: typeof error,
-        errorObject: error
-      });
-
-      // Handle different error types
       let errorMessage = 'Failed to load module data. Please try again.';
-
       if (error.message) {
         errorMessage = error.message;
       } else if (typeof error === 'string') {
@@ -275,53 +247,43 @@ const StudentsPageContent = memo(function StudentsPageContent() {
       } else if (error.detail) {
         errorMessage = error.detail;
       }
-
-      // Handle authentication errors
       if (errorMessage.includes('Authentication required') || errorMessage.includes('401')) {
         errorMessage = 'Please sign in to access this page.';
       }
-
-      console.error('❌ [Students Page] Final error message shown to user:', errorMessage);
       setError(errorMessage);
       setStudents([]);
     } finally {
-      console.log('🏁 [Students Page] fetchModuleData completed');
       setLoadingStudents(false);
     }
-  }, [user, moduleName, moduleData?.assignment_config?.passing_score]);
+  }, [questions, moduleData?.assignment_config?.passing_score]);
 
-  // Fetch module data and students when component mounts or module changes
+  // Handle SWR errors for module resolution
   useEffect(() => {
-    console.log('⚡ [Students Page] useEffect triggered with:', {
-      moduleName,
-      isAuthenticated,
-      user: user ? 'User object exists' : 'No user object',
-      willFetch: !!(moduleName && isAuthenticated && user)
-    });
-
-    if (moduleName && isAuthenticated && user) {
-      console.log('✅ [Students Page] All conditions met, calling fetchModuleData...');
-      fetchModuleData();
-    } else {
-      console.log('❌ [Students Page] Conditions not met:', {
-        hasModuleName: !!moduleName,
-        isAuthenticated,
-        hasUser: !!user
-      });
+    if (modulesError) {
+      const msg = modulesError.message || 'Failed to load modules.';
+      setError(msg.includes('Authentication required') || msg.includes('401')
+        ? 'Please sign in to access this page.' : msg);
+      setLoadingStudents(false);
     }
-  }, [moduleName, isAuthenticated, user, fetchModuleData]);
+  }, [modulesError]);
 
-  // Monitor students state changes
+  // Handle module not found
   useEffect(() => {
-    console.log('👥 [Students Page] Students state changed:', {
-      count: students.length,
-      students: students.slice(0, 2) // Log first 2 students
-    });
-  }, [students]);
+    if (modulesData && moduleName && !resolvedModule) {
+      setError(`Module "${moduleName}" not found in your modules`);
+      setLoadingStudents(false);
+    }
+  }, [modulesData, moduleName, resolvedModule]);
+
+  // Fetch dynamic data once module + questions are available
+  useEffect(() => {
+    if (moduleId && questions.length > 0) {
+      fetchDynamicData(moduleId);
+    }
+  }, [moduleId, questions, fetchDynamicData]);
 
   // Filter and sort students based on search term, progress filter, and sort options
   useEffect(() => {
-    console.log('🔍 [Students Page] Filtering students...');
     let filtered = students;
     
     // Apply search filter
@@ -361,22 +323,25 @@ const StudentsPageContent = memo(function StudentsPageContent() {
       }
     });
 
-    console.log('✅ [Students Page] Filtered students result:', {
-      originalCount: students.length,
-      filteredCount: filtered.length,
-      searchTerm,
-      progressFilter,
-      sortField,
-      sortDirection
-    });
-
     setFilteredStudents(filtered);
   }, [students, searchTerm, sortField, sortDirection, progressFilter]);
 
   const handleStudentClick = async (student) => {
+    // Store the current filtered student list in localStorage for prev/next navigation
+    const studentIds = filteredStudents.map(s => s.student_id);
+    const currentIndex = studentIds.indexOf(student.student_id);
+    localStorage.setItem('studentNavList', JSON.stringify(studentIds));
+    localStorage.setItem('studentNavModule', moduleName);
     // Navigate to dedicated student detail page
     router.push(`/dashboard/students/${student.student_id}?module=${encodeURIComponent(moduleName)}`);
   };
+
+  // Prefetch student detail data on hover for instant navigation
+  const handleStudentHover = useCallback((student) => {
+    if (!moduleId) return;
+    // Prefetch data that will be cached via SWR on the detail page
+    prefetchAPI(`/api/student/modules/${moduleId}/feedback?student_id=${student.student_id}`);
+  }, [moduleId]);
 
   const handleDeleteStudent = async () => {
     if (!deletingStudent || !moduleData) return;
@@ -426,6 +391,40 @@ const StudentsPageContent = memo(function StudentsPageContent() {
   const getSortIcon = (field) => {
     if (sortField !== field) return <SortAsc className="w-4 h-4 opacity-50" />;
     return sortDirection === 'asc' ? <SortAsc className="w-4 h-4" /> : <SortDesc className="w-4 h-4" />;
+  };
+
+  const getGradeStatusBadge = (status) => {
+    switch (status) {
+      case 'all_graded':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700"><CheckCircle className="w-3 h-3" />All Graded</span>;
+      case 'partially_graded':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700"><HelpCircle className="w-3 h-3" />Partial</span>;
+      case 'ai_graded':
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-700"><Shield className="w-3 h-3" />AI Graded</span>;
+      default:
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"><Clock className="w-3 h-3" />Pending</span>;
+    }
+  };
+
+  const getTrendIcon = (trend) => {
+    if (trend === 'up') return <TrendingUp className="w-4 h-4 text-green-500" />;
+    if (trend === 'down') return <TrendingDown className="w-4 h-4 text-red-500" />;
+    if (trend === 'same') return <Minus className="w-4 h-4 text-gray-400" />;
+    return null;
+  };
+
+  const getAtRiskStyle = (student) => {
+    const score = student.avg_score || 0;
+    const progress = student.progress || 0;
+    // Red: below passing AND low progress
+    if (score < thresholds.passingScore && progress < thresholds.progressWarning) {
+      return 'border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-950/20';
+    }
+    // Yellow: declining scores
+    if (student.score_trend === 'down') {
+      return 'border-l-4 border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10';
+    }
+    return '';
   };
 
   // Export comprehensive module data as Excel (using backend endpoint)
@@ -582,7 +581,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
             <h1 className="text-xl font-semibold mb-2">Error</h1>
             <p className="text-muted-foreground mb-4">{error}</p>
             <div className="flex gap-2">
-              <Button onClick={fetchModuleData}>Try Again</Button>
+              <Button onClick={() => window.location.reload()}>Try Again</Button>
               <Button variant="outline" asChild>
                 <Link href="/dashboard">Go to Dashboard</Link>
               </Button>
@@ -941,8 +940,28 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                               className="flex items-center gap-2 hover:text-primary transition-colors group"
                             >
                               <Target className="w-4 h-4 opacity-50 group-hover:opacity-100" />
-                              Average Score
+                              Avg Score
                               {getSortIcon('avg_score')}
+                            </button>
+                          </th>
+                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
+                            <button
+                              onClick={() => handleSort('attempt_count')}
+                              className="flex items-center gap-2 hover:text-primary transition-colors group"
+                            >
+                              <Activity className="w-4 h-4 opacity-50 group-hover:opacity-100" />
+                              Attempts
+                              {getSortIcon('attempt_count')}
+                            </button>
+                          </th>
+                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
+                            <button
+                              onClick={() => handleSort('grade_status')}
+                              className="flex items-center gap-2 hover:text-primary transition-colors group"
+                            >
+                              <Shield className="w-4 h-4 opacity-50 group-hover:opacity-100" />
+                              Grade Status
+                              {getSortIcon('grade_status')}
                             </button>
                           </th>
                           <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
@@ -957,7 +976,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                           </th>
                           <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
                             <div className="flex items-center gap-2">
-                              <Activity className="w-4 h-4 opacity-50" />
+                              <ExternalLink className="w-4 h-4 opacity-50" />
                               Actions
                             </div>
                           </th>
@@ -967,8 +986,9 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                         {filteredStudents.map((student, index) => (
                           <tr
                             key={student.id}
-                            className="hover:bg-muted/40 transition-all cursor-pointer group relative"
+                            className={`hover:bg-muted/40 transition-all cursor-pointer group relative ${getAtRiskStyle(student)}`}
                             onClick={() => handleStudentClick(student)}
+                            onMouseEnter={() => handleStudentHover(student)}
                           >
                             <td className="p-4">
                               <div className="flex items-center gap-3">
@@ -1013,7 +1033,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                             <td className="p-4">
                               <div className="flex items-center gap-3">
                                 <div className="relative">
-                                  <div className={`w-14 h-14 rounded-xl flex items-center justify-center font-bold text-lg shadow-md ${
+                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md ${
                                     (student.avg_score || 0) >= thresholds.excellentScore ? 'bg-gradient-to-br from-green-400 to-green-600 text-white' :
                                     (student.avg_score || 0) >= thresholds.passingScore ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white' :
                                     'bg-gradient-to-br from-red-400 to-red-600 text-white'
@@ -1022,24 +1042,53 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                                   </div>
                                   {(student.avg_score || 0) >= thresholds.excellentScore && (
                                     <div className="absolute -top-1 -right-1">
-                                      <Award className="w-5 h-5 text-yellow-500 fill-yellow-400" />
+                                      <Award className="w-4 h-4 text-yellow-500 fill-yellow-400" />
                                     </div>
                                   )}
                                 </div>
                                 <div className="text-xs space-y-1">
-                                  <div className={`font-semibold ${
-                                    (student.avg_score || 0) >= thresholds.excellentScore ? 'text-green-600 dark:text-green-400' :
-                                    (student.avg_score || 0) >= thresholds.passingScore ? 'text-yellow-600 dark:text-yellow-400' :
-                                    'text-red-600 dark:text-red-400'
-                                  }`}>
-                                    {(student.avg_score || 0) >= thresholds.excellentScore ? 'Excellent' :
-                                     (student.avg_score || 0) >= thresholds.passingScore ? 'Good' : 'Needs Improvement'}
+                                  <div className="flex items-center gap-1">
+                                    <span className={`font-semibold ${
+                                      (student.avg_score || 0) >= thresholds.excellentScore ? 'text-green-600 dark:text-green-400' :
+                                      (student.avg_score || 0) >= thresholds.passingScore ? 'text-yellow-600 dark:text-yellow-400' :
+                                      'text-red-600 dark:text-red-400'
+                                    }`}>
+                                      {(student.avg_score || 0) >= thresholds.excellentScore ? 'Excellent' :
+                                       (student.avg_score || 0) >= thresholds.passingScore ? 'Good' : 'Needs Work'}
+                                    </span>
+                                    {getTrendIcon(student.score_trend)}
                                   </div>
                                   <div className="text-muted-foreground">
-                                    {student.completed_questions || 0} answered
+                                    {student.correct_answers || 0}/{student.completed_questions || 0} correct
                                   </div>
                                 </div>
                               </div>
+                            </td>
+                            <td className="p-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold">
+                                  {student.attempt_count || 1}
+                                </span>
+                                {moduleData?.max_attempts && (
+                                  <span className="text-xs text-muted-foreground">
+                                    / {moduleData.max_attempts}
+                                  </span>
+                                )}
+                              </div>
+                              {moduleData?.max_attempts && (
+                                <div className="w-16 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 mt-1.5 overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full ${
+                                      (student.attempt_count || 1) >= moduleData.max_attempts
+                                        ? 'bg-red-500' : 'bg-blue-500'
+                                    }`}
+                                    style={{width: `${Math.min(100, ((student.attempt_count || 1) / moduleData.max_attempts) * 100)}%`}}
+                                  ></div>
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-4">
+                              {getGradeStatusBadge(student.grade_status)}
                             </td>
                             <td className="p-4">
                               <div className="flex items-center gap-2">
@@ -1075,7 +1124,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                                     handleStudentClick(student);
                                   }}
                                 >
-                                  View Details
+                                  View
                                   <ExternalLink className="w-3 h-3" />
                                 </Button>
                                 <Button
@@ -1085,7 +1134,6 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                                   onClick={(e) => confirmDeleteStudent(student, e)}
                                 >
                                   <Trash2 className="w-4 h-4" />
-                                  Delete
                                 </Button>
                               </div>
                             </td>

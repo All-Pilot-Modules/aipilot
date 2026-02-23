@@ -1,4 +1,4 @@
-import useSWR from 'swr';
+import useSWR, { useSWRConfig, mutate as globalMutate } from 'swr';
 import { apiClient } from './auth';
 
 /**
@@ -25,7 +25,7 @@ export function useAPI(key, options = {}) {
       // Default options - optimized for speed
       revalidateOnFocus: false, // Don't refetch when window gains focus (saves bandwidth)
       revalidateOnReconnect: true, // Refetch when internet reconnects
-      dedupingInterval: 2000, // Dedupe requests within 2 seconds
+      dedupingInterval: 30000, // Dedupe requests within 30 seconds (stable data like modules/questions)
       focusThrottleInterval: 5000, // Throttle focus revalidation
       errorRetryCount: 3, // Retry failed requests 3 times
       errorRetryInterval: 5000, // Wait 5s between retries
@@ -51,7 +51,8 @@ export function useAPI(key, options = {}) {
 export async function prefetchAPI(key) {
   try {
     const data = await apiClient.get(key);
-    // SWR will automatically cache this
+    // Populate SWR cache so subsequent useAPI calls return instantly
+    globalMutate(key, data, false);
     return data;
   } catch (error) {
     console.error('Prefetch failed:', error);
@@ -65,9 +66,11 @@ export async function prefetchAPI(key) {
  *
  * @param {string[]} keys - Array of cache keys to invalidate
  */
-export function useMutateMultiple(keys) {
-  const { mutate: globalMutate } = useSWRConfig();
-  keys.forEach(key => globalMutate(key));
+export function useMutateMultiple() {
+  const { mutate } = useSWRConfig();
+  return (keys) => {
+    keys.forEach(key => mutate(key));
+  };
 }
 
 // Export useSWRConfig for advanced usage

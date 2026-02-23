@@ -8,11 +8,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { ArrowLeft, User, Calendar, Clock, Award, BookOpen, TrendingUp, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson, ClipboardList, MessageSquare, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { ArrowLeft, User, Calendar, Clock, Award, BookOpen, TrendingUp, TrendingDown, Minus, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson, ClipboardList, MessageSquare, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Target, GraduationCap, Activity, Shield, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect, useCallback, Suspense, useMemo, memo } from "react";
 import { apiClient } from "@/lib/auth";
+import { useAPI } from "@/lib/useSWR";
 
 function StudentDetailPageContent() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -37,94 +38,107 @@ function StudentDetailPageContent() {
   const [surveyData, setSurveyData] = useState(null);
   const [surveyResponse, setSurveyResponse] = useState(null);
   const [showSurvey, setShowSurvey] = useState(false);
+  const [compactMode, setCompactMode] = useState(false);
 
-  const fetchStudentDetails = useCallback(async () => {
+  // Prev/Next student navigation from localStorage
+  const [studentNavList, setStudentNavList] = useState([]);
+  const [currentStudentIndex, setCurrentStudentIndex] = useState(-1);
+
+  useEffect(() => {
+    try {
+      const navList = JSON.parse(localStorage.getItem('studentNavList') || '[]');
+      const navModule = localStorage.getItem('studentNavModule');
+      if (navList.length > 0 && navModule === moduleName) {
+        setStudentNavList(navList);
+        const idx = navList.indexOf(studentId);
+        setCurrentStudentIndex(idx);
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, [studentId, moduleName]);
+
+  const navigateToStudent = (direction) => {
+    const newIndex = currentStudentIndex + direction;
+    if (newIndex >= 0 && newIndex < studentNavList.length && moduleName) {
+      // Use window.location for full navigation to avoid webpack chunk errors
+      // in dev mode when navigating within the same dynamic route
+      window.location.href = `/dashboard/students/${studentNavList[newIndex]}?module=${encodeURIComponent(moduleName)}`;
+    }
+  };
+
+  // --- SWR: Cache modules (stable per session, 5-min dedup) ---
+  const teacherId = user?.id || user?.sub;
+  const { data: modulesData, error: modulesError } = useAPI(
+    teacherId && moduleName ? `/api/modules?teacher_id=${teacherId}` : null,
+    { dedupingInterval: 300000 }
+  );
+
+  // Resolve module from cached list
+  const resolvedModule = useMemo(() => {
+    if (!modulesData || !moduleName) return null;
+    const modules = modulesData.data || modulesData;
+    return modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase()) || null;
+  }, [modulesData, moduleName]);
+
+  const resolvedModuleId = resolvedModule?.id;
+
+  // --- SWR: Cache questions (stable per session, 5-min dedup) ---
+  const { data: questionsData } = useAPI(
+    resolvedModuleId ? `/api/student/modules/${resolvedModuleId}/questions` : null,
+    { dedupingInterval: 300000 }
+  );
+
+  const fetchStudentDetails = useCallback(async (module, questions) => {
     try {
       setLoadingData(true);
       setError('');
 
-      // Get teacher ID
-      const teacherId = user?.id || user?.sub;
-      if (!teacherId) {
-        setError('Unable to identify teacher. Please sign in again.');
-        return;
-      }
-
-      // Get module by name
-      const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
-      const modules = modulesResponse.data || modulesResponse;
-      // eslint-disable-next-line @next/next/no-assign-module-variable
-      const module = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
-
-      if (!module) {
-        setError(`Module "${moduleName}" not found`);
-        return;
-      }
-
       setModuleData(module);
 
-      // Fetch survey data and student's response
-      try {
-        const surveyConfig = await apiClient.get(`/api/modules/${module.id}/survey`);
-        setSurveyData(surveyConfig);
+      // Fetch survey+response, answers, and feedback ALL IN PARALLEL
+      const [surveyResult, moduleAnswersResponse, feedbackResult] = await Promise.all([
+        // Survey config + student response (sequential pair, wrapped)
+        (async () => {
+          try {
+            const surveyConfig = await apiClient.get(`/api/modules/${module.id}/survey`);
+            let response = null;
+            try {
+              const studentSurveyResponse = await apiClient.get(
+                `/api/student/modules/${module.id}/survey?student_id=${studentId}`
+              );
+              response = studentSurveyResponse.my_response || null;
+            } catch { /* No survey response yet */ }
+            return { config: surveyConfig, response };
+          } catch { return { config: null, response: null }; }
+        })(),
+        // Student answers
+        apiClient.get(`/api/student-answers?module_id=${module.id}`),
+        // AI feedback
+        apiClient.get(`/api/student/modules/${module.id}/feedback?student_id=${studentId}`)
+          .catch(() => ({ data: [] }))
+      ]);
 
-        // Try to get student's survey response
-        try {
-          const studentSurveyResponse = await apiClient.get(
-            `/api/student/modules/${module.id}/survey?student_id=${studentId}`
-          );
-          if (studentSurveyResponse.my_response) {
-            setSurveyResponse(studentSurveyResponse.my_response);
-          }
-        } catch (surveyErr) {
-          console.log('No survey response from student yet');
-        }
-      } catch (surveyError) {
-        console.log('No survey configured for this module');
-      }
+      // Process survey
+      if (surveyResult.config) setSurveyData(surveyResult.config);
+      if (surveyResult.response) setSurveyResponse(surveyResult.response);
 
-      // Get questions for this module (all active questions)
-      const questionsResponse = await apiClient.get(`/api/student/modules/${module.id}/questions`);
-      const questions = questionsResponse.data || questionsResponse;
-      console.log(`📚 Total active questions in module: ${questions.length}`);
-
-      // Get all student answers for this module
-      const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${module.id}`);
+      // Process answers
       const allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
-
-      // Filter answers for this specific student
       const studentModuleAnswers = allModuleAnswers.filter(answer => answer.student_id === studentId);
 
-      // Continue even if student hasn't answered any questions yet
-      // We'll show all questions with unanswered status
-      console.log(`📝 Student has answered ${studentModuleAnswers.length} out of ${questions.length} questions`);
-
-      // Fetch AI feedback for this student and module
-      let feedbackData = [];
-      let feedbackByAnswerId = {}; // Declare outside try block so it's accessible later
+      // Process feedback
+      let feedbackData = feedbackResult?.data || feedbackResult || [];
+      let feedbackByAnswerId = {};
       let teacherGradesByAnswerId = {};
-      try {
-        const feedbackResponse = await apiClient.get(`/api/student/modules/${module.id}/feedback?student_id=${studentId}`);
-        feedbackData = feedbackResponse.data || feedbackResponse || [];
-
-        // Create a map of feedback by answer_id for quick lookup
-        feedbackData.forEach(feedback => {
-          feedbackByAnswerId[feedback.answer_id] = feedback;
-
-          // Also extract teacher grades if they exist
-          if (feedback.teacher_grade) {
-            teacherGradesByAnswerId[feedback.answer_id] = feedback.teacher_grade;
-          }
-        });
-        setAiFeedbackMap(feedbackByAnswerId);
-        setTeacherGradesMap(teacherGradesByAnswerId);
-
-        console.log(`Loaded ${feedbackData.length} AI feedback entries for student ${studentId}`);
-        console.log(`Loaded ${Object.keys(teacherGradesByAnswerId).length} teacher grades for student ${studentId}`);
-      } catch (feedbackError) {
-        console.error('Error fetching AI feedback:', feedbackError);
-        // Continue without feedback - not critical
-      }
+      feedbackData.forEach(feedback => {
+        feedbackByAnswerId[feedback.answer_id] = feedback;
+        if (feedback.teacher_grade) {
+          teacherGradesByAnswerId[feedback.answer_id] = feedback.teacher_grade;
+        }
+      });
+      setAiFeedbackMap(feedbackByAnswerId);
+      setTeacherGradesMap(teacherGradesByAnswerId);
 
       // Group answers by attempt number
       const attemptGroups = {};
@@ -200,15 +214,62 @@ function StudentDetailPageContent() {
         return mostRecentAnswer.answer === mostRecentAnswer.correct_answer;
       }).length;
 
+      // --- Compute per-attempt scores for attempt comparison ---
+      const isCorrectForScoring = (answer, question) => {
+        const questionType = (answer.question_type || question?.question_type || '').toLowerCase();
+        const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
+        if (isMCQ) {
+          if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
+            return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
+          }
+          return answer.answer === answer.correct_answer;
+        }
+        const fb = feedbackByAnswerId[answer.id];
+        if (fb?.score !== null && fb?.score !== undefined) {
+          const sp = fb.score > 1 ? fb.score : fb.score * 100;
+          return sp >= 60;
+        }
+        if (typeof answer.answer === 'object' && typeof answer.correct_answer === 'object') {
+          return JSON.stringify(answer.answer) === JSON.stringify(answer.correct_answer);
+        }
+        return answer.answer === answer.correct_answer;
+      };
+
+      const attemptScores = attempts.map(attemptNum => {
+        const attemptAnswers = studentModuleAnswers.filter(a => (a.attempt || 1) === attemptNum);
+        const answered = attemptAnswers.length;
+        const correct = attemptAnswers.filter(a => {
+          const q = questions.find(qq => qq.id === a.question_id);
+          return isCorrectForScoring(a, q);
+        }).length;
+        return {
+          attempt: attemptNum,
+          answered,
+          correct,
+          score: answered > 0 ? Math.round((correct / answered) * 100) : 0
+        };
+      }).sort((a, b) => a.attempt - b.attempt);
+
+      // --- Grade status counts ---
+      const allStudentAnswerIds = studentModuleAnswers.map(a => a.id);
+      const teacherGradedCount = allStudentAnswerIds.filter(id => feedbackByAnswerId[id]?.teacher_grade).length;
+      const aiOnlyCount = allStudentAnswerIds.filter(id => feedbackByAnswerId[id] && !feedbackByAnswerId[id]?.teacher_grade).length;
+      const ungradedCount = allStudentAnswerIds.filter(id => !feedbackByAnswerId[id]).length;
+
       const studentWithPerformance = {
         ...studentInfo,
         total_questions: totalQuestions,
         completed_questions: answeredQuestions,
         avg_score: answeredQuestions > 0 ? Math.round((correctAnswers / answeredQuestions) * 100) : 0,
-        progress: Math.min(100, Math.round((answeredQuestions / totalQuestions) * 100)), // Cap at 100%
+        progress: Math.min(100, Math.round((answeredQuestions / totalQuestions) * 100)),
         correct_answers: correctAnswers,
         incorrect_answers: answeredQuestions - correctAnswers,
-        total_attempts: attempts.length
+        unanswered: totalQuestions - answeredQuestions,
+        total_attempts: attempts.length,
+        attempt_scores: attemptScores,
+        teacher_graded_count: teacherGradedCount,
+        ai_only_count: aiOnlyCount,
+        ungraded_count: ungradedCount
       };
 
       setStudent(studentWithPerformance);
@@ -217,29 +278,51 @@ function StudentDetailPageContent() {
       const formatAnswer = (answer, options) => {
           if (!answer) return null;
 
-          if (typeof answer === 'object') {
-            // Handle object answers like {selected_option: "A"}
-            if (answer.selected_option && options) {
+          // Handle string that looks like JSON
+          if (typeof answer === 'string') {
+            try {
+              const parsed = JSON.parse(answer);
+              if (typeof parsed === 'object') {
+                return formatAnswer(parsed, options);
+              }
+            } catch (e) {
+              // Not JSON, continue
+            }
+
+            // Single letter MCQ answer
+            if (answer.length === 1 && options) {
               try {
                 const parsedOptions = typeof options === 'string' ? JSON.parse(options) : options;
-                const selectedOption = parsedOptions[answer.selected_option];
-                return `${answer.selected_option} (${selectedOption})`;
+                const optionText = parsedOptions[answer];
+                return optionText ? `${answer}) ${optionText}` : answer;
               } catch (e) {
-                return JSON.stringify(answer);
+                return answer;
               }
             }
-            return JSON.stringify(answer);
+
+            return answer;
           }
 
-          // Handle string answers - check if it's a single letter (A, B, C, D)
-          if (typeof answer === 'string' && answer.length === 1 && options) {
-            try {
-              const parsedOptions = typeof options === 'string' ? JSON.parse(options) : options;
-              const optionText = parsedOptions[answer];
-              return optionText ? `${answer} (${optionText})` : answer;
-            } catch (e) {
-              return answer;
+          if (typeof answer === 'object') {
+            // Handle {blanks: {"0": "val", "1": "val"}} format (fill-in-the-blank)
+            if (answer.blanks && typeof answer.blanks === 'object') {
+              const entries = Object.entries(answer.blanks).sort(([a], [b]) => Number(a) - Number(b));
+              return entries.map(([, val]) => val).join(', ');
             }
+
+            // Handle {selected_option_id: "B"} format
+            const optionKey = answer.selected_option_id || answer.selected_option;
+            if (optionKey && options) {
+              try {
+                const parsedOptions = typeof options === 'string' ? JSON.parse(options) : options;
+                const optionText = parsedOptions[optionKey];
+                return optionText ? `${optionKey}) ${optionText}` : optionKey;
+              } catch (e) {
+                return optionKey;
+              }
+            }
+            if (optionKey) return optionKey;
+            return JSON.stringify(answer);
           }
 
           return answer;
@@ -353,7 +436,6 @@ function StudentDetailPageContent() {
         : (attempts.length > 0 ? attempts[0] : 1); // Fall back to most recent attempt or 1
 
       setSelectedAttempt(defaultAttempt);
-      console.log(`📍 Selected default attempt: ${defaultAttempt} (attempts with feedback: ${attemptsWithFeedback.join(', ') || 'none'})`);
 
     } catch (error) {
       console.error('Error fetching student details:', error);
@@ -361,13 +443,32 @@ function StudentDetailPageContent() {
     } finally {
       setLoadingData(false);
     }
-  }, [user, studentId, moduleName]);
+  }, [studentId]);
 
+  // Handle SWR errors
   useEffect(() => {
-    if (studentId && moduleName && isAuthenticated) {
-      fetchStudentDetails();
+    if (modulesError) {
+      setError(modulesError.message || 'Failed to load modules.');
+      setLoadingData(false);
     }
-  }, [studentId, moduleName, isAuthenticated, fetchStudentDetails]);
+  }, [modulesError]);
+
+  // Handle module not found
+  useEffect(() => {
+    if (modulesData && moduleName && !resolvedModule) {
+      setError(`Module "${moduleName}" not found`);
+      setLoadingData(false);
+    }
+  }, [modulesData, moduleName, resolvedModule]);
+
+  // Fetch dynamic data once module + questions are resolved from SWR
+  useEffect(() => {
+    if (!resolvedModule || !questionsData) return;
+    const questions = questionsData.data || questionsData;
+    if (studentId && isAuthenticated) {
+      fetchStudentDetails(resolvedModule, questions);
+    }
+  }, [resolvedModule, questionsData, studentId, isAuthenticated, fetchStudentDetails]);
 
   // Function to get real AI feedback from database
   const getAIFeedback = (answerId) => {
@@ -377,114 +478,59 @@ function StudentDetailPageContent() {
     return aiFeedbackMap[answerId];
   };
 
-  // Function to render AI feedback display
-  const renderAIFeedback = (answerId, isCorrect) => {
-    const feedback = getAIFeedback(answerId);
-    const teacherGrade = teacherGradesMap[answerId];
+  // State for expanded feedback cards
+  const [expandedQuestions, setExpandedQuestions] = useState(new Set());
 
-    if (!feedback && !teacherGrade) {
-      // No feedback available
-      if (isCorrect === null) {
-        return <span className="text-slate-600/70 dark:text-slate-400/70 italic">Not answered yet</span>;
-      }
-      return <span className="text-slate-600/70 dark:text-slate-400/70 italic">No feedback available for this attempt</span>;
+  const toggleQuestionExpand = (questionId) => {
+    setExpandedQuestions(prev => {
+      const next = new Set(prev);
+      if (next.has(questionId)) next.delete(questionId);
+      else next.add(questionId);
+      return next;
+    });
+  };
+
+  // Get result badge for a question
+  const getResultBadge = (questionData) => {
+    const feedback = getAIFeedback(questionData.answer_id);
+    const teacherGrade = teacherGradesMap[questionData.answer_id];
+    const questionType = questionData.question_type?.toLowerCase();
+    // Detect MCQ by type OR by presence of options
+    let qHasOptions = false;
+    if (questionData.options) {
+      try {
+        const opts = typeof questionData.options === 'string' ? JSON.parse(questionData.options) : questionData.options;
+        qHasOptions = opts && typeof opts === 'object' && Object.keys(opts).length > 0;
+      } catch (e) { /* ignore */ }
+    }
+    const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice' || qHasOptions;
+
+    if (questionData.student_answer === null) {
+      return { label: 'Unanswered', color: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400', points: null };
     }
 
-    // Display teacher grade and AI feedback
-    return (
-      <div className="space-y-3">
-        {/* Teacher Grade - Priority Display */}
-        {teacherGrade && (
-          <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-3 rounded-lg border-2 border-emerald-300 dark:border-emerald-700">
-            <div className="flex items-start gap-2 mb-2">
-              <User className="w-4 h-4 text-emerald-600 dark:text-emerald-400 mt-0.5" />
-              <div className="flex-1">
-                <span className="text-xs font-bold text-emerald-900 dark:text-emerald-100 uppercase">Teacher&apos;s Grade</span>
-                <div className="mt-1">
-                  <span className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                    {teacherGrade.points_awarded} pts
-                  </span>
-                  {feedback?.points_possible && (
-                    <span className="text-sm text-emerald-700 dark:text-emerald-300 ml-1">
-                      / {feedback.points_possible}
-                    </span>
-                  )}
-                </div>
-                {teacherGrade.feedback_text && (
-                  <div className="mt-2 bg-white dark:bg-gray-900 p-2 rounded">
-                    <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
-                      {teacherGrade.feedback_text}
-                    </p>
-                  </div>
-                )}
-                {teacherGrade.graded_at && (
-                  <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-1">
-                    Graded on {new Date(teacherGrade.graded_at).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
+    if (isMCQ) {
+      return questionData.is_correct
+        ? { label: 'Correct', color: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300', points: '1/1' }
+        : { label: 'Incorrect', color: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300', points: '0/1' };
+    }
 
-        {/* AI Feedback */}
-        {feedback && (
-          <div className={teacherGrade ? "border-t border-slate-200 dark:border-slate-600 pt-3" : ""}>
-            {teacherGrade && (
-              <div className="flex items-center gap-1 mb-2">
-                <Bot className="w-3 h-3 text-purple-600 dark:text-purple-400" />
-                <span className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase">AI Feedback</span>
-              </div>
-            )}
+    // Essay/short answer with score
+    if (feedback?.score !== null && feedback?.score !== undefined) {
+      const scorePercent = Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100);
+      const pointsEarned = teacherGrade?.points_awarded ?? (feedback.points_earned != null ? feedback.points_earned : null);
+      const pointsPossible = feedback.points_possible || null;
+      const pointsDisplay = pointsEarned != null && pointsPossible != null ? `${pointsEarned}/${pointsPossible}` : `${scorePercent}%`;
 
-            {feedback.explanation && (
-              <div>
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">Explanation:</span>
-                <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">{feedback.explanation}</p>
-              </div>
-            )}
+      if (scorePercent >= 80) return { label: pointsDisplay, color: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300', points: pointsDisplay, percent: scorePercent };
+      if (scorePercent >= 60) return { label: pointsDisplay, color: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', points: pointsDisplay, percent: scorePercent };
+      if (scorePercent >= 40) return { label: pointsDisplay, color: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300', points: pointsDisplay, percent: scorePercent };
+      return { label: pointsDisplay, color: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300', points: pointsDisplay, percent: scorePercent };
+    }
 
-            {feedback.strengths && feedback.strengths.length > 0 && (
-              <div className="mt-2">
-                <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 uppercase">Strengths:</span>
-                <ul className="text-sm text-slate-800 dark:text-slate-200 list-disc list-inside">
-                  {feedback.strengths.map((strength, idx) => (
-                    <li key={idx}>{strength}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {feedback.weaknesses && feedback.weaknesses.length > 0 && (
-              <div className="mt-2">
-                <span className="text-xs font-semibold text-rose-600 dark:text-rose-400 uppercase">Weaknesses:</span>
-                <ul className="text-sm text-slate-800 dark:text-slate-200 list-disc list-inside">
-                  {feedback.weaknesses.map((weakness, idx) => (
-                    <li key={idx}>{weakness}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {feedback.improvement_hint && (
-              <div className="mt-2">
-                <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 uppercase">Suggestion:</span>
-                <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed">{feedback.improvement_hint}</p>
-              </div>
-            )}
-
-            {feedback.score !== null && feedback.score !== undefined && (
-              <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-600">
-                <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 uppercase">AI Score: </span>
-                <span className="text-sm font-bold text-slate-800 dark:text-slate-200">
-                  {Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100)}%
-                </span>
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    );
+    return questionData.is_correct
+      ? { label: 'Correct', color: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300', points: null }
+      : { label: 'Incorrect', color: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300', points: null };
   };
 
   // Function to get formatted AI feedback text for export
@@ -700,7 +746,7 @@ function StudentDetailPageContent() {
               <h1 className="text-xl font-semibold mb-2">Error</h1>
               <p className="text-muted-foreground mb-4">{error}</p>
               <div className="flex gap-2 justify-center">
-                <Button onClick={fetchStudentDetails}>Try Again</Button>
+                <Button onClick={() => window.location.reload()}>Try Again</Button>
                 <Button variant="outline" onClick={() => router.back()}>Go Back</Button>
               </div>
             </div>
@@ -740,153 +786,326 @@ function StudentDetailPageContent() {
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <div className="px-4 lg:px-6">
-                {/* Breadcrumb Navigation */}
-                <div className="mb-6">
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
-                    <Link href="/dashboard" className="hover:text-foreground">Dashboard</Link>
-                    <span>/</span>
-                    <Link 
-                      href={`/dashboard/students?module=${moduleName}`} 
-                      className="hover:text-foreground"
-                    >
-                      Students
-                    </Link>
-                    <span>/</span>
-                    <span className="text-foreground">{student?.name || studentId}</span>
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => router.back()}
-                    className="mb-4"
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-2" />
-                    Back to Students
-                  </Button>
-                </div>
-
-                {/* Student Header */}
-                <div className="mb-8">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 bg-gradient-to-br from-slate-500 to-slate-600 rounded-full flex items-center justify-center">
-                        <User className="w-8 h-8 text-white" />
+                {/* Professional Header with Gradient Banner */}
+                <div className="mb-8 relative">
+                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 dark:from-blue-500/5 dark:via-purple-500/5 dark:to-pink-500/5 rounded-2xl"></div>
+                  <div className="relative p-6 md:p-8 rounded-2xl border border-border/50 backdrop-blur-sm">
+                    {/* Top Row: Back + Breadcrumb + Prev/Next Nav */}
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => router.push(`/dashboard/students?module=${encodeURIComponent(moduleName)}`)}
+                        >
+                          <ArrowLeft className="w-4 h-4 mr-1" />
+                          Students
+                        </Button>
+                        <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+                          <Link href="/dashboard" className="hover:text-foreground">Dashboard</Link>
+                          <span>/</span>
+                          <Link href={`/dashboard/students?module=${moduleName}`} className="hover:text-foreground">Students</Link>
+                          <span>/</span>
+                          <span className="text-foreground font-medium">{student?.student_id}</span>
+                        </div>
                       </div>
-                      <div>
-                        <h1 className="text-3xl font-bold">{student?.name}</h1>
-                        <p className="text-muted-foreground">Student ID: {student?.student_id}</p>
-                        <p className="text-sm text-muted-foreground">Module: {moduleData?.name}</p>
-                      </div>
+                      {/* Prev/Next Navigation */}
+                      {studentNavList.length > 1 && currentStudentIndex >= 0 && (
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={currentStudentIndex <= 0}
+                            onClick={() => navigateToStudent(-1)}
+                          >
+                            <ChevronLeft className="w-4 h-4 mr-1" />
+                            Previous
+                          </Button>
+                          <span className="text-xs text-muted-foreground px-2">
+                            {currentStudentIndex + 1} of {studentNavList.length}
+                          </span>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={currentStudentIndex >= studentNavList.length - 1}
+                            onClick={() => navigateToStudent(1)}
+                          >
+                            Next
+                            <ChevronRight className="w-4 h-4 ml-1" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex gap-2">
-                      <div className="relative">
-                        <Button 
-                          variant="outline" 
+
+                    {/* Main Header Content */}
+                    <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+                      {/* Score Ring */}
+                      <div className="relative flex-shrink-0">
+                        <div className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center font-bold shadow-lg ${
+                          (student?.avg_score || 0) >= 80 ? 'bg-gradient-to-br from-green-400 to-green-600' :
+                          (student?.avg_score || 0) >= 60 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' :
+                          'bg-gradient-to-br from-red-400 to-red-600'
+                        } text-white`}>
+                          <span className="text-3xl leading-none">{student?.avg_score || 0}</span>
+                          <span className="text-xs opacity-80 mt-0.5">%</span>
+                        </div>
+                        {(student?.avg_score || 0) >= 80 && (
+                          <div className="absolute -top-2 -right-2">
+                            <Award className="w-7 h-7 text-yellow-500 fill-yellow-400 drop-shadow" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Student Info */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-3 mb-1 flex-wrap">
+                          <h1 className="text-2xl md:text-3xl font-bold text-foreground">{student?.student_id}</h1>
+                          <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                            {moduleData?.name || moduleName}
+                          </span>
+                        </div>
+                        {/* Inline Key Stats */}
+                        <div className="flex flex-wrap items-center gap-4 mt-3 text-sm">
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <BookOpen className="w-4 h-4" />
+                            <span><strong className="text-foreground">{student?.completed_questions || 0}</strong> / {student?.total_questions || 0} Questions</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <span><strong className="text-foreground">{student?.completed_questions > 0 ? Math.round((student.correct_answers / student.completed_questions) * 100) : 0}%</strong> Correct Rate</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <Activity className="w-4 h-4" />
+                            <span><strong className="text-foreground">{student?.total_attempts || 1}</strong>{moduleData?.max_attempts ? ` / ${moduleData.max_attempts}` : ''} Attempts</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 text-muted-foreground">
+                            <Shield className="w-4 h-4" />
+                            <span>
+                              {student?.teacher_graded_count > 0
+                                ? <strong className="text-green-600 dark:text-green-400">{student.teacher_graded_count} Teacher Graded</strong>
+                                : student?.ai_only_count > 0
+                                  ? <strong className="text-blue-600 dark:text-blue-400">AI Graded</strong>
+                                  : <strong className="text-gray-500">Pending</strong>
+                              }
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Download Button */}
+                      <div className="flex-shrink-0 relative">
+                        <Button
+                          variant="outline"
                           size="sm"
                           onClick={() => setShowDownloadMenu(!showDownloadMenu)}
-                          className="flex items-center gap-2"
+                          className="shadow-sm"
                         >
-                          <Download className="w-4 h-4" />
-                          Download Report
+                          <Download className="w-4 h-4 mr-2" />
+                          Export
                         </Button>
-                        
                         {showDownloadMenu && (
-                          <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-lg z-10">
-                            <div className="py-2">
-                              <button
-                                onClick={() => {
-                                  downloadStudentReport();
-                                  setShowDownloadMenu(false);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
-                              >
-                                <FileText className="w-4 h-4 text-green-600" />
-                                Download as CSV
-                              </button>
-                              <button
-                                onClick={() => {
-                                  downloadStudentReportJSON();
-                                  setShowDownloadMenu(false);
-                                }}
-                                className="w-full text-left px-4 py-2 text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
-                              >
-                                <FileJson className="w-4 h-4 text-blue-600" />
-                                Download as JSON
-                              </button>
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setShowDownloadMenu(false)} />
+                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-xl z-50">
+                              <div className="py-1">
+                                <button
+                                  onClick={() => { downloadStudentReport(); setShowDownloadMenu(false); }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                >
+                                  <FileText className="w-4 h-4 text-green-600" />
+                                  Export as CSV
+                                </button>
+                                <button
+                                  onClick={() => { downloadStudentReportJSON(); setShowDownloadMenu(false); }}
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                >
+                                  <FileJson className="w-4 h-4 text-blue-600" />
+                                  Export as JSON
+                                </button>
+                              </div>
                             </div>
-                          </div>
+                          </>
                         )}
                       </div>
                     </div>
                   </div>
-
-                  {/* Student Activity Stats */}
-                  <div className="mb-6">
-                    <h2 className="text-lg font-semibold text-gray-700 dark:text-gray-300 mb-3 flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-blue-600" />
-                      Student Activity
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <Card className="border-purple-200 dark:border-purple-800">
-                        <CardContent className="pt-6">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-muted-foreground mb-2">Test Attempts</p>
-                              <div className="flex items-baseline gap-2">
-                                <p className="text-5xl font-bold text-purple-600">{Object.keys(answersByAttempt).length}</p>
-                                {moduleData?.max_attempts && (
-                                  <>
-                                    <p className="text-2xl font-semibold text-gray-400">/</p>
-                                    <p className="text-3xl font-semibold text-purple-400">{moduleData.max_attempts}</p>
-                                  </>
-                                )}
-                              </div>
-                              <p className="text-sm text-muted-foreground mt-2">
-                                {moduleData?.max_attempts ? (
-                                  Object.keys(answersByAttempt).length >= moduleData.max_attempts
-                                    ? 'All attempts used'
-                                    : `${moduleData.max_attempts - Object.keys(answersByAttempt).length} attempt${moduleData.max_attempts - Object.keys(answersByAttempt).length !== 1 ? 's' : ''} remaining`
-                                ) : (
-                                  Object.keys(answersByAttempt).length === 1 ? '1 attempt made' : `${Object.keys(answersByAttempt).length} attempts made`
-                                )}
-                              </p>
-                            </div>
-                            <div className="w-16 h-16 bg-purple-100 dark:bg-purple-900/30 rounded-full flex items-center justify-center flex-shrink-0">
-                              <BarChart3 className="w-8 h-8 text-purple-600 dark:text-purple-400" />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-
-                      <Card className="border-orange-200 dark:border-orange-800">
-                        <CardContent className="pt-6">
-                          <div className="flex items-center justify-between">
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-muted-foreground mb-2">Last Access</p>
-                              <p className="text-2xl font-bold text-orange-600">
-                                {student?.last_access ? new Date(student.last_access).toLocaleDateString('en-US', {
-                                  month: 'short',
-                                  day: 'numeric',
-                                  year: 'numeric'
-                                }) : 'Never'}
-                              </p>
-                              <p className="text-sm text-muted-foreground mt-2">
-                                {student?.last_access ? (
-                                  <>
-                                    at {new Date(student.last_access).toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'})}
-                                  </>
-                                ) : 'No activity yet'}
-                              </p>
-                            </div>
-                            <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center flex-shrink-0">
-                              <Clock className="w-8 h-8 text-orange-600 dark:text-orange-400" />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
-                  </div>
                 </div>
+
+                {/* Performance Summary Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                  {/* Score Overview */}
+                  <Card className="border-border bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 overflow-hidden">
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Score Overview</p>
+                        <Target className="w-5 h-5 text-blue-500" />
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {/* Circular Progress */}
+                        <div className="relative w-16 h-16 flex-shrink-0">
+                          <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
+                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="6" className="text-blue-200 dark:text-blue-800" />
+                            <circle cx="32" cy="32" r="28" fill="none" strokeWidth="6" strokeLinecap="round"
+                              strokeDasharray={`${(student?.avg_score || 0) * 1.759} 175.9`}
+                              className={`${(student?.avg_score || 0) >= 80 ? 'text-green-500' : (student?.avg_score || 0) >= 60 ? 'text-yellow-500' : 'text-red-500'}`}
+                              stroke="currentColor"
+                            />
+                          </svg>
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <span className="text-sm font-bold text-foreground">{student?.avg_score || 0}%</span>
+                          </div>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          <p className="font-semibold text-foreground">
+                            {(student?.avg_score || 0) >= 80 ? 'Excellent' : (student?.avg_score || 0) >= 60 ? 'Good' : 'Needs Work'}
+                          </p>
+                          <p>{student?.progress || 0}% complete</p>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Questions Breakdown */}
+                  <Card className="border-border bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30 overflow-hidden">
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-green-700 dark:text-green-300">Questions</p>
+                        <BookOpen className="w-5 h-5 text-green-500" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span> Correct</span>
+                          <span className="font-bold text-foreground">{student?.correct_answers || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span> Incorrect</span>
+                          <span className="font-bold text-foreground">{student?.incorrect_answers || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block"></span> Unanswered</span>
+                          <span className="font-bold text-foreground">{student?.unanswered || 0}</span>
+                        </div>
+                        {/* Mini bar chart */}
+                        <div className="flex h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 mt-1">
+                          {(student?.correct_answers || 0) > 0 && (
+                            <div className="bg-green-500 h-full" style={{width: `${(student.correct_answers / student.total_questions) * 100}%`}}></div>
+                          )}
+                          {(student?.incorrect_answers || 0) > 0 && (
+                            <div className="bg-red-500 h-full" style={{width: `${(student.incorrect_answers / student.total_questions) * 100}%`}}></div>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Attempts Used */}
+                  <Card className="border-border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 overflow-hidden">
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Attempts Used</p>
+                        <Activity className="w-5 h-5 text-purple-500" />
+                      </div>
+                      <div className="flex items-baseline gap-2 mb-2">
+                        <span className="text-3xl font-bold text-purple-600 dark:text-purple-400">{student?.total_attempts || 1}</span>
+                        {moduleData?.max_attempts && (
+                          <span className="text-lg text-muted-foreground">/ {moduleData.max_attempts}</span>
+                        )}
+                      </div>
+                      {moduleData?.max_attempts ? (
+                        <>
+                          <div className="w-full bg-purple-200 dark:bg-purple-800 rounded-full h-2 overflow-hidden">
+                            <div className={`h-full rounded-full ${(student?.total_attempts || 1) >= moduleData.max_attempts ? 'bg-red-500' : 'bg-purple-500'}`}
+                              style={{width: `${Math.min(100, ((student?.total_attempts || 1) / moduleData.max_attempts) * 100)}%`}}
+                            ></div>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1.5">
+                            {(student?.total_attempts || 1) >= moduleData.max_attempts ? 'All used' : `${moduleData.max_attempts - (student?.total_attempts || 1)} remaining`}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="text-xs text-muted-foreground">Unlimited attempts</p>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Grade Status */}
+                  <Card className="border-border bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/30 dark:to-orange-900/30 overflow-hidden">
+                    <CardContent className="p-5">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-orange-700 dark:text-orange-300">Grade Status</p>
+                        <GraduationCap className="w-5 h-5 text-orange-500" />
+                      </div>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span> Teacher Graded</span>
+                          <span className="font-bold text-foreground">{student?.teacher_graded_count || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> AI Only</span>
+                          <span className="font-bold text-foreground">{student?.ai_only_count || 0}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block"></span> Ungraded</span>
+                          <span className="font-bold text-foreground">{student?.ungraded_count || 0}</span>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Attempt Comparison Section */}
+                {student?.attempt_scores && student.attempt_scores.length >= 2 && (
+                  <div className="mb-8">
+                    <Card className="border-border">
+                      <CardHeader className="pb-3">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <TrendingUp className="w-5 h-5 text-blue-500" />
+                          Attempt Comparison
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="flex gap-3 overflow-x-auto pb-2">
+                          {student.attempt_scores.map((attempt, idx) => {
+                            const prevScore = idx > 0 ? student.attempt_scores[idx - 1].score : null;
+                            const trend = prevScore !== null
+                              ? attempt.score > prevScore ? 'up' : attempt.score < prevScore ? 'down' : 'same'
+                              : null;
+                            return (
+                              <button
+                                key={attempt.attempt}
+                                onClick={() => setSelectedAttempt(attempt.attempt)}
+                                className={`flex-shrink-0 p-4 rounded-xl border-2 transition-all min-w-[140px] text-left ${
+                                  selectedAttempt === attempt.attempt
+                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-md'
+                                    : 'border-border hover:border-blue-300 hover:bg-muted/50'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-semibold text-muted-foreground uppercase">Attempt {attempt.attempt}</span>
+                                  {trend && (
+                                    trend === 'up' ? <TrendingUp className="w-4 h-4 text-green-500" /> :
+                                    trend === 'down' ? <TrendingDown className="w-4 h-4 text-red-500" /> :
+                                    <Minus className="w-4 h-4 text-gray-400" />
+                                  )}
+                                </div>
+                                <div className={`text-2xl font-bold ${
+                                  attempt.score >= 80 ? 'text-green-600 dark:text-green-400' :
+                                  attempt.score >= 60 ? 'text-yellow-600 dark:text-yellow-400' :
+                                  'text-red-600 dark:text-red-400'
+                                }`}>
+                                  {attempt.score}%
+                                </div>
+                                <div className="text-xs text-muted-foreground mt-1">
+                                  {attempt.answered} questions &middot; {attempt.correct} correct
+                                </div>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </div>
+                )}
 
                 {/* Survey Response Section */}
                 {surveyData && surveyData.survey_questions && surveyData.survey_questions.length > 0 && (
@@ -1013,263 +1232,464 @@ function StudentDetailPageContent() {
                   </div>
                 )}
 
-                {/* Question Analysis Table */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="text-xl flex items-center gap-2">
+                {/* Question Analysis */}
+                <div>
+                  {/* Section Header */}
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-bold flex items-center gap-2 text-foreground">
                       <List className="w-6 h-6" />
-                      Question Analysis {Object.keys(answersByAttempt).length > 1 && `- Attempt ${selectedAttempt}`}
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    {studentAnswers.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <HelpCircle className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                        <p>No questions available for this module</p>
-                      </div>
-                    ) : (
+                      Question Analysis
+                      {Object.keys(answersByAttempt).length > 1 && (
+                        <span className="text-sm font-normal text-muted-foreground ml-1">- Attempt {selectedAttempt}</span>
+                      )}
+                    </h2>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-muted-foreground hidden sm:inline">
+                        {studentAnswers.filter(q => q.attempt === selectedAttempt).length} questions
+                      </span>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCompactMode(!compactMode)}
+                        className="gap-1.5 text-xs"
+                      >
+                        {compactMode ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                        {compactMode ? 'Detailed' : 'Compact'}
+                      </Button>
+                    </div>
+                  </div>
+
+                  {studentAnswers.length === 0 ? (
+                    <Card>
+                      <CardContent className="py-12 text-center">
+                        <HelpCircle className="w-12 h-12 mx-auto mb-3 text-muted-foreground/50" />
+                        <p className="text-muted-foreground">No questions available for this module</p>
+                      </CardContent>
+                    </Card>
+                  ) : compactMode ? (
+                    /* ===== COMPACT MODE: Dense table ===== */
+                    <Card className="overflow-hidden border-border">
                       <div className="overflow-x-auto">
-                        <table className="w-full border-separate border-spacing-0">
-                          <thead className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-800 dark:to-slate-700 border-b-2 border-slate-200 dark:border-slate-600">
-                            <tr>
-                              <th className="text-left p-5 font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
-                                  SN
-                                </div>
-                              </th>
-                              <th className="text-left p-5 font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-600">
-                                <div className="flex items-center gap-2">
-                                  <BookOpen className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                                  Question
-                                </div>
-                              </th>
-                              <th className="text-left p-5 font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-600">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircle className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                                  Correct Answer
-                                </div>
-                              </th>
-                              <th className="text-left p-5 font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-600">
-                                <div className="flex items-center gap-2">
-                                  <User className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                  Student Answer
-                                </div>
-                              </th>
-                              <th className="text-center p-5 font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-600">
-                                <div className="flex items-center justify-center gap-2">
-                                  <Award className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                                  Result
-                                </div>
-                              </th>
-                              <th className="text-left p-5 font-bold text-slate-700 dark:text-slate-200 border-b border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800">
-                                <div className="flex items-center gap-2">
-                                  <Bot className="w-4 h-4 text-blue-600 dark:text-blue-400" />
-                                  AI Feedback
-                                </div>
-                              </th>
+                        <table className="w-full text-sm">
+                          <thead>
+                            <tr className="border-b bg-muted/40">
+                              <th className="text-left p-3 font-semibold text-muted-foreground w-10">#</th>
+                              <th className="text-left p-3 font-semibold text-muted-foreground">Question</th>
+                              <th className="text-left p-3 font-semibold text-muted-foreground w-48">Student Answer</th>
+                              <th className="text-center p-3 font-semibold text-muted-foreground w-24">Result</th>
                             </tr>
                           </thead>
                           <tbody>
                             {studentAnswers
-                              .filter(questionData => questionData.attempt === selectedAttempt)
-                              .map((questionData, index) => (
-                              <tr key={`${questionData.question_id}-${questionData.attempt}`} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/50 transition-colors duration-200">
-                                <td className="p-5 border-r border-slate-100 dark:border-slate-700">
-                                  <div className="flex items-center justify-center">
-                                    <div className="w-10 h-10 bg-gradient-to-br from-slate-500 to-slate-600 rounded-full flex items-center justify-center shadow-lg">
-                                      <span className="text-sm font-bold text-white">{index + 1}</span>
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="p-5 max-w-md border-r border-slate-100 dark:border-slate-700">
-                                  <div className="space-y-2">
-                                    <p className="text-sm font-medium leading-relaxed text-slate-800 dark:text-slate-200 whitespace-pre-wrap">{questionData.question_text}</p>
-                                    {questionData.image_url && (
-                                      <div className="mt-2 relative" style={{ maxHeight: '200px', width: '100%' }}>
-                                        <Image
-                                          src={questionData.image_url}
-                                          alt="Question illustration"
-                                          width={400}
-                                          height={200}
-                                          className="rounded-lg border border-slate-200 dark:border-slate-600 shadow-sm object-contain"
-                                          style={{ maxHeight: '200px', width: 'auto' }}
-                                        />
-                                      </div>
-                                    )}
-                                    {questionData.answered_at && (
-                                      <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                                        <Clock className="w-3 h-3" />
-                                        <span>Answered: {new Date(questionData.answered_at).toLocaleString()}</span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="p-5 border-r border-slate-100 dark:border-slate-700">
-                                  <div className="bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 px-4 py-3 rounded-lg text-sm font-semibold border border-emerald-200 dark:border-emerald-700 shadow-sm">
-                                    <div className="flex items-center gap-2">
-                                      <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                                      {questionData.correct_answer || 'Not specified'}
-                                    </div>
-                                  </div>
-                                </td>
-                                <td className="p-5 border-r border-slate-100 dark:border-slate-700">
-                                  {questionData.student_answer ? (
-                                    <div className={`px-4 py-3 rounded-lg text-sm font-semibold border shadow-sm ${
-                                      questionData.is_correct
-                                        ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-700'
-                                        : 'bg-rose-50 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-700'
-                                    }`}>
-                                      <div className="flex items-center gap-2">
-                                        <div className={`w-2 h-2 rounded-full ${
-                                          questionData.is_correct ? 'bg-emerald-500' : 'bg-rose-500'
-                                        }`}></div>
-                                        {questionData.student_answer}
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    <div className="bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-3 rounded-lg text-sm font-medium border border-slate-200 dark:border-slate-600 shadow-sm">
-                                      <div className="flex items-center gap-2">
-                                        <div className="w-2 h-2 bg-slate-400 rounded-full"></div>
-                                        Not Answered
-                                      </div>
-                                    </div>
-                                  )}
-                                </td>
-                                <td className="p-5 border-r border-slate-100 dark:border-slate-700">
-                                  <div className="flex items-center justify-center">
-                                    {questionData.student_answer !== null ? (
-                                      (() => {
-                                        const feedback = getAIFeedback(questionData.answer_id);
-                                        const questionType = questionData.question_type?.toLowerCase();
-                                        const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice';
-
-                                        // For MCQ questions, show Correct/Wrong
-                                        if (isMCQ) {
-                                          return questionData.is_correct ? (
-                                            <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl shadow-sm">
-                                              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-800 rounded-full flex items-center justify-center">
-                                                <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                                              </div>
-                                              <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                                                Correct
-                                              </span>
-                                            </div>
-                                          ) : (
-                                            <div className="flex items-center gap-3 px-4 py-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl shadow-sm">
-                                              <div className="w-8 h-8 bg-rose-100 dark:bg-rose-800 rounded-full flex items-center justify-center">
-                                                <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                                              </div>
-                                              <span className="text-sm font-semibold text-rose-800 dark:text-rose-300">
-                                                Wrong
-                                              </span>
-                                            </div>
-                                          );
-                                        }
-
-                                        // For short/essay questions, show score percentage
-                                        if (feedback?.score !== null && feedback?.score !== undefined) {
-                                          const scorePercent = Math.round(feedback.score > 1 ? feedback.score : feedback.score * 100);
-
-                                          // Color coding based on score ranges
-                                          let bgColor, borderColor, iconBgColor, textColor, icon;
-                                          if (scorePercent >= 80) {
-                                            bgColor = 'bg-emerald-50 dark:bg-emerald-900/30';
-                                            borderColor = 'border-emerald-200 dark:border-emerald-700';
-                                            iconBgColor = 'bg-emerald-100 dark:bg-emerald-800';
-                                            textColor = 'text-emerald-800 dark:text-emerald-300';
-                                            icon = <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />;
-                                          } else if (scorePercent >= 60) {
-                                            bgColor = 'bg-yellow-50 dark:bg-yellow-900/30';
-                                            borderColor = 'border-yellow-200 dark:border-yellow-700';
-                                            iconBgColor = 'bg-yellow-100 dark:bg-yellow-800';
-                                            textColor = 'text-yellow-800 dark:text-yellow-300';
-                                            icon = <CheckCircle className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />;
-                                          } else if (scorePercent >= 40) {
-                                            bgColor = 'bg-orange-50 dark:bg-orange-900/30';
-                                            borderColor = 'border-orange-200 dark:border-orange-700';
-                                            iconBgColor = 'bg-orange-100 dark:bg-orange-800';
-                                            textColor = 'text-orange-800 dark:text-orange-300';
-                                            icon = <AlertCircle className="w-5 h-5 text-orange-600 dark:text-orange-400" />;
-                                          } else {
-                                            bgColor = 'bg-rose-50 dark:bg-rose-900/30';
-                                            borderColor = 'border-rose-200 dark:border-rose-700';
-                                            iconBgColor = 'bg-rose-100 dark:bg-rose-800';
-                                            textColor = 'text-rose-800 dark:text-rose-300';
-                                            icon = <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />;
-                                          }
-
-                                          return (
-                                            <div className={`flex flex-col items-center gap-2 px-4 py-3 ${bgColor} border ${borderColor} rounded-xl shadow-sm`}>
-                                              <div className={`w-8 h-8 ${iconBgColor} rounded-full flex items-center justify-center`}>
-                                                {icon}
-                                              </div>
-                                              <span className={`text-lg font-bold ${textColor}`}>
-                                                {scorePercent}%
-                                              </span>
-                                            </div>
-                                          );
-                                        }
-
-                                        // Fallback to Correct/Wrong if no score available
-                                        return questionData.is_correct ? (
-                                          <div className="flex items-center gap-3 px-4 py-3 bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-700 rounded-xl shadow-sm">
-                                            <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-800 rounded-full flex items-center justify-center">
-                                              <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                                            </div>
-                                            <span className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
-                                              Correct
-                                            </span>
-                                          </div>
-                                        ) : (
-                                          <div className="flex items-center gap-3 px-4 py-3 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-700 rounded-xl shadow-sm">
-                                            <div className="w-8 h-8 bg-rose-100 dark:bg-rose-800 rounded-full flex items-center justify-center">
-                                              <XCircle className="w-5 h-5 text-rose-600 dark:text-rose-400" />
-                                            </div>
-                                            <span className="text-sm font-semibold text-rose-800 dark:text-rose-300">
-                                              Wrong
-                                            </span>
-                                          </div>
-                                        );
-                                      })()
-                                    ) : (
-                                      <div className="flex items-center gap-3 px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-xl shadow-sm">
-                                        <div className="w-8 h-8 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                                          <HelpCircle className="w-5 h-5 text-slate-500 dark:text-slate-400" />
-                                        </div>
-                                        <span className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                                          Pending
-                                        </span>
-                                      </div>
-                                    )}
-                                  </div>
-                                </td>
-                                <td className="p-5 max-w-sm">
-                                  <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-800/20 dark:to-slate-700/20 border border-slate-200 dark:border-slate-700 rounded-xl p-4 shadow-sm">
-                                    <div className="flex items-start gap-3">
-                                      <div className="w-8 h-8 bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-600 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 shadow-sm">
-                                        <Bot className="w-4 h-4 text-slate-600 dark:text-slate-400" />
-                                      </div>
-                                      <div className="flex-1">
-                                        <div className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wide mb-2 flex items-center gap-1">
-                                          <div className="w-1 h-1 bg-slate-500 rounded-full"></div>
-                                          AI Analysis
-                                        </div>
-                                        <div className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">
-                                          {renderAIFeedback(questionData.answer_id, questionData.is_correct)}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
+                              .filter(q => q.attempt === selectedAttempt)
+                              .map((questionData, index) => {
+                                const result = getResultBadge(questionData);
+                                return (
+                                  <tr key={`${questionData.question_id}-${questionData.attempt}`}
+                                    className="border-b border-border/50 hover:bg-muted/30 transition-colors">
+                                    <td className="p-3 text-muted-foreground font-mono">{index + 1}</td>
+                                    <td className="p-3">
+                                      <p className="truncate max-w-md" title={questionData.question_text}>{questionData.question_text}</p>
+                                    </td>
+                                    <td className="p-3">
+                                      {questionData.student_answer ? (
+                                        <span className="truncate block max-w-[180px]" title={String(questionData.student_answer)}>{questionData.student_answer}</span>
+                                      ) : (
+                                        <span className="text-muted-foreground italic">-</span>
+                                      )}
+                                    </td>
+                                    <td className="p-3 text-center">
+                                      <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold ${result.color}`}>
+                                        {result.points || result.label}
+                                      </span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                           </tbody>
                         </table>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                    </Card>
+                  ) : (
+                    /* ===== DETAILED MODE: Card-based layout ===== */
+                    <div className="space-y-5">
+                      {studentAnswers
+                        .filter(q => q.attempt === selectedAttempt)
+                        .map((questionData, index) => {
+                          const result = getResultBadge(questionData);
+                          const feedback = getAIFeedback(questionData.answer_id);
+                          const teacherGrade = teacherGradesMap[questionData.answer_id];
+                          const hasFeedback = !!(feedback || teacherGrade);
+                          const questionType = questionData.question_type?.toLowerCase();
+                          // Detect MCQ by type OR by presence of options data
+                          let hasOptions = false;
+                          if (questionData.options) {
+                            try {
+                              const opts = typeof questionData.options === 'string' ? JSON.parse(questionData.options) : questionData.options;
+                              hasOptions = opts && typeof opts === 'object' && Object.keys(opts).length > 0;
+                            } catch (e) { /* ignore */ }
+                          }
+                          const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice' || hasOptions;
+
+                          const isCorrectish = questionData.is_correct === true || (result.percent && result.percent >= 60);
+                          const isUnanswered = questionData.student_answer === null;
+
+                          return (
+                            <div
+                              key={`${questionData.question_id}-${questionData.attempt}`}
+                              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm"
+                            >
+                              {/* ── Question header ── */}
+                              <div className="flex items-start gap-3 p-4 pb-3"
+                              >
+                                {/* Number badge */}
+                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
+                                  isUnanswered
+                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                    : isCorrectish
+                                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
+                                      : 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
+                                }`}>
+                                  {index + 1}
+                                </div>
+
+                                {/* Question text */}
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-foreground leading-relaxed">{questionData.question_text}</p>
+                                  {questionData.image_url && (
+                                    <div className="mt-2" style={{ maxHeight: '140px' }}>
+                                      <Image
+                                        src={questionData.image_url}
+                                        alt="Question illustration"
+                                        width={300}
+                                        height={140}
+                                        className="rounded-lg border border-border object-contain"
+                                        style={{ maxHeight: '140px', width: 'auto' }}
+                                      />
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-2 mt-1.5">
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
+                                      isMCQ
+                                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                        : questionType === 'essay'
+                                          ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
+                                          : 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                    }`}>
+                                      {isMCQ ? 'MCQ' : questionType === 'essay' ? 'Essay' : 'Short Answer'}
+                                    </span>
+                                    {questionData.answered_at && (
+                                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                                        <Clock className="w-3 h-3" />
+                                        {new Date(questionData.answered_at).toLocaleString()}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Unanswered indicator */}
+                                {isUnanswered && (
+                                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                    <HelpCircle className="w-3.5 h-3.5" /> Unanswered
+                                  </span>
+                                )}
+                              </div>
+
+
+                              {/* ── Answer Section with Result ── */}
+                              {questionData.student_answer !== null && (
+                                <div className="px-4 pb-3">
+                                  {isMCQ && questionData.options ? (
+                                    /* === MCQ: All options, color only on correct + student pick === */
+                                    (() => {
+                                      let parsedOpts = {};
+                                      try {
+                                        parsedOpts = typeof questionData.options === 'string' ? JSON.parse(questionData.options) : questionData.options;
+                                      } catch (e) { /* ignore */ }
+                                      const studentOptId = questionData.raw_student_answer?.selected_option_id
+                                        || questionData.raw_student_answer?.selected_option
+                                        || (typeof questionData.raw_student_answer === 'string' && questionData.raw_student_answer.length === 1 ? questionData.raw_student_answer : null);
+                                      const correctOptId = questionData.raw_correct_answer?.selected_option_id
+                                        || questionData.raw_correct_answer?.selected_option
+                                        || (typeof questionData.raw_correct_answer === 'string' ? questionData.raw_correct_answer.trim() : null);
+                                      const optionEntries = Object.entries(parsedOpts);
+
+                                      return (
+                                        <div className="space-y-1.5">
+                                          {optionEntries.map(([key, text]) => {
+                                            const isStudentPick = studentOptId && key.toUpperCase() === studentOptId.toUpperCase();
+                                            const isCorrectOpt = correctOptId && key.toUpperCase() === correctOptId.toUpperCase();
+                                            const isStudentCorrect = isStudentPick && isCorrectOpt;
+                                            const isStudentWrong = isStudentPick && !isCorrectOpt;
+
+                                            return (
+                                              <div key={key} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${
+                                                isStudentCorrect
+                                                  ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700'
+                                                  : isStudentWrong
+                                                    ? 'bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-700'
+                                                    : isCorrectOpt
+                                                      ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 border-dashed'
+                                                      : 'border border-transparent'
+                                              }`}>
+                                                {/* Letter */}
+                                                <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${
+                                                  isStudentCorrect ? 'bg-emerald-500 text-white'
+                                                  : isStudentWrong ? 'bg-rose-500 text-white'
+                                                  : isCorrectOpt ? 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200'
+                                                  : 'text-muted-foreground'
+                                                }`}>
+                                                  {key}
+                                                </span>
+                                                {/* Text */}
+                                                <span className={`text-sm flex-1 ${
+                                                  isStudentPick || isCorrectOpt ? 'font-medium text-foreground' : 'text-muted-foreground'
+                                                }`}>{text}</span>
+                                                {/* Labels */}
+                                                {isStudentCorrect && (
+                                                  <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 flex-shrink-0">
+                                                    <CheckCircle className="w-3.5 h-3.5" /> Correct
+                                                  </span>
+                                                )}
+                                                {isStudentWrong && (
+                                                  <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 flex-shrink-0">
+                                                    <XCircle className="w-3.5 h-3.5" /> Selected
+                                                  </span>
+                                                )}
+                                                {isCorrectOpt && !isStudentPick && (
+                                                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1 flex-shrink-0">
+                                                    <CheckCircle className="w-3.5 h-3.5" /> Correct Answer
+                                                  </span>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                          {/* Result row */}
+                                          <div className="flex items-center justify-end gap-2 pt-1.5">
+                                            {teacherGrade && (
+                                              <span className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30">
+                                                <GraduationCap className="w-3.5 h-3.5" />
+                                                {teacherGrade.points_awarded} pts
+                                              </span>
+                                            )}
+                                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${result.color}`}>
+                                              {isCorrectish ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                                              {result.points || result.label}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()
+                                  ) : (
+                                    /* === Non-MCQ / Fill-in-the-blank === */
+                                    (() => {
+                                      // Detect fill-in-the-blank from raw answer
+                                      const raw = questionData.raw_student_answer;
+                                      let blanksData = null;
+                                      if (raw && typeof raw === 'object' && raw.blanks) {
+                                        blanksData = raw.blanks;
+                                      } else if (typeof raw === 'string') {
+                                        try {
+                                          const parsed = JSON.parse(raw);
+                                          if (parsed?.blanks) blanksData = parsed.blanks;
+                                        } catch (e) { /* not JSON */ }
+                                      }
+
+                                      // Also check raw correct answer for blanks
+                                      const rawCorrect = questionData.raw_correct_answer;
+                                      let correctBlanks = null;
+                                      if (rawCorrect && typeof rawCorrect === 'object' && rawCorrect.blanks) {
+                                        correctBlanks = rawCorrect.blanks;
+                                      } else if (typeof rawCorrect === 'string') {
+                                        try {
+                                          const parsed = JSON.parse(rawCorrect);
+                                          if (parsed?.blanks) correctBlanks = parsed.blanks;
+                                        } catch (e) { /* not JSON */ }
+                                      }
+
+                                      if (blanksData) {
+                                        // Fill-in-the-blank display
+                                        const entries = Object.entries(blanksData).sort(([a], [b]) => Number(a) - Number(b));
+                                        return (
+                                          <div className="space-y-2">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Student&apos;s Answers</p>
+                                            <div className="flex flex-wrap gap-2">
+                                              {entries.map(([idx, val]) => (
+                                                <div key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${
+                                                  isCorrectish
+                                                    ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200'
+                                                    : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+                                                }`}>
+                                                  <span className="text-[10px] font-bold text-muted-foreground">Blank {Number(idx) + 1}:</span>
+                                                  <span className="font-medium">{val || '(empty)'}</span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                            {correctBlanks && (
+                                              <>
+                                                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mt-2">Expected Answers</p>
+                                                <div className="flex flex-wrap gap-2">
+                                                  {Object.entries(correctBlanks).sort(([a], [b]) => Number(a) - Number(b)).map(([idx, val]) => (
+                                                    <div key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-sm text-emerald-800 dark:text-emerald-200">
+                                                      <span className="text-[10px] font-bold text-muted-foreground">Blank {Number(idx) + 1}:</span>
+                                                      <span className="font-medium">{val || '(empty)'}</span>
+                                                    </div>
+                                                  ))}
+                                                </div>
+                                              </>
+                                            )}
+                                            {/* Result row */}
+                                            <div className="flex items-center justify-end gap-2 pt-1.5">
+                                              {teacherGrade && (
+                                                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30">
+                                                  <GraduationCap className="w-3.5 h-3.5" />
+                                                  {teacherGrade.points_awarded} pts
+                                                </span>
+                                              )}
+                                              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${result.color}`}>
+                                                {isCorrectish ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                                                {result.points || result.label}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        );
+                                      }
+
+                                      // Regular non-MCQ side by side
+                                      return (
+                                        <div className="space-y-2">
+                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                            <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
+                                              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
+                                                <CheckCircle className="w-3 h-3" /> Expected Answer
+                                              </p>
+                                              <p className="text-sm text-foreground break-words leading-relaxed">{questionData.correct_answer || 'Not specified'}</p>
+                                            </div>
+                                            <div className={`border rounded-lg p-3 ${
+                                              isCorrectish
+                                                ? 'bg-blue-50/70 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+                                                : 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800'
+                                            }`}>
+                                              <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${
+                                                isCorrectish ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
+                                              }`}>
+                                                <User className="w-3 h-3" /> Student&apos;s Answer
+                                              </p>
+                                              <p className="text-sm text-foreground break-words leading-relaxed">{questionData.student_answer}</p>
+                                            </div>
+                                          </div>
+                                          {/* Result row */}
+                                          <div className="flex items-center justify-end gap-2 pt-1.5">
+                                            {teacherGrade && (
+                                              <span className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30">
+                                                <GraduationCap className="w-3.5 h-3.5" />
+                                                {teacherGrade.points_awarded} pts
+                                              </span>
+                                            )}
+                                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${result.color}`}>
+                                              {isCorrectish ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
+                                              {result.points || result.label}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })()
+                                  )}
+                                </div>
+                              )}
+
+                              {/* ── Feedback on hover ── */}
+                              {hasFeedback && questionData.student_answer !== null && (
+                                <div className="px-4 pb-3">
+                                  <div className="relative inline-block group/feedback">
+                                    {/* Eye icon trigger */}
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                                      <Eye className="w-3.5 h-3.5" />
+                                      View Feedback
+                                    </div>
+
+                                    {/* Popover — opens to the right */}
+                                    <div className="invisible group-hover/feedback:visible opacity-0 group-hover/feedback:opacity-100 transition-all duration-150 absolute left-full bottom-0 ml-3 z-[60] w-[500px]">
+                                      {/* Arrow pointing left */}
+                                      <div className="w-3 h-3 bg-white dark:bg-slate-900 border-l border-b border-slate-300 dark:border-slate-600 rotate-45 absolute -left-[7px] bottom-3 z-10"></div>
+                                      <div className="rounded-xl border border-slate-300 dark:border-slate-600 shadow-2xl bg-white dark:bg-slate-900 max-h-[450px] overflow-y-auto">
+                                        <div className="p-4 space-y-3">
+                                          {feedback?.explanation && (
+                                            <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">Feedback</p>
+                                              <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">{feedback.explanation}</p>
+                                            </div>
+                                          )}
+
+                                          {feedback?.strengths && feedback.strengths.length > 0 && (
+                                            <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">What you did well</p>
+                                              <ul className="space-y-1">
+                                                {feedback.strengths.map((s, idx) => (
+                                                  <li key={idx} className="text-sm text-green-800 dark:text-green-200 flex items-start gap-2">
+                                                    <span className="mt-1">&bull;</span><span>{s}</span>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+
+                                          {feedback?.weaknesses && feedback.weaknesses.length > 0 && (
+                                            <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-orange-900 dark:text-orange-100 mb-2">Areas to improve</p>
+                                              <ul className="space-y-1">
+                                                {feedback.weaknesses.map((w, idx) => (
+                                                  <li key={idx} className="text-sm text-orange-800 dark:text-orange-200 flex items-start gap-2">
+                                                    <span className="mt-1">&bull;</span><span>{w}</span>
+                                                  </li>
+                                                ))}
+                                              </ul>
+                                            </div>
+                                          )}
+
+                                          {feedback?.improvement_hint && (
+                                            <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-1">Suggestion</p>
+                                              <p className="text-sm text-yellow-800 dark:text-yellow-200 leading-relaxed">{feedback.improvement_hint}</p>
+                                            </div>
+                                          )}
+
+                                          {feedback?.concept_explanation && (
+                                            <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-1">Key concept</p>
+                                              <p className="text-sm text-purple-800 dark:text-purple-200 leading-relaxed">{feedback.concept_explanation}</p>
+                                            </div>
+                                          )}
+
+                                          {teacherGrade && (
+                                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-4 rounded-lg border-2 border-emerald-300 dark:border-emerald-700">
+                                              <div className="flex items-center gap-3">
+                                                <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
+                                                  <GraduationCap className="w-4 h-4 text-white" />
+                                                </div>
+                                                <div>
+                                                  <p className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
+                                                    {teacherGrade.points_awarded}{feedback?.points_possible ? ` / ${feedback.points_possible}` : ''} points
+                                                  </p>
+                                                  {teacherGrade.feedback_text && (
+                                                    <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{teacherGrade.feedback_text}</p>
+                                                  )}
+                                                </div>
+                                              </div>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </div>
