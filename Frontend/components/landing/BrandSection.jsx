@@ -20,7 +20,7 @@ const stats = [
 
 export default function BrandSection() {
   return (
-    <section className="py-24 bg-[#EEF2FF] border-y border-slate-200/50 overflow-hidden">
+    <section className="py-24 bg-[#EEF2FF] dark:bg-slate-900 border-y border-slate-200/50 dark:border-slate-700/50 overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 w-full">
 
         {/* Section Header */}
@@ -33,17 +33,17 @@ export default function BrandSection() {
         {/* Logo Carousel - Pro Level Infinite Scroll Effect */}
         <div className="relative group">
           {/* Fading Edges Mask */}
-          <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#EEF2FF] to-transparent z-10" />
-          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#EEF2FF] to-transparent z-10" />
+          <div className="absolute inset-y-0 left-0 w-32 bg-gradient-to-r from-[#EEF2FF] dark:from-slate-900 to-transparent z-10" />
+          <div className="absolute inset-y-0 right-0 w-32 bg-gradient-to-l from-[#EEF2FF] dark:from-slate-900 to-transparent z-10" />
 
           <div className="flex gap-12 items-center animate-scroll whitespace-nowrap">
             {/* Duplicating brands for seamless loop */}
             {[...brands, ...brands].map((brand, index) => (
               <div
                 key={index}
-                className="flex items-center gap-3 px-8 py-4 bg-white/50 rounded-2xl border border-white shadow-sm hover:shadow-md transition-all duration-300 group/item grayscale hover:grayscale-0"
+                className="flex items-center gap-3 px-8 py-4 bg-white/50 dark:bg-slate-800/50 rounded-2xl border border-white dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 group/item grayscale hover:grayscale-0"
               >
-                <span className="text-2xl font-black text-[#1a212c] opacity-80">{brand.logo}</span>
+                <span className="text-2xl font-black text-[#1a212c] dark:text-white opacity-80">{brand.logo}</span>
                 <span className="text-xs font-bold text-slate-500 uppercase tracking-tighter whitespace-nowrap">
                   {brand.name}
                 </span>
@@ -62,7 +62,7 @@ export default function BrandSection() {
                   {idx + 1}
                 </div>
 
-                <div className="text-5xl md:text-7xl font-black text-[#1a212c] tracking-tighter mb-2 transition-transform group-hover:-translate-y-1 duration-300">
+                <div className="text-5xl md:text-7xl font-black text-[#1a212c] dark:text-white tracking-tighter mb-2 transition-transform group-hover:-translate-y-1 duration-300">
                   {stat.value}
                 </div>
                 <div className="flex items-center gap-2">

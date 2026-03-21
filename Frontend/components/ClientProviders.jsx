@@ -14,8 +14,7 @@ export function ClientProviders({ children }) {
         <AuthProvider>
           <ThemeProvider
             attribute="class"
-            defaultTheme="system"
-            enableSystem
+            defaultTheme="light"
             disableTransitionOnChange
           >
             <AuthHeader />

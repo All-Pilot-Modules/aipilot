@@ -9,7 +9,7 @@ import { FadeIn, SlideInLeft, SlideInRight, ScaleIn, RotateIn } from './Animatio
 function AnalyticCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-[80%] transform -rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform -rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
             <BarChart3 className="text-orange-500 w-6 h-6" />
@@ -35,7 +35,7 @@ function AnalyticCard() {
 function TestCreationCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex justify-between items-center mb-6">
           <div className="h-4 w-32 bg-slate-900 rounded-full" />
           <Sparkles className="text-blue-500 w-5 h-5" />
@@ -83,7 +83,7 @@ function FeedbackCard() {
 function ModuleCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <BookOpen className="text-teal-500 w-5 h-5" />
@@ -153,7 +153,7 @@ function QuestionTypesCard() {
 function MasteryCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Zap className="text-pink-500 w-5 h-5" />
@@ -242,7 +242,7 @@ const features = [
 
 export default function FeaturesSection() {
   return (
-    <section className="py-20 bg-white">
+    <section className="py-20 bg-white dark:bg-slate-900">
       <div className="max-w-6xl mx-auto px-6">
         <div className="space-y-48">
           {features.map((feature, index) => {
@@ -267,17 +267,17 @@ export default function FeaturesSection() {
                 <TextWrapper className={`${feature.reverse ? 'lg:order-1' : 'lg:order-2'}`}>
                   <div className="max-w-md">
                     <FadeIn delay={0.3}>
-                      <p className="text-[11px] font-black tracking-[0.2em] text-slate-900 uppercase mb-4">
+                      <p className="text-[11px] font-black tracking-[0.2em] text-slate-900 dark:text-slate-300 uppercase mb-4">
                         {feature.label}
                       </p>
                     </FadeIn>
                     <FadeIn delay={0.4}>
-                      <h3 className="text-4xl md:text-5xl font-bold text-slate-900 tracking-tighter leading-[1.1] mb-6">
+                      <h3 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white tracking-tighter leading-[1.1] mb-6">
                         {feature.headline}
                       </h3>
                     </FadeIn>
                     <FadeIn delay={0.5}>
-                      <p className="text-lg text-slate-600 leading-relaxed mb-8">
+                      <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-8">
                         {feature.description}
                       </p>
                     </FadeIn>

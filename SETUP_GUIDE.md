@@ -3,6 +3,7 @@
 ## Quick Start
 
 ### 1. Backend Setup
+
 ```bash
 cd Backend
 
@@ -14,6 +15,7 @@ uvicorn main:app --reload --port 8000
 ```
 
 ### 2. Frontend Setup
+
 ```bash
 cd Frontend
 
@@ -25,6 +27,7 @@ npm run dev
 ```
 
 ### 3. Access the Application
+
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
@@ -34,6 +37,7 @@ npm run dev
 ## Testing the Rubric System
 
 ### Step 1: Create a Module with Rubric
+
 1. Go to http://localhost:3000/mymodules
 2. Fill in module details:
    - Name: "Test Physics Module"
@@ -44,6 +48,7 @@ npm run dev
    ✅ Module created with STEM rubric template
 
 ### Step 2: Customize Rubric Settings
+
 1. Find your new module in the list
 2. Click the "Rubric" button
 3. You'll see 4 tabs:
@@ -55,17 +60,20 @@ npm run dev
    ✅ Rubric customized
 
 ### Step 3: Upload Documents (for RAG)
+
 1. Click "Manage" on your module
 2. Upload a PDF/DOCX document (e.g., physics textbook chapter)
 3. Wait for processing to reach "embedded" status
    ✅ Document ready for RAG
 
 ### Step 4: Test with Student Answer
+
 1. Create questions in the module
 2. Have a student submit an answer
 3. Check the feedback response
 
 **Expected feedback includes:**
+
 - Feedback based on "strict" tone
 - References to course material (RAG)
 - Source citations from uploaded document
@@ -78,22 +86,29 @@ npm run dev
 ### Frontend Issues
 
 #### Error: Module not found '@/components/ui/...'
+
 ✅ **Fixed!** Created missing components:
+
 - `radio-group.jsx`
 - `slider.jsx`
 
 Packages installed:
+
 - `@radix-ui/react-radio-group`
 - `@radix-ui/react-slider`
 
 #### Rubric Editor Not Loading
+
 Check:
+
 1. Module ID is in URL: `?moduleId=xxx`
 2. Backend is running on port 8000
 3. Check browser console for errors
 
 #### Template Not Applying
+
 Check:
+
 1. Backend logs for API errors
 2. Network tab for failed requests
 3. Module ID is valid
@@ -101,7 +116,9 @@ Check:
 ### Backend Issues
 
 #### Rubric Endpoint 404
+
 Make sure you have the updated routes:
+
 ```python
 # Backend/app/api/routes/module.py should have:
 @router.get("/modules/{module_id}/rubric")
@@ -111,13 +128,17 @@ Make sure you have the updated routes:
 ```
 
 #### RAG Not Retrieving Context
+
 Check:
+
 1. Document status is "embedded" (not just "uploaded")
 2. RAG is enabled in rubric settings
 3. Similarity threshold isn't too high (try 0.6-0.7)
 
 #### OpenAI API Errors
+
 Check:
+
 1. `OPENAI_API_KEY` is set in `.env`
 2. API key is valid and has credits
 3. Model names are correct (gpt-4, text-embedding-3-small)
@@ -169,16 +190,19 @@ ai-pilot/
 ## API Testing with cURL
 
 ### Get Rubric Templates
+
 ```bash
 curl http://localhost:8000/api/rubric-templates
 ```
 
 ### Get Module Rubric
+
 ```bash
 curl http://localhost:8000/api/modules/{module-id}/rubric
 ```
 
 ### Update Rubric
+
 ```bash
 curl -X PUT http://localhost:8000/api/modules/{module-id}/rubric \
   -H "Content-Type: application/json" \
@@ -196,6 +220,7 @@ curl -X PUT http://localhost:8000/api/modules/{module-id}/rubric \
 ```
 
 ### Apply Template
+
 ```bash
 curl -X POST "http://localhost:8000/api/modules/{module-id}/rubric/apply-template?template_name=stem_course&preserve_custom_instructions=true"
 ```
@@ -205,6 +230,7 @@ curl -X POST "http://localhost:8000/api/modules/{module-id}/rubric/apply-templat
 ## Environment Variables
 
 ### Backend `.env`
+
 ```env
 OPENAI_API_KEY=sk-...your-key...
 LLM_MODEL=gpt-4
@@ -219,6 +245,7 @@ SUPABASE_KEY=...
 ```
 
 ### Frontend `.env.local`
+
 ```env
 NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
@@ -228,6 +255,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ## Common Workflows
 
 ### 1. Teacher Creates Module
+
 ```
 /mymodules
 → Fill form
@@ -237,6 +265,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 ```
 
 ### 2. Teacher Customizes Rubric
+
 ```
 Module card → Rubric button
 → /dashboard/rubric?moduleId=xxx
@@ -245,6 +274,7 @@ Module card → Rubric button
 ```
 
 ### 3. Teacher Uploads Documents
+
 ```
 Module → Manage
 → Upload document
@@ -254,6 +284,7 @@ Module → Manage
 ```
 
 ### 4. Student Gets Feedback
+
 ```
 Student submits answer
 → Backend loads rubric
@@ -268,12 +299,14 @@ Student submits answer
 ## Performance Notes
 
 ### Expected Processing Times
+
 - **Rubric Load**: ~100ms
 - **RAG Retrieval**: ~500ms - 1s
 - **Feedback Generation**: 2-5s (with RAG)
 - **Document Embedding**: 30s - 2min (depends on size)
 
 ### Optimization Tips
+
 1. Lower similarity threshold for more results
 2. Reduce max_context_chunks for faster retrieval
 3. Use brief detail level for shorter feedback
@@ -284,14 +317,18 @@ Student submits answer
 ## Next Steps
 
 ### Immediate Use
+
 ✅ System is ready! Teachers can:
+
 1. Create modules with rubric templates
 2. Customize feedback settings
 3. Upload course materials
 4. Get RAG-enhanced AI feedback
 
 ### Future Enhancements
+
 Consider adding:
+
 - [ ] Grading criteria weight editor UI
 - [ ] Question type settings UI
 - [ ] Rubric preview/comparison
@@ -304,11 +341,13 @@ Consider adding:
 ## Support
 
 ### Documentation
+
 - `RUBRIC_RAG_IMPLEMENTATION.md` - Backend details
 - `FRONTEND_RUBRIC_IMPLEMENTATION.md` - Frontend details
 - `README.md` - Project overview
 
 ### Getting Help
+
 1. Check browser console for frontend errors
 2. Check backend logs for API errors
 3. Review API docs at /docs

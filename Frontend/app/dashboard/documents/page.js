@@ -54,6 +54,7 @@ function DocumentsContent() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCategory, setFilterCategory] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [typeFilter, setTypeFilter] = useState("all"); // "all" | "testbank" | "regular"
   const [uploadForm, setUploadForm] = useState({ title: "", file: null });
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [documentToDelete, setDocumentToDelete] = useState(null);
@@ -203,6 +204,10 @@ function DocumentsContent() {
 
   const filteredDocuments = documents.filter(doc => {
     const matchesSearch = doc.title.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Type filter: testbank vs regular
+    if (typeFilter === "testbank" && !doc.is_testbank) return false;
+    if (typeFilter === "regular" && doc.is_testbank) return false;
 
     if (statusFilter === "all") {
       return matchesSearch;
@@ -894,6 +899,42 @@ function DocumentsContent() {
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9 sm:pl-11 h-10 sm:h-12 text-sm sm:text-base"
                   />
+                </div>
+
+                {/* Type Filters */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-sm font-medium text-muted-foreground">Filter by type:</span>
+                  <Button
+                    variant={typeFilter === "all" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTypeFilter("all")}
+                    className="h-8"
+                  >
+                    All
+                  </Button>
+                  <Button
+                    variant={typeFilter === "regular" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTypeFilter("regular")}
+                    className="h-8"
+                  >
+                    <FileText className="w-3 h-3 mr-1" />
+                    Documents
+                  </Button>
+                  <Button
+                    variant={typeFilter === "testbank" ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setTypeFilter("testbank")}
+                    className="h-8 border-purple-300 dark:border-purple-700 data-[state=active]:bg-purple-600"
+                  >
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    Testbanks
+                    {documents.filter(d => d.is_testbank).length > 0 && (
+                      <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300 rounded-full">
+                        {documents.filter(d => d.is_testbank).length}
+                      </span>
+                    )}
+                  </Button>
                 </div>
 
                 {/* Status Filters */}

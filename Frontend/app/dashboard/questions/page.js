@@ -33,8 +33,20 @@ import {
   Sparkles,
   AlertCircle,
   ArrowRight,
-  Trophy
+  Trophy,
+  Upload,
+  Download,
+  FileCheck,
+  Cpu,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import Link from "next/link";
 import { useState, useEffect, Suspense, useCallback, useMemo, memo } from "react";
 import { apiClient } from "@/lib/auth";
@@ -68,6 +80,12 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
   const [unreviewedCount, setUnreviewedCount] = useState(0);
   const [moduleRubric, setModuleRubric] = useState(null);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
+
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [isTestbank, setIsTestbank] = useState(false);
+  const [uploadStage, setUploadStage] = useState(0);
+  const [uploadForm, setUploadForm] = useState({ title: "", file: null });
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -213,6 +231,108 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     } finally {
       setLoadingQuestions(false);
     }
+  };
+
+  // Reset import form when dialog closes
+  useEffect(() => {
+    if (!isImportOpen) {
+      setUploadForm({ title: "", file: null });
+      setIsTestbank(false);
+    }
+  }, [isImportOpen]);
+
+  // Cycle through upload stages during import
+  useEffect(() => {
+    if (isUploading) {
+      setUploadStage(0);
+      const stages = isTestbank ? [0, 1, 2, 3] : [0, 1, 2];
+      let currentStageIndex = 0;
+      const interval = setInterval(() => {
+        currentStageIndex = (currentStageIndex + 1) % stages.length;
+        setUploadStage(stages[currentStageIndex]);
+      }, isTestbank ? 2500 : 2000);
+      return () => clearInterval(interval);
+    }
+  }, [isUploading, isTestbank]);
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return '0 KB';
+    const kb = bytes / 1024;
+    if (kb < 1024) return `${kb.toFixed(1)} KB`;
+    return `${(kb / 1024).toFixed(1)} MB`;
+  };
+
+  const handleImport = async (e) => {
+    e.preventDefault();
+    if (!uploadForm.file) {
+      alert("Please select a file to upload");
+      return;
+    }
+    if (!currentModule) {
+      alert("Module not found. Please refresh the page and try again.");
+      return;
+    }
+    const userId = user?.id || user?.sub;
+    if (!userId) {
+      alert("User session error. Please refresh the page and try again.");
+      return;
+    }
+    try {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append("file", uploadForm.file);
+      formData.append("module_name", currentModule.name);
+      formData.append("teacher_id", userId);
+      formData.append("title", uploadForm.title || uploadForm.file.name);
+      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${API_BASE_URL}/api/upload`, {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: formData,
+      });
+      if (response.ok) {
+        setUploadForm({ title: "", file: null });
+        setIsImportOpen(false);
+        // Refresh questions list (relevant for testbank uploads)
+        await fetchModuleAndQuestions();
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        alert(errorData.detail || `Upload failed: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error("Import error:", error);
+      alert("Upload failed. Please check your connection and try again.");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleExport = () => {
+    if (questions.length === 0) {
+      alert("No questions to export.");
+      return;
+    }
+    const exportData = questions.map(q => ({
+      type: q.type,
+      text: q.text,
+      points: q.points,
+      options: q.options,
+      correct_option_id: q.correct_option_id,
+      correct_answer: q.correct_answer,
+      extended_config: q.extended_config,
+      learning_outcome: q.learning_outcome,
+      bloom_taxonomy: q.bloom_taxonomy,
+      slide_number: q.slide_number,
+      image_url: q.image_url,
+    }));
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${moduleName}-questions.json`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   // Helper function to get default points from rubric
@@ -860,8 +980,155 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                     Create and manage questions for your module assessments
                   </p>
                 </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={handleExport} disabled={questions.length === 0}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Export
+                  </Button>
+                  <Button variant="outline" onClick={() => setIsImportOpen(true)}>
+                    <Upload className="w-4 h-4 mr-2" />
+                    Import
+                  </Button>
+                </div>
               </div>
             </div>
+
+            {/* Import Dialog */}
+            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+              <DialogContent className="max-w-3xl">
+                {isUploading ? (
+                  <div className="py-16">
+                    <div className="flex flex-col items-center justify-center space-y-8">
+                      {/* Spinner — always purple for testbank */}
+                      <div className="relative">
+                        <div className="w-32 h-32 border-8 border-purple-200/30 rounded-full"></div>
+                        <div className="w-32 h-32 border-8 border-purple-600 border-t-transparent rounded-full animate-spin absolute top-0"></div>
+                        <div className="w-24 h-24 border-4 border-pink-500/40 border-b-transparent rounded-full animate-spin absolute top-4 left-4" style={{ animationDuration: '3s', animationDirection: 'reverse' }}></div>
+                        <Sparkles className="w-12 h-12 text-purple-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                      </div>
+                      <div className="text-center space-y-3">
+                        <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 bg-clip-text text-transparent">
+                          {uploadStage === 0 && 'Uploading Testbank'}
+                          {uploadStage === 1 && 'Extracting Questions'}
+                          {uploadStage === 2 && 'Parsing Questions'}
+                          {uploadStage === 3 && 'Saving to Database'}
+                        </h3>
+                        <p className="text-lg text-muted-foreground">
+                          {uploadStage === 0 && 'Uploading your testbank file to the server...'}
+                          {uploadStage === 1 && 'AI is analyzing and extracting text from testbank...'}
+                          {uploadStage === 2 && 'Identifying questions, options, and correct answers...'}
+                          {uploadStage === 3 && 'Saving questions to your question bank...'}
+                        </p>
+                        {uploadForm.file && (
+                          <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl inline-block">
+                            <div className="flex items-center gap-3 mb-3">
+                              <FileCheck className="w-6 h-6 text-purple-600" />
+                              <p className="text-base font-semibold">{uploadForm.file.name}</p>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{formatFileSize(uploadForm.file.size)}</p>
+                            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-purple-200/50 dark:bg-purple-900/50 rounded-full">
+                              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                              <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">Testbank File</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      {/* 4-stage progress */}
+                      <div className="flex items-center gap-3 mt-4">
+                        {[{ icon: Upload, label: 'Upload' }, { icon: FileText, label: 'Extract' }, { icon: Cpu, label: 'Parse' }, { icon: CheckCircle, label: 'Save' }].map((step, i) => (
+                          <div key={i} className="flex items-center">
+                            <div className="flex flex-col items-center gap-2">
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${uploadStage >= i ? 'bg-purple-600 text-white scale-110' : 'bg-muted text-muted-foreground'}`}>
+                                <step.icon className="w-6 h-6" />
+                              </div>
+                              <span className={`text-xs font-medium ${uploadStage >= i ? 'text-purple-600' : 'text-muted-foreground'}`}>{step.label}</span>
+                            </div>
+                            {i < 3 && <div className={`w-12 h-1 rounded-full mx-2 transition-all ${uploadStage > i ? 'bg-purple-600' : 'bg-muted'}`}></div>}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <DialogHeader>
+                      <DialogTitle className="text-2xl flex items-center gap-2">
+                        <Sparkles className="w-6 h-6 text-purple-600" />
+                        Import Testbank
+                      </DialogTitle>
+                      <DialogDescription>
+                        Upload a testbank file — the filename must contain &quot;testbank&quot;. Questions will be auto-extracted and added to your question bank. To upload regular course materials, use the Documents tab.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleImport} className="space-y-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="import-file">Select Testbank File</Label>
+                        <Input
+                          id="import-file"
+                          type="file"
+                          onChange={(e) => {
+                            const selectedFile = e.target.files[0];
+                            setUploadForm({ ...uploadForm, file: selectedFile });
+                            if (selectedFile) {
+                              const isTestbankFile = selectedFile.name.toLowerCase().includes('testbank');
+                              setIsTestbank(isTestbankFile);
+                            }
+                          }}
+                          required
+                        />
+                        {uploadForm.file && (
+                          <div className={`mt-2 p-3 rounded-lg border ${isTestbank ? 'bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'}`}>
+                            <div className="flex items-center gap-2 text-sm">
+                              <FileCheck className={`w-4 h-4 ${isTestbank ? 'text-purple-500' : 'text-red-500'}`} />
+                              <span className="font-medium">{uploadForm.file.name}</span>
+                              <span className="text-muted-foreground ml-auto">{formatFileSize(uploadForm.file.size)}</span>
+                            </div>
+                            {isTestbank ? (
+                              <div className="mt-2 flex items-center gap-2">
+                                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800">
+                                  <Sparkles className="w-3 h-3 mr-1" />
+                                  Testbank Detected
+                                </Badge>
+                                <span className="text-xs text-muted-foreground">Questions will be auto-extracted</span>
+                              </div>
+                            ) : (
+                              <div className="mt-2 flex items-center gap-2">
+                                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                                <span className="text-xs text-red-600 dark:text-red-400">
+                                  Filename must contain &quot;testbank&quot;. Rename your file or use the Documents tab for regular files.
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="import-title">Title (optional)</Label>
+                        <Input
+                          id="import-title"
+                          value={uploadForm.title}
+                          onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
+                          placeholder="Leave empty to use filename"
+                        />
+                      </div>
+                      <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsImportOpen(false)}>
+                          Cancel
+                        </Button>
+                        <Button
+                          type="submit"
+                          disabled={!uploadForm.file || !isTestbank}
+                          className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+                        >
+                          <Sparkles className="w-4 h-4 mr-2" />
+                          Import Testbank
+                        </Button>
+                      </DialogFooter>
+                    </form>
+                  </>
+                )}
+              </DialogContent>
+            </Dialog>
 
             {/* Unreviewed Questions Alert */}
             {unreviewedCount > 0 && (
