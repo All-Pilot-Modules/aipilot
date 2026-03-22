@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, ForeignKey, TIMESTAMP, UniqueConstraint, Integer
+from sqlalchemy import Column, String, ForeignKey, TIMESTAMP, UniqueConstraint, Integer, Index
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 import uuid
@@ -31,4 +31,8 @@ class StudentEnrollment(Base):
     # Ensure a student can only be enrolled once per module
     __table_args__ = (
         UniqueConstraint('student_id', 'module_id', name='uix_student_module_enrollment'),
+        # Fast lookup: "get all students in this module" (very frequent query)
+        Index('ix_student_enrollments_module_id', 'module_id'),
+        # Fast lookup: "get all modules this student is in"
+        Index('ix_student_enrollments_student_id', 'student_id'),
     )

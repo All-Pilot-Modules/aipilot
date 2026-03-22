@@ -477,6 +477,10 @@ def get_final_submissions_for_grading(
             "submitted_at": answer.submitted_at.isoformat() if answer.submitted_at else None,
             "ai_suggested_score": ai_feedback.points_earned if ai_feedback else None,
             "ai_feedback": ai_feedback.feedback_data if ai_feedback else None,
+            "ai_feedback_explanation": (ai_feedback.feedback_data or {}).get("explanation") if ai_feedback else None,
+            "released": ai_feedback.released if ai_feedback else True,
+            "requires_teacher_review": ai_feedback.requires_teacher_review if ai_feedback else False,
+            "ai_generation_status": ai_feedback.generation_status if ai_feedback else None,
             "teacher_grade": {
                 "points_awarded": teacher_grade.points_awarded,
                 "feedback_text": teacher_grade.feedback_text,
@@ -611,6 +615,134 @@ def get_teacher_grade(
         "overridden_ai": teacher_grade.overridden_ai,
         "graded_by": teacher_grade.graded_by,
         "graded_at": teacher_grade.graded_at.isoformat()
+    }
+
+
+@router.post("/review/release")
+def release_final_feedback(
+    answer_id: UUID = Query(..., description="Student answer ID"),
+    teacher_id: str = Query(..., description="Teacher user ID"),
+    feedback_text: Optional[str] = Query(None, description="Teacher's feedback (overrides AI)"),
+    points_awarded: Optional[float] = Query(None, description="Points awarded (overrides AI)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Release final-attempt feedback to the student.
+    - If feedback_text / points_awarded provided: saves a TeacherGrade and releases.
+    - Otherwise: approves the AI draft as-is and releases.
+    """
+    from app.models.ai_feedback import AIFeedback
+    from app.models.student_answer import StudentAnswer
+    from app.models.question import Question
+    from app.models.teacher_grade import TeacherGrade
+    import uuid as _uuid
+
+    answer = db.query(StudentAnswer).filter(StudentAnswer.id == answer_id).first()
+    if not answer:
+        raise HTTPException(status_code=404, detail="Answer not found")
+
+    ai_feedback = db.query(AIFeedback).filter(AIFeedback.answer_id == answer_id).first()
+    if not ai_feedback:
+        raise HTTPException(status_code=404, detail="No AI feedback found for this answer")
+
+    if not ai_feedback.requires_teacher_review:
+        raise HTTPException(status_code=400, detail="This answer does not require teacher review")
+
+    question = db.query(Question).filter(Question.id == answer.question_id).first()
+
+    # Validate points
+    if points_awarded is not None:
+        max_pts = question.points if question else float('inf')
+        if points_awarded < 0 or points_awarded > max_pts:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Points ({points_awarded}) must be between 0 and {max_pts}"
+            )
+
+    ai_suggested = ai_feedback.points_earned
+
+    # Create or update TeacherGrade if teacher provided custom values
+    has_overrides = feedback_text is not None or points_awarded is not None
+    if has_overrides:
+        final_points = points_awarded if points_awarded is not None else (ai_suggested or 0)
+        teacher_grade = db.query(TeacherGrade).filter(TeacherGrade.answer_id == answer_id).first()
+
+        if teacher_grade:
+            teacher_grade.points_awarded = final_points
+            if feedback_text is not None:
+                teacher_grade.feedback_text = feedback_text
+            teacher_grade.ai_suggested_score = ai_suggested
+            teacher_grade.overridden_ai = (
+                ai_suggested is not None and abs(final_points - ai_suggested) > 0.01
+            )
+            teacher_grade.graded_by = teacher_id
+        else:
+            teacher_grade = TeacherGrade(
+                id=_uuid.uuid4(),
+                answer_id=answer_id,
+                student_id=answer.student_id,
+                question_id=answer.question_id,
+                module_id=answer.module_id,
+                points_awarded=final_points,
+                feedback_text=feedback_text,
+                ai_suggested_score=ai_suggested,
+                overridden_ai=(
+                    ai_suggested is not None and abs(final_points - ai_suggested) > 0.01
+                ),
+                graded_by=teacher_id,
+            )
+            db.add(teacher_grade)
+
+    # Release the feedback
+    ai_feedback.released = True
+    db.commit()
+
+    return {
+        "success": True,
+        "answer_id": str(answer_id),
+        "released": True,
+        "has_teacher_grade": has_overrides,
+    }
+
+
+@router.post("/review/release-bulk")
+def release_final_feedback_bulk(
+    module_id: UUID = Query(..., description="Module ID"),
+    student_id: str = Query(..., description="Student ID"),
+    teacher_id: str = Query(..., description="Teacher user ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Approve and release ALL pending-review final-attempt feedback for one student in a module.
+    Use this when the teacher wants to approve all AI drafts without changes.
+    """
+    from app.models.ai_feedback import AIFeedback
+    from app.models.student_answer import StudentAnswer
+
+    unreleased = (
+        db.query(AIFeedback)
+        .join(StudentAnswer, AIFeedback.answer_id == StudentAnswer.id)
+        .filter(
+            StudentAnswer.student_id == student_id,
+            StudentAnswer.module_id == module_id,
+            AIFeedback.requires_teacher_review == True,
+            AIFeedback.released == False,
+            AIFeedback.generation_status == 'completed',
+        )
+        .all()
+    )
+
+    for fb in unreleased:
+        fb.released = True
+
+    if unreleased:
+        db.commit()
+
+    return {
+        "success": True,
+        "released_count": len(unreleased),
+        "module_id": str(module_id),
+        "student_id": student_id,
     }
 
 

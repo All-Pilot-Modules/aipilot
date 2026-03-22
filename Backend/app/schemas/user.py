@@ -9,7 +9,9 @@ class UserBase(BaseModel):
     role: Optional[str] = None  # ✅ Now optional
 
 class UserCreate(UserBase):
-    id: str  # Required Banner ID
+    id: Optional[str] = None  # Auto-generated if not provided
+    username: str  # Required
+    email: str     # Required
     password: str  # Required password for registration
 
 class UserUpdate(BaseModel):

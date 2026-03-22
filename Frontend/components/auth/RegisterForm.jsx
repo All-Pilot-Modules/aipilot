@@ -13,13 +13,11 @@ import { AlertCircle } from 'lucide-react';
 
 export default function RegisterForm() {
   const [formData, setFormData] = useState({
-    id: '',
     username: '',
     email: '',
     password: '',
     confirmPassword: '',
     role: 'teacher',
-    profile_image: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -37,7 +35,7 @@ export default function RegisterForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!formData.id || !formData.username || !formData.email || !formData.password) {
+    if (!formData.username || !formData.email || !formData.password) {
       setError('Please fill in all required fields');
       return;
     }
@@ -68,10 +66,10 @@ export default function RegisterForm() {
       // Parse error message for better user experience
       let errorMessage = error.message;
 
-      if (errorMessage.includes('User with this ID, email, or username already exists')) {
-        errorMessage = 'An account with this User ID, email, or username already exists. Please use different credentials or sign in instead.';
-      } else if (errorMessage.includes('already exists')) {
-        errorMessage = 'This account already exists. Please try signing in or use different credentials.';
+      if (errorMessage.includes('email already exists')) {
+        errorMessage = 'An account with this email already exists. Please sign in or use a different email.';
+      } else if (errorMessage.includes('username is already taken')) {
+        errorMessage = 'This username is already taken. Please choose a different one.';
       } else if (errorMessage.includes('Unable to connect') || errorMessage.includes('fetch')) {
         errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
       } else if (errorMessage.includes('400')) {
@@ -100,19 +98,6 @@ export default function RegisterForm() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="id">User ID *</Label>
-              <Input
-                id="id"
-                type="text"
-                placeholder="Enter unique user ID"
-                value={formData.id}
-                onChange={(e) => handleChange('id', e.target.value)}
-                required
-                aria-invalid={error ? 'true' : 'false'}
-                aria-describedby={error ? 'register-error' : undefined}
-              />
-            </div>
-            <div className="space-y-2">
               <Label htmlFor="username">Username *</Label>
               <Input
                 id="username"
@@ -136,16 +121,6 @@ export default function RegisterForm() {
                 required
                 aria-invalid={error ? 'true' : 'false'}
                 aria-describedby={error ? 'register-error' : undefined}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="profile_image">Profile Image URL</Label>
-              <Input
-                id="profile_image"
-                type="url"
-                placeholder="Enter profile image URL (optional)"
-                value={formData.profile_image}
-                onChange={(e) => handleChange('profile_image', e.target.value)}
               />
             </div>
             <div className="space-y-2">

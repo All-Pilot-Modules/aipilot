@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import Link from "next/link";
 import {
   Sidebar,
@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { LogOut, Settings, User, ChevronDown, LayoutDashboard, FolderOpen, HelpCircle, Users, BookOpen, ClipboardCheck, Sparkles, Shield, Brain, FileText, BarChart3, LifeBuoy, MessageSquare } from "lucide-react";
-import { apiClient } from "@/lib/auth";
+import { useAPI } from "@/lib/useSWR";
 
 export function AppSidebar(props) {
   const searchParams = useSearchParams();
@@ -39,56 +39,30 @@ export function AppSidebar(props) {
   // eslint-disable-next-line @next/next/no-assign-module-variable
   const module = searchParams?.get('module') || searchParams?.get('module_name') || '';
 
-  // Debug logging
-  useEffect(() => {
-    if (pathname.includes('/review')) {
-      console.log('📍 Sidebar on review page - module:', module, 'from params:', {
-        module: searchParams?.get('module'),
-        module_name: searchParams?.get('module_name')
-      });
-    }
-  }, [pathname, module, searchParams]);
-
   const { user, logout } = useAuth();
-  const [modules, setModules] = useState([]);
-  const [loadingModules, setLoadingModules] = useState(false);
-  const [currentModuleId, setCurrentModuleId] = useState(null);
+  const userId = user?.id || user?.sub;
 
-  const fetchModules = useCallback(async () => {
-    const userId = user?.id || user?.sub;
-    if (!userId) return;
+  // Use SWR — shares cache with all dashboard pages (300s dedup = zero extra requests)
+  const { data: modulesRaw, isLoading: loadingModules } = useAPI(
+    userId ? `/api/modules?teacher_id=${userId}` : null,
+    { dedupingInterval: 300000 }
+  );
+  const modules = useMemo(() => modulesRaw?.data || modulesRaw || [], [modulesRaw]);
 
-    try {
-      setLoadingModules(true);
-      const data = await apiClient.get(`/api/modules?teacher_id=${userId}`);
-      setModules(data || []);
-    } catch (error) {
-      console.error('Failed to fetch modules:', error);
-      setModules([]);
-    } finally {
-      setLoadingModules(false);
-    }
-  }, [user?.id, user?.sub]);
-
-  // Fetch user's modules
-  useEffect(() => {
-    fetchModules();
-  }, [fetchModules]);
-
-  // Update current module ID when module name changes
-  useEffect(() => {
+  // Derive currentModuleId — prefer URL param (already set by dashboard links), fall back to name lookup
+  const currentModuleId = useMemo(() => {
+    const idFromParam = searchParams?.get('moduleId');
+    if (idFromParam) return idFromParam;
     if (module && modules.length > 0) {
-      const foundModule = modules.find(m => m.name === module);
-      if (foundModule) {
-        setCurrentModuleId(foundModule.id);
-      }
+      return modules.find(m => m.name === module)?.id || null;
     }
-  }, [module, modules]);
+    return null;
+  }, [searchParams, module, modules]);
 
-  const handleModuleSwitch = (moduleName) => {
-    // Keep the same page but change the module parameter
+  const handleModuleSwitch = (moduleName, moduleId) => {
     const currentPath = pathname.split('?')[0];
-    router.push(`${currentPath}?module=${moduleName}`);
+    const params = moduleId ? `module=${moduleName}&moduleId=${moduleId}` : `module=${moduleName}`;
+    router.push(`${currentPath}?${params}`);
   };
 
   const isActive = (url) => {
@@ -98,38 +72,41 @@ export function AppSidebar(props) {
   };
 
   // Memoize navMain to prevent hydration issues
+  const moduleParams = module
+    ? `module=${module}${currentModuleId ? `&moduleId=${currentModuleId}` : ''}`
+    : '';
   const navMain = useMemo(() => [
     {
       title: "Dashboard",
-      url: `/dashboard?module=${module}`,
+      url: `/dashboard?${moduleParams}`,
       icon: LayoutDashboard,
     },
     {
       title: "Documents",
-      url: `/dashboard/documents?module=${module}`,
+      url: `/dashboard/documents?${moduleParams}`,
       icon: FolderOpen,
     },
     {
       title: "Questions",
-      url: `/dashboard/questions?module=${module}`,
+      url: `/dashboard/questions?${moduleParams}`,
       icon: HelpCircle,
     },
     {
       title: "Grading",
-      url: `/dashboard/grading?module=${module}`,
+      url: `/dashboard/grading?${moduleParams}`,
       icon: ClipboardCheck,
     },
     {
       title: "Feedback Critiques",
-      url: `/dashboard/feedback-critiques?module=${module}`,
+      url: `/dashboard/feedback-critiques?${moduleParams}`,
       icon: MessageSquare,
     },
     {
       title: "Students",
-      url: `/dashboard/students?module=${module}`,
+      url: `/dashboard/students?${moduleParams}`,
       icon: Users,
     },
-  ], [module]);
+  ], [moduleParams]);
 
   const bottomNav = [
     {
@@ -188,7 +165,7 @@ export function AppSidebar(props) {
               modules.map((mod) => (
                 <DropdownMenuItem
                   key={mod.id}
-                  onClick={() => handleModuleSwitch(mod.name)}
+                  onClick={() => handleModuleSwitch(mod.name, mod.id)}
                   className="cursor-pointer"
                 >
                   <div className="flex items-center gap-2 w-full">

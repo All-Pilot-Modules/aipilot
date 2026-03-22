@@ -56,24 +56,19 @@ def create_feedback_job(
     attempt: int,
     priority: int = 1,
     previous_feedback_context=None,
+    is_final_attempt: bool = False,
 ):
     """
     Insert a FeedbackJob row.  Called from the submit-test endpoint.
     """
-    previous_json = None
-    if previous_feedback_context:
-        try:
-            previous_json = json.dumps(previous_feedback_context)
-        except Exception:
-            previous_json = None
-
     job = FeedbackJob(
         answer_id=answer_id if isinstance(answer_id, UUID) else UUID(str(answer_id)),
         student_id=student_id,
         module_id=module_id if isinstance(module_id, UUID) else UUID(str(module_id)),
         attempt=attempt,
         priority=priority,
-        previous_feedback_json=previous_json,
+        previous_feedback_json=previous_feedback_context,  # JSONB — no json.dumps needed
+        is_final_attempt=is_final_attempt,
     )
     db.add(job)
     db.commit()
@@ -90,18 +85,12 @@ def create_feedback_jobs_batch(
     attempt: int,
     priority: int = 1,
     previous_feedback_context=None,
+    is_final_attempt: bool = False,
 ):
     """
     Insert multiple FeedbackJob rows in a single commit.
     Much faster than calling create_feedback_job() in a loop (1 commit vs N commits).
     """
-    previous_json = None
-    if previous_feedback_context:
-        try:
-            previous_json = json.dumps(previous_feedback_context)
-        except Exception:
-            previous_json = None
-
     mid = module_id if isinstance(module_id, UUID) else UUID(str(module_id))
     jobs = []
     for answer_id in answer_ids:
@@ -111,7 +100,8 @@ def create_feedback_jobs_batch(
             module_id=mid,
             attempt=attempt,
             priority=priority,
-            previous_feedback_json=previous_json,
+            previous_feedback_json=previous_feedback_context,  # JSONB — no json.dumps needed
+            is_final_attempt=is_final_attempt,
         )
         db.add(job)
         jobs.append(job)
@@ -383,7 +373,7 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
         previous_feedback_context = None
         if job.previous_feedback_json:
             try:
-                all_attempts_context = json.loads(job.previous_feedback_json)
+                all_attempts_context = job.previous_feedback_json  # JSONB already deserialized by SQLAlchemy
                 # Extract per-question feedback from the context list
                 question_id_str = str(answer.question_id)
                 question_previous_feedback = []
@@ -452,6 +442,21 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
                 logger.info(f"[worker] Job {job.id} completed with fallback (no retryable error)")
             else:
                 logger.info(f"[worker] Job {job.id} completed with real AI feedback")
+
+        # Final-attempt jobs: lock feedback behind teacher review gate
+        if job.is_final_attempt:
+            fb = db.query(AIFeedback).filter(
+                AIFeedback.answer_id == job.answer_id,
+                AIFeedback.generation_status == 'completed',
+            ).first()
+            if fb:
+                fb.released = False
+                fb.requires_teacher_review = True
+                db.commit()
+                logger.info(
+                    f"[worker] Final-attempt feedback {fb.id} marked as draft "
+                    f"(pending teacher review)"
+                )
 
         # Check if all jobs for this attempt are done and calculate score
         calculate_test_score(job.student_id, str(job.module_id), job.attempt)

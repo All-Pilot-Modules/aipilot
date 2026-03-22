@@ -141,8 +141,7 @@ def similarity_search(
     document_id: Optional[str] = None
 ) -> List[tuple]:
     """
-    Perform similarity search using cosine similarity
-    (Basic implementation - will be improved with pgvector)
+    Perform cosine similarity search using pgvector (<=> operator).
 
     Args:
         db: Database session
@@ -151,19 +150,17 @@ def similarity_search(
         document_id: Optional document ID to limit search scope
 
     Returns:
-        List of (embedding, similarity_score) tuples
+        List of (embedding, similarity_score) tuples, ordered by similarity descending
     """
-    # TODO: Implement with pgvector for better performance
-    # For now, this is a placeholder that returns empty results
-    # Once pgvector is set up, use: embedding_vector <=> query_vector
+    from sqlalchemy import text
 
-    query = db.query(DocumentEmbedding)
+    distance_expr = DocumentEmbedding.embedding_vector.cosine_distance(query_vector)
+
+    query = db.query(DocumentEmbedding, (1 - distance_expr).label("similarity"))
 
     if document_id:
         query = query.filter(DocumentEmbedding.document_id == document_id)
 
-    # Placeholder - will implement proper vector similarity with pgvector
-    embeddings = query.limit(limit).all()
+    results = query.order_by(distance_expr).limit(limit).all()
 
-    # Return with placeholder similarity scores
-    return [(emb, 0.0) for emb in embeddings]
+    return [(row.DocumentEmbedding, row.similarity) for row in results]

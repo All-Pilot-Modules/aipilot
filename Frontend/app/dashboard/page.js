@@ -445,14 +445,14 @@ const DashboardContent = memo(function DashboardContent() {
       setLoadingActions(false);
       setLoadingMetrics(false);
     }
-  }, [user, moduleName]);
+  }, [user?.id, user?.sub, moduleName]);
 
   // Load real module data from database
   useEffect(() => {
-    if (isAuthenticated && user && (user.id || user.sub) && moduleName) {
+    if (isAuthenticated && (user?.id || user?.sub) && moduleName) {
       loadModuleData();
     }
-  }, [isAuthenticated, user, moduleName, loadModuleData]);
+  }, [isAuthenticated, user?.id, user?.sub, moduleName, loadModuleData]);
 
   const copyToClipboard = async (text, type) => {
     try {
@@ -810,7 +810,7 @@ const DashboardContent = memo(function DashboardContent() {
                     </Link>
                   )}
                   {actionItems.inactiveStudents > 0 && (
-                    <Link href={`/dashboard/students?module=${moduleName}`}>
+                    <Link href={`/dashboard/students?module=${moduleName}${moduleId ? `&moduleId=${moduleId}` : ''}`}>
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-600 cursor-pointer transition-all">
                         <div className="flex items-center gap-3">
                           <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
@@ -1106,7 +1106,7 @@ const DashboardContent = memo(function DashboardContent() {
                     </div>
                   </Link>
 
-                  <Link href={`/dashboard/students?module=${moduleName}`} className="group">
+                  <Link href={`/dashboard/students?module=${moduleName}${moduleId ? `&moduleId=${moduleId}` : ''}`} className="group">
                     <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:shadow-lg hover:border-emerald-400 dark:hover:border-emerald-600 transition-all cursor-pointer">
                       <div className="flex flex-col items-center text-center gap-3">
                         <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
