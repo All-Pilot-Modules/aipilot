@@ -55,13 +55,13 @@ export default function LoginForm() {
         router.push(`/verify-email?email=${encodeURIComponent(identifier)}`);
         return;
       } else if (errorMessage.includes('Incorrect credentials')) {
-        errorMessage = 'Invalid email/user ID or password. Please check your credentials and try again.';
+        errorMessage = 'Invalid email/username or password. Please check your credentials and try again.';
       } else if (errorMessage.includes('Inactive user')) {
         errorMessage = 'Your account has been deactivated. Please contact support for assistance.';
       } else if (errorMessage.includes('Unable to connect') || errorMessage.includes('fetch')) {
         errorMessage = 'Unable to connect to the server. Please check your internet connection and try again.';
       } else if (errorMessage.includes('401')) {
-        errorMessage = 'Invalid email/user ID or password. Please try again.';
+        errorMessage = 'Invalid email/username or password. Please try again.';
       } else if (!errorMessage || errorMessage === 'Login failed') {
         errorMessage = 'Login failed. Please check your credentials and try again.';
       }
@@ -84,11 +84,11 @@ export default function LoginForm() {
         <form onSubmit={handleSubmit}>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="identifier">Email or User ID</Label>
+              <Label htmlFor="identifier">Email or Username</Label>
               <Input
                 id="identifier"
                 type="text"
-                placeholder="Enter your email or user ID"
+                placeholder="Enter your email or username"
                 value={identifier}
                 onChange={(e) => setIdentifier(e.target.value)}
                 required

@@ -494,7 +494,9 @@ def get_module_feedback(
             "generation_status": feedback.generation_status,
             "generation_progress": feedback.generation_progress,
             "error_message": feedback.error_message,
-            "can_retry": feedback.can_retry if feedback.generation_status in ['failed', 'timeout'] else False
+            "can_retry": feedback.can_retry if feedback.generation_status in ['failed', 'timeout'] else False,
+            "released": feedback.released,
+            "requires_teacher_review": feedback.requires_teacher_review,
         })
 
     # Teacher-only grades (no AI feedback) — single query with JOIN
@@ -758,22 +760,25 @@ async def submit_test(
 
     logger.info(f"Test submitted - {len(answers)} questions")
 
-    # Enqueue feedback jobs ONLY if not final attempt
-    if attempt < max_attempts:
-        answer_ids = [str(answer.id) for answer in answers]
-        logger.info(f"Enqueuing {len(answer_ids)} feedback jobs")
+    is_final = attempt >= max_attempts
+    answer_ids = [str(answer.id) for answer in answers]
 
-        # Batch insert all jobs in a single commit (not 28 individual commits)
-        create_feedback_jobs_batch(
-            db=db,
-            answer_ids=[answer.id for answer in answers],
-            student_id=student_id,
-            module_id=str(module_id),
-            attempt=attempt,
-            priority=1,
-            previous_feedback_context=previous_feedback_context,
-        )
+    logger.info(f"Enqueuing {len(answer_ids)} feedback jobs (final_attempt={is_final})")
 
+    # Always generate feedback.  For the final attempt, the worker will set
+    # released=False so the student cannot see it until the teacher approves.
+    create_feedback_jobs_batch(
+        db=db,
+        answer_ids=[answer.id for answer in answers],
+        student_id=student_id,
+        module_id=str(module_id),
+        attempt=attempt,
+        priority=1,
+        previous_feedback_context=previous_feedback_context,
+        is_final_attempt=is_final,
+    )
+
+    if not is_final:
         return {
             "success": True,
             "submission_id": str(submission.id),
@@ -786,16 +791,16 @@ async def submit_test(
             "message": "Test submitted! Feedback is being generated in the background."
         }
     else:
-        # Final attempt - no feedback
         return {
             "success": True,
             "submission_id": str(submission.id),
             "attempt": attempt,
             "questions_submitted": len(answers),
+            "answer_ids": answer_ids,
             "can_retry": False,
             "max_attempts": max_attempts,
-            "feedback_status": "none",
-            "message": "Final attempt submitted successfully!"
+            "feedback_status": "pending_review",
+            "message": "Final attempt submitted! Your teacher will review and release your feedback."
         }
 
 # 📊 Get submission status for a student in a module

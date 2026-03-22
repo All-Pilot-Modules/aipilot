@@ -172,7 +172,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       ? Math.round((totalPointsEarned / totalPointsPossible) * 100)
       : 0;
 
-    return { correctCount, total, percentage };
+    return {
+      correctCount,
+      total,
+      percentage,
+      pointsEarned: Math.round(totalPointsEarned * 10) / 10,
+      pointsPossible: Math.round(totalPointsPossible * 10) / 10,
+    };
   }, [feedbackData]);
 
   // Memoize visible attempts for the attempt selector
@@ -1706,7 +1712,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                         <div className="text-4xl font-bold text-blue-600">
                           {feedbackStats.percentage}%
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">Progress on Attempt {selectedAttempt}</p>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {feedbackStats.pointsEarned} / {feedbackStats.pointsPossible} pts
+                        </p>
                       </div>
                     </div>
 

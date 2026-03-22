@@ -13,7 +13,7 @@ export default function HeroSection() {
         {/* Left: Playful 3D Visual */}
         <SlideInLeft duration={0.8} className="order-2 md:order-1 flex justify-center items-center px-4 md:px-0">
           <Float duration={4}>
-            <div className="relative w-full max-w-sm sm:max-w-md md:max-w-lg transition-transform hover:scale-105 duration-300">
+            <div className="relative w-full max-w-sm sm:max-w-md md:max-w-lg transition-transform hover:scale-105 duration-300 dark:bg-slate-800 dark:rounded-[2rem] dark:overflow-hidden dark:shadow-2xl">
               <Image
                 src="/images/10312453.png"
                 alt="AI Education Platform Illustration"
@@ -47,7 +47,7 @@ export default function HeroSection() {
 
              */}
               {/* Soft Shadow */}
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-48 h-6 bg-slate-300/60 rounded-[100%] blur-xl" />
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-48 h-6 bg-slate-300/60 dark:bg-slate-700/30 rounded-[100%] blur-xl" />
             </div>
           </Float>
         </SlideInLeft>

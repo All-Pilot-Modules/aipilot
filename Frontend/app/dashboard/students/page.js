@@ -33,6 +33,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const moduleName = searchParams.get('module');
+  const moduleIdFromParam = searchParams.get('moduleId');
 
   const [students, setStudents] = useState([]);
   const [filteredStudents, setFilteredStudents] = useState([]);
@@ -69,19 +70,22 @@ const StudentsPageContent = memo(function StudentsPageContent() {
     activeDays: moduleData?.assignment_config?.active_days || 7
   };
 
-  // --- SWR: Cache modules (stable per session, 5-min dedup) ---
+  // --- SWR: Cache modules — only needed when moduleId is NOT in the URL ---
   const teacherId = user?.id || user?.sub;
   const { data: modulesData, error: modulesError } = useAPI(
-    teacherId && moduleName ? `/api/modules?teacher_id=${teacherId}` : null,
+    !moduleIdFromParam && teacherId && moduleName ? `/api/modules?teacher_id=${teacherId}` : null,
     { dedupingInterval: 300000 }
   );
 
-  // Resolve the specific module from the cached list
+  // Resolve module from fetched list (only used when moduleId not in URL)
   const resolvedModule = useMemo(() => {
     if (!modulesData || !moduleName) return null;
     const modules = modulesData.data || modulesData;
     return modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase()) || null;
   }, [modulesData, moduleName]);
+
+  // Prefer moduleId from URL param (no waterfall), fall back to resolved module
+  const moduleId = moduleIdFromParam || resolvedModule?.id || null;
 
   // Update moduleData state when resolved module changes
   useEffect(() => {
@@ -89,9 +93,6 @@ const StudentsPageContent = memo(function StudentsPageContent() {
       setModuleData(resolvedModule);
     }
   }, [resolvedModule]);
-
-  // --- SWR: Cache questions (stable per session, 5-min dedup) ---
-  const moduleId = resolvedModule?.id;
   const { data: questionsData } = useAPI(
     moduleId ? `/api/student/modules/${moduleId}/questions` : null,
     { dedupingInterval: 300000 }
@@ -275,12 +276,12 @@ const StudentsPageContent = memo(function StudentsPageContent() {
     }
   }, [modulesData, moduleName, resolvedModule]);
 
-  // Fetch dynamic data once module + questions are available
+  // Fetch dynamic data once module is known and questions fetch has settled (even if empty)
   useEffect(() => {
-    if (moduleId && questions.length > 0) {
+    if (moduleId && questionsData !== undefined) {
       fetchDynamicData(moduleId);
     }
-  }, [moduleId, questions, fetchDynamicData]);
+  }, [moduleId, questionsData, fetchDynamicData]);
 
   // Filter and sort students based on search term, progress filter, and sort options
   useEffect(() => {

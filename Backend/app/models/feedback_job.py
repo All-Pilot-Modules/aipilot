@@ -1,5 +1,5 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, TIMESTAMP, Index, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, TIMESTAMP, Index, Text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from app.database import Base
 import uuid
 from datetime import datetime, timezone
@@ -21,6 +21,10 @@ class FeedbackJob(Base):
     module_id = Column(UUID(as_uuid=True), nullable=False)
     attempt = Column(Integer, nullable=False)
 
+    # True when this is the student's last allowed attempt.
+    # Worker will set ai_feedback.released=False after generation so teacher reviews first.
+    is_final_attempt = Column(Boolean, nullable=False, default=False, server_default='false')
+
     # Job lifecycle: queued -> processing -> done / retry / failed
     status = Column(String(20), nullable=False, default='queued', server_default='queued')
 
@@ -37,8 +41,8 @@ class FeedbackJob(Base):
     # Error tracking
     error_message = Column(Text, nullable=True)
 
-    # Optional context for progressive feedback (stored as text, JSON-serialized)
-    previous_feedback_json = Column(Text, nullable=True)
+    # Optional context for progressive feedback
+    previous_feedback_json = Column(JSONB, nullable=True)
 
     # Timestamps
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))

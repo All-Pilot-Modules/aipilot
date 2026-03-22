@@ -47,6 +47,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import Link from "next/link";
 import { useState, useEffect, Suspense, useCallback, useMemo, memo } from "react";
 import { apiClient } from "@/lib/auth";
@@ -62,16 +68,15 @@ import {
 } from "@/components/ui/drawer";
 
 const QuestionsPageContent = memo(function QuestionsPageContent() {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const moduleName = searchParams.get('module');
+  const moduleIdFromParam = searchParams.get('moduleId');
 
   console.log('🟢 QuestionsPageContent mounted/rendered', {
     moduleName,
     isAuthenticated,
     userId: user?.id || user?.sub,
-    userObject: user,
-    loading
   });
 
   const [questions, setQuestions] = useState([]);
@@ -121,112 +126,59 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
   });
 
   useEffect(() => {
-    // Wait for auth to finish loading before fetching
-    if (loading) {
-      console.log('⏳ Auth still loading, waiting...');
-      return;
-    }
-
-    if (!isAuthenticated) {
-      console.log('❌ Not authenticated');
-      setLoadingQuestions(false);
-      return;
-    }
-
     const userId = user?.id || user?.sub;
-    if (!user || !userId) {
-      console.log('❌ User not loaded yet', { user, userId, loading });
-      setLoadingQuestions(false);
+    if (!isAuthenticated || !userId || !moduleName) {
+      if (!moduleName || (!isAuthenticated && userId)) setLoadingQuestions(false);
       return;
     }
-
-    if (!moduleName) {
-      console.log('❌ No module name in URL');
-      setLoadingQuestions(false);
-      return;
-    }
-
-    console.log('✅ All conditions met, fetching module and questions');
     fetchModuleAndQuestions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAuthenticated, user, moduleName, loading]);
+  }, [isAuthenticated, user?.id, user?.sub, moduleName, moduleIdFromParam]);
 
   const fetchModuleAndQuestions = async () => {
     setLoadingQuestions(true);
     try {
-      // Get module info
       const userId = user?.id || user?.sub;
-      console.log('Fetching modules for teacher:', userId, 'Full user object:', user);
+      if (!userId) { setLoadingQuestions(false); return; }
 
-      if (!user || !userId) {
-        console.error('❌ User is not loaded! Cannot fetch modules.', { user, isAuthenticated, loading });
-        setLoadingQuestions(false);
-        return;
-      }
-
-      const moduleData = await apiClient.get(`/api/modules?teacher_id=${userId}`);
-      console.log('Module data received:', moduleData);
-      console.log('Available module names:', moduleData.map(m => m.name));
-      console.log('Looking for module with name:', moduleName);
-
-      const foundModule = moduleData.find(m => m.name === moduleName);
-      console.log('Found module:', foundModule, 'for name:', moduleName);
-
-      if (!foundModule) {
-        console.error('❌ Module not found!');
-        console.error('Available modules:', moduleData.map(m => ({ id: m.id, name: m.name })));
-        console.error('Searched for:', moduleName);
-      }
-
-      if (foundModule) {
-        console.log('Setting current module:', foundModule);
+      // Resolve moduleId — prefer URL param (no extra request), fall back to modules fetch
+      let foundModule = null;
+      if (moduleIdFromParam) {
+        // We already have the ID; fetch module details + all parallel data at once
+        const [moduleData, documentsData, questionsData, unreviewedData, rubricData] = await Promise.all([
+          apiClient.get(`/api/modules?teacher_id=${userId}`),
+          apiClient.get(`/api/documents?teacher_id=${userId}&module_id=${moduleIdFromParam}`),
+          apiClient.get(`/api/questions/by-module?module_id=${moduleIdFromParam}&status=active`),
+          apiClient.get(`/api/questions/by-module?module_id=${moduleIdFromParam}&status=unreviewed`).catch(() => []),
+          apiClient.get(`/api/modules/${moduleIdFromParam}/rubric`).catch(() => null),
+        ]);
+        foundModule = moduleData.find(m => m.id === moduleIdFromParam) || { id: moduleIdFromParam, name: moduleName };
         setCurrentModule(foundModule);
-
-        // Get documents for this module to use as question container
-        const documentsData = await apiClient.get(`/api/documents?teacher_id=${userId}&module_id=${foundModule.id}`);
-        
-        // Use the first document as container, or create a placeholder if none exist
-        if (documentsData && documentsData.length > 0) {
-          setModuleDocument(documentsData[0]);
-        } else {
-          // Create a virtual document object for modules without documents
-          console.log('No documents found, creating virtual document');
-          setModuleDocument({
-            id: `virtual-${foundModule.id}`,
-            title: `${foundModule.name} - Questions`,
-            module_id: foundModule.id
-          });
-        }
-
-        // Fetch questions for this module (only active questions, not unreviewed)
-        console.log('Fetching questions for module:', foundModule.id);
-        const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${foundModule.id}&status=active`);
-        console.log('Questions data received:', questionsData);
+        setModuleDocument(documentsData?.length > 0 ? documentsData[0] : { id: `virtual-${moduleIdFromParam}`, title: `${moduleName} - Questions`, module_id: moduleIdFromParam });
         setQuestions(questionsData || []);
-
-        // Fetch unreviewed questions count
-        try {
-          const unreviewedData = await apiClient.get(`/api/questions/by-module?module_id=${foundModule.id}&status=unreviewed`);
-          setUnreviewedCount(unreviewedData?.length || 0);
-        } catch (error) {
-          console.error('Failed to fetch unreviewed count:', error);
-          setUnreviewedCount(0);
-        }
-
-        // Fetch rubric settings for default points
-        try {
-          const rubricData = await apiClient.get(`/api/modules/${foundModule.id}/rubric`);
-          setModuleRubric(rubricData.rubric);
-        } catch (error) {
-          console.error('Failed to fetch rubric:', error);
-          setModuleRubric(null);
-        }
+        setUnreviewedCount(unreviewedData?.length || 0);
+        setModuleRubric(rubricData?.rubric || null);
       } else {
-        console.log('Module not found for name:', moduleName, 'in modules:', moduleData);
+        // No moduleId in URL — fetch modules first, then parallel
+        const moduleData = await apiClient.get(`/api/modules?teacher_id=${userId}`);
+        foundModule = moduleData.find(m => m.name === moduleName);
+        if (!foundModule) { setLoadingQuestions(false); return; }
+
+        setCurrentModule(foundModule);
+        const modId = foundModule.id;
+        const [documentsData, questionsData, unreviewedData, rubricData] = await Promise.all([
+          apiClient.get(`/api/documents?teacher_id=${userId}&module_id=${modId}`),
+          apiClient.get(`/api/questions/by-module?module_id=${modId}&status=active`),
+          apiClient.get(`/api/questions/by-module?module_id=${modId}&status=unreviewed`).catch(() => []),
+          apiClient.get(`/api/modules/${modId}/rubric`).catch(() => null),
+        ]);
+        setModuleDocument(documentsData?.length > 0 ? documentsData[0] : { id: `virtual-${modId}`, title: `${foundModule.name} - Questions`, module_id: modId });
+        setQuestions(questionsData || []);
+        setUnreviewedCount(unreviewedData?.length || 0);
+        setModuleRubric(rubricData?.rubric || null);
       }
     } catch (error) {
       console.error('Failed to fetch module or questions:', error);
-      console.error('Error details:', error.response?.data || error.message);
       setQuestions([]);
     } finally {
       setLoadingQuestions(false);
@@ -308,29 +260,121 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     }
   };
 
-  const handleExport = () => {
-    if (questions.length === 0) {
-      alert("No questions to export.");
-      return;
-    }
-    const exportData = questions.map(q => ({
-      type: q.type,
-      text: q.text,
-      points: q.points,
-      options: q.options,
-      correct_option_id: q.correct_option_id,
-      correct_answer: q.correct_answer,
-      extended_config: q.extended_config,
-      learning_outcome: q.learning_outcome,
-      bloom_taxonomy: q.bloom_taxonomy,
-      slide_number: q.slide_number,
-      image_url: q.image_url,
-    }));
-    const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+  // Build question rows shared by PDF and Word exports
+  const buildQuestionRows = () => {
+    const toLetter = (key) => (key || '').toLowerCase();
+    return questions.map((q, i) => {
+      let optionsHTML = '';
+      let answerHTML = '';
+
+      if ((q.type === 'mcq' || q.type === 'mcq_multiple') && q.options && typeof q.options === 'object') {
+        const correctIds = q.type === 'mcq_multiple'
+          ? (q.extended_config?.correct_option_ids || [])
+          : [q.correct_option_id || q.correct_answer];
+        optionsHTML = Object.entries(q.options).map(([key, text]) =>
+          `<p style="margin:4px 0 4px 0">${toLetter(key)}. ${text}</p>`
+        ).join('');
+        const answerLabels = correctIds.filter(Boolean).map(toLetter).join(', ');
+        if (answerLabels) answerHTML = `<p style="margin:8px 0 0 0"><strong>Answer: ${answerLabels}</strong></p>`;
+      } else if (q.type === 'fill_blank' && q.extended_config?.blanks?.length) {
+        optionsHTML = q.extended_config.blanks.map((_, bi) =>
+          `<p style="margin:4px 0">Blank ${bi + 1}: ___</p>`
+        ).join('');
+        answerHTML = q.extended_config.blanks.map((blank, bi) => {
+          const ans = (blank.correct_answers || []).join(' / ');
+          return `<p style="margin:${bi === 0 ? '8' : '2'}px 0 0 0">${bi === 0 ? '<strong>Answer — ' : 'Blank ' + (bi + 1) + ': '}${bi === 0 ? 'Blank 1: ' : ''}${ans}${bi === 0 ? '</strong>' : ''}</p>`;
+        }).join('');
+      } else if (q.type === 'multi_part' && q.extended_config?.sub_questions?.length) {
+        optionsHTML = q.extended_config.sub_questions.map(sq => {
+          let sqOpts = '';
+          let sqAns = '';
+          if (sq.type === 'mcq' && sq.options && typeof sq.options === 'object') {
+            sqOpts = Object.entries(sq.options).map(([key, text]) =>
+              `<p style="margin:2px 0 2px 20px">${toLetter(key)}. ${text}</p>`
+            ).join('');
+            if (sq.correct_option_id) sqAns = `<p style="margin:4px 0 4px 20px"><strong>Answer: ${toLetter(sq.correct_option_id)}</strong></p>`;
+          } else if (sq.correct_answer) {
+            sqAns = `<p style="margin:4px 0 4px 20px"><strong>Answer: ${sq.correct_answer}</strong></p>`;
+          }
+          return `<p style="margin:10px 0 4px 0;font-weight:600">${sq.id}. ${sq.text}</p>${sqOpts}${sqAns}`;
+        }).join('');
+      } else if (q.correct_answer) {
+        answerHTML = `<p style="margin:8px 0 0 0"><strong>Answer: ${q.correct_answer}</strong></p>`;
+      }
+
+      return { questionHTML: `<p style="margin:0 0 6px 0;font-weight:600">${i + 1}. ${q.text}</p>`, optionsHTML, answerHTML };
+    });
+  };
+
+  const buildPrintHTML = () => {
+    const rows = buildQuestionRows().map(({ questionHTML, optionsHTML, answerHTML }) => `
+      <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #ccc;page-break-inside:avoid">
+        ${questionHTML}
+        ${optionsHTML}
+        ${answerHTML}
+      </div>`).join('');
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8">
+      <title>${moduleName} – Questions</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:13px;color:#000;margin:40px;line-height:1.7}
+        h1{font-size:18px;margin:0 0 4px 0}
+        .meta{color:#555;font-size:12px;margin-bottom:28px}
+        @media print{body{margin:20px}}
+      </style>
+    </head><body>
+      <h1>${moduleName} – Questions</h1>
+      <p class="meta">${questions.length} question${questions.length !== 1 ? 's' : ''} · exported ${new Date().toLocaleDateString()}</p>
+      ${rows}
+    </body></html>`;
+  };
+
+  const buildWordHTML = () => {
+    const rows = buildQuestionRows().map(({ questionHTML, optionsHTML, answerHTML }) => `
+      <div style="margin-bottom:28pt;page-break-inside:avoid">
+        ${questionHTML}
+        ${optionsHTML}
+        ${answerHTML}
+        <p style="margin:16pt 0 0 0;border-bottom:1px solid #ccc">&nbsp;</p>
+      </div>`).join('');
+    return `<html xmlns:o='urn:schemas-microsoft-com:office:office'
+      xmlns:w='urn:schemas-microsoft-com:office:word'
+      xmlns='http://www.w3.org/TR/REC-html40'>
+    <head>
+      <meta charset="UTF-8">
+      <meta name=ProgId content=Word.Document>
+      <meta name=Generator content='Microsoft Word 11'>
+      <!--[if gte mso 9]><xml><w:WordDocument><w:View>Print</w:View></w:WordDocument></xml><![endif]-->
+      <title>${moduleName} – Questions</title>
+      <style>
+        body{font-family:Arial,sans-serif;font-size:12pt;color:#000;margin:1in;line-height:1.7}
+        h1{font-size:16pt;margin:0 0 4pt 0}
+        .meta{color:#555;font-size:10pt;margin-bottom:20pt}
+        p{margin:0 0 4pt 0}
+      </style>
+    </head><body>
+      <h1>${moduleName} – Questions</h1>
+      <p class="meta">${questions.length} question${questions.length !== 1 ? 's' : ''} · exported ${new Date().toLocaleDateString()}</p>
+      ${rows}
+    </body></html>`;
+  };
+
+  const handleExportPDF = () => {
+    if (questions.length === 0) { alert("No questions to export."); return; }
+    const win = window.open('', '_blank');
+    win.document.write(buildPrintHTML());
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
+  const handleExportWord = () => {
+    if (questions.length === 0) { alert("No questions to export."); return; }
+    const html = buildWordHTML();
+    const blob = new Blob(['\ufeff', html], { type: 'application/msword' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${moduleName}-questions.json`;
+    a.download = `${moduleName}-questions.doc`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -933,10 +977,6 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     setImagePreview(null);
   };
 
-  if (loading) {
-    return <div className="p-8">Loading...</div>;
-  }
-
   if (!isAuthenticated) {
     return (
       <div className="p-8 text-center">
@@ -981,10 +1021,24 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   </p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" onClick={handleExport} disabled={questions.length === 0}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Export
-                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" disabled={questions.length === 0}>
+                        <Download className="w-4 h-4 mr-2" />
+                        Export
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={handleExportPDF}>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Export as PDF
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={handleExportWord}>
+                        <FileCheck className="w-4 h-4 mr-2" />
+                        Export as Word
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                   <Button variant="outline" onClick={() => setIsImportOpen(true)}>
                     <Upload className="w-4 h-4 mr-2" />
                     Import

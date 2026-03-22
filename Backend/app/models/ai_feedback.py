@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, TIMESTAMP, Index, Text, Float
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, TIMESTAMP, Index, Text, Float, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
@@ -11,6 +11,16 @@ class AIFeedback(Base):
 
     # Link to student answer (single source of truth)
     answer_id = Column(UUID(as_uuid=True), ForeignKey("student_answers.id", ondelete="CASCADE"), nullable=False, unique=True)
+
+    # Link to the feedback_jobs row that produced this result (nullable for legacy rows)
+    # feedback_jobs is authoritative for queue/retry state; ai_feedback is the result cache
+    job_id = Column(UUID(as_uuid=True), ForeignKey("feedback_jobs.id", ondelete="SET NULL"), nullable=True)
+
+    # Teacher review gate (final attempt only)
+    # released=False means the student cannot see this feedback yet
+    # requires_teacher_review=True means a teacher must approve before release
+    released = Column(Boolean, nullable=False, default=True, server_default='true')
+    requires_teacher_review = Column(Boolean, nullable=False, default=False, server_default='false')
 
     # Correctness (nullable to allow feedback without correct answer)
     is_correct = Column(Boolean, nullable=True)  # None when correct answer not set
@@ -62,4 +72,5 @@ class AIFeedback(Base):
         Index('ix_ai_feedback_answer_id', 'answer_id'),
         Index('ix_ai_feedback_generated_at', 'generated_at'),
         Index('ix_ai_feedback_generation_status', 'generation_status'),
+        Index('ix_ai_feedback_job_id', 'job_id'),
     )

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, TIMESTAMP, ForeignKey, Boolean, Text
+from sqlalchemy import Column, String, TIMESTAMP, ForeignKey, Boolean, Text, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
@@ -88,7 +88,7 @@ class Module(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     teacher_id = Column(String, ForeignKey("users.id"), nullable=False)
 
-    name = Column(String, unique=True, nullable=False)
+    name = Column(String, nullable=False)
     description = Column(String, nullable=True)
     access_code = Column(String, unique=True, nullable=False)
     is_active = Column(Boolean, default=True)
@@ -140,3 +140,8 @@ class Module(Base):
     })
 
     created_at = Column(TIMESTAMP, default=datetime.utcnow)
+
+    __table_args__ = (
+        # A teacher cannot have two modules with the same name; different teachers can reuse names
+        UniqueConstraint('teacher_id', 'name', name='uix_module_teacher_name'),
+    )

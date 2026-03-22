@@ -44,7 +44,7 @@ export default function BrandSection() {
                 className="flex items-center gap-3 px-8 py-4 bg-white/50 dark:bg-slate-800/50 rounded-2xl border border-white dark:border-slate-700 shadow-sm hover:shadow-md transition-all duration-300 group/item grayscale hover:grayscale-0"
               >
                 <span className="text-2xl font-black text-[#1a212c] dark:text-white opacity-80">{brand.logo}</span>
-                <span className="text-xs font-bold text-slate-500 uppercase tracking-tighter whitespace-nowrap">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-300 uppercase tracking-tighter whitespace-nowrap">
                   {brand.name}
                 </span>
               </div>

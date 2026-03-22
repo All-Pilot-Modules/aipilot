@@ -103,7 +103,7 @@ export default function HowItWorksSection() {
                   </div>
 
                   {/* Refined Number Badge */}
-                  <div className={`inline-flex px-4 py-1 rounded-full ${step.accentColor} text-[#1a212c] text-[10px] font-black tracking-widest uppercase mb-6`}>
+                  <div className={`inline-flex px-4 py-1 rounded-full ${step.accentColor} text-[#1a212c] dark:text-slate-800 text-[10px] font-black tracking-widest uppercase mb-6`}>
                     Step {step.number}
                   </div>
 

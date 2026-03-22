@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta, datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
@@ -40,18 +41,13 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 @router.post("/register", response_model=UserOut)
 def register(user_data: UserCreate, db: Session = Depends(get_db)):
     """Register a new user and send verification email."""
-    # Check if user already exists
-    db_user = db.query(User).filter(
-        (User.id == user_data.id) |
-        (User.email == user_data.email) |
-        (User.username == user_data.username)
-    ).first()
+    # Check email uniqueness
+    if db.query(User).filter(User.email == user_data.email).first():
+        raise HTTPException(status_code=400, detail="An account with this email already exists")
 
-    if db_user:
-        raise HTTPException(
-            status_code=400,
-            detail="User with this ID, email, or username already exists"
-        )
+    # Check username uniqueness
+    if db.query(User).filter(User.username == user_data.username).first():
+        raise HTTPException(status_code=400, detail="This username is already taken")
 
     # Hash the password
     hashed_password = get_password_hash(user_data.password)
@@ -62,7 +58,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 
     # Create user with email verification fields
     db_user = User(
-        id=user_data.id,
+        id=user_data.id or str(uuid.uuid4()),
         username=user_data.username,
         email=user_data.email,
         hashed_password=hashed_password,
@@ -83,7 +79,7 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     if user_data.email:
         send_verification_email(
             to_email=user_data.email,
-            username=user_data.username or user_data.id,
+            username=user_data.username,
             code=verification_code,
             token=verification_token
         )
@@ -93,9 +89,9 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
 @router.post("/login", response_model=Token)
 def login(user_data: UserLogin, db: Session = Depends(get_db)):
     """Authenticate user and return access token."""
-    # Find user by ID or email
+    # Find user by username or email
     user = db.query(User).filter(
-        (User.id == user_data.identifier) |
+        (User.username == user_data.identifier) |
         (User.email == user_data.identifier)
     ).first()
 
@@ -264,7 +260,7 @@ def verify_email_with_code(email: str, code: str, db: Session = Depends(get_db))
     db.commit()
 
     # Send welcome email
-    send_welcome_email(user.email, user.username or user.id)
+    send_welcome_email(user.email, user.username)
 
     return {
         "message": "Email verified successfully",
@@ -310,7 +306,7 @@ def verify_email_with_token(token: str, db: Session = Depends(get_db)):
     db.commit()
 
     # Send welcome email
-    send_welcome_email(user.email, user.username or user.id)
+    send_welcome_email(user.email, user.username)
 
     return {
         "message": "Email verified successfully",
@@ -355,7 +351,7 @@ def resend_verification_email(email: str, db: Session = Depends(get_db)):
     # Send verification email
     send_verification_email(
         to_email=user.email,
-        username=user.username or user.id,
+        username=user.username,
         code=verification_code,
         token=verification_token
     )
@@ -397,7 +393,7 @@ def request_password_reset(request: PasswordResetRequest, db: Session = Depends(
     # Send reset email
     send_reset_password_email(
         to_email=user.email,
-        username=user.username or user.id,
+        username=user.username,
         code=reset_code,
         token=reset_token
     )

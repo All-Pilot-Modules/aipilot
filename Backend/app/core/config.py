@@ -27,6 +27,7 @@ CLERK_SECRET_KEY = os.getenv("CLERK_SECRET_KEY")
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
 SUPABASE_STORAGE_BUCKET = os.getenv("SUPABASE_STORAGE_BUCKET", "documents")
+SUPABASE_USER_BUCKET = os.getenv("SUPABASE_USER_BUCKET", "user-assets")
 
 # === Email Configuration ===
 EMAIL_HOST = os.getenv("EMAIL_HOST", "smtp.gmail.com")

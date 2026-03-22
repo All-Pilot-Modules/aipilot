@@ -15,7 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   GraduationCap, Users, BookOpen, Award, Clock, CheckCircle,
   XCircle, ChevronLeft, ChevronRight, Save, AlertCircle, User,
-  FileText, Bot, History, TrendingUp, BarChart3, Edit2
+  FileText, Bot, History, TrendingUp, BarChart3, Edit2,
+  SendHorizontal, Sparkles, ThumbsUp, Eye, Loader2, ExternalLink, ChevronDown, ChevronUp
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -197,16 +198,18 @@ const QuestionCardSkeleton = () => {
 // ============================================================================
 
 function GradingPageContent() {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const moduleName = searchParams.get('module');
+  const moduleIdFromParam = searchParams.get('moduleId');
 
   const [students, setStudents] = useState([]);
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [selectedAttempt, setSelectedAttempt] = useState(1);
   const [studentAnswers, setStudentAnswers] = useState([]);
   const [questions, setQuestions] = useState([]);
+  const [allModuleAnswersCache, setAllModuleAnswersCache] = useState([]);
   const [moduleData, setModuleData] = useState(null);
   const [loadingData, setLoadingData] = useState(true);
   const [error, setError] = useState('');
@@ -217,6 +220,11 @@ function GradingPageContent() {
   const [gradeInputs, setGradeInputs] = useState({});
   const [savingGrade, setSavingGrade] = useState(null);
   const [gradingStats, setGradingStats] = useState(null);
+  // Final-attempt review state
+  const [draftEdits, setDraftEdits] = useState({});       // { [answerId]: { text, points } }
+  const [releasingAnswer, setReleasingAnswer] = useState(null);
+  const [releasingAll, setReleasingAll] = useState(false);
+  const [expandedFeedback, setExpandedFeedback] = useState(new Set()); // tracks which answer ids have feedback textarea expanded
 
   const fetchStudents = useCallback(async () => {
     try {
@@ -229,43 +237,39 @@ function GradingPageContent() {
         return;
       }
 
-      // Get module by name
-      console.log('🔄 Fetching modules...');
-      const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
-      const modules = modulesResponse.data || modulesResponse;
-      const foundModule = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
+      // Resolve module — skip module list fetch when moduleId is in URL
+      let foundModule = null;
+      if (moduleIdFromParam) {
+        // Fetch module list + answers + questions all in parallel
+        const [modulesResponse, answersResponse, questionsResponse] = await Promise.all([
+          apiClient.get(`/api/modules?teacher_id=${teacherId}`),
+          apiClient.get(`/api/student-answers?module_id=${moduleIdFromParam}`).catch(() => []),
+          apiClient.get(`/api/student/modules/${moduleIdFromParam}/questions`).catch(() => []),
+        ]);
+        const modules = modulesResponse?.data || modulesResponse;
+        foundModule = modules.find(m => m.id === moduleIdFromParam) || { id: moduleIdFromParam, name: moduleName, assignment_config: {} };
+        setModuleData(foundModule);
+        var allModuleAnswers = answersResponse?.data || answersResponse || [];
+        var questions = questionsResponse?.data || questionsResponse || [];
+      } else {
+        // No moduleId — fetch module list first, then parallel
+        const modulesResponse = await apiClient.get(`/api/modules?teacher_id=${teacherId}`);
+        const modules = modulesResponse?.data || modulesResponse;
+        foundModule = modules.find(m => m.name.toLowerCase() === moduleName.toLowerCase());
+        if (!foundModule) { setError(`Module "${moduleName}" not found`); return; }
+        setModuleData(foundModule);
 
-      if (!foundModule) {
-        setError(`Module "${moduleName}" not found`);
-        return;
+        const [answersResponse, questionsResponse] = await Promise.all([
+          apiClient.get(`/api/student-answers?module_id=${foundModule.id}`).catch(() => []),
+          apiClient.get(`/api/student/modules/${foundModule.id}/questions`).catch(() => []),
+        ]);
+        var allModuleAnswers = answersResponse?.data || answersResponse || [];
+        var questions = questionsResponse?.data || questionsResponse || [];
       }
 
-      setModuleData(foundModule);
-
-      // Log module configuration for debugging
-      console.log('📋 Module Config:', {
-        name: foundModule.name,
-        assignment_config: foundModule.assignment_config,
-        max_attempts_path: foundModule.assignment_config?.features?.multiple_attempts?.max_attempts,
-        full_config: JSON.stringify(foundModule.assignment_config, null, 2)
-      });
-
-      // Get all student answers for this module
-      console.log('🔄 Fetching student answers...');
-      let allModuleAnswers = [];
-      try {
-        const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${foundModule.id}`);
-        allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
-        console.log(`📝 Total student answers in module: ${allModuleAnswers.length}`);
-      } catch (err) {
-        console.error('❌ Failed to fetch student answers:', err);
-        // Continue with empty array if this fails
-      }
-
-      // Get questions to know total count
-      console.log('🔄 Fetching questions...');
-      const questionsResponse = await apiClient.get(`/api/student/modules/${foundModule.id}/questions`);
-      const questions = questionsResponse.data || questionsResponse;
+      // Cache answers + questions for reuse in fetchStudentData (avoid re-fetching)
+      setAllModuleAnswersCache(allModuleAnswers);
+      setQuestions(questions);
 
       console.log(`❓ Total questions in module: ${questions.length}`);
 
@@ -373,12 +377,27 @@ function GradingPageContent() {
         }
       }
 
+      // Fetch pending-review counts from final-submissions endpoint
+      let pendingReviewMap = new Map();
+      try {
+        const finalSubsResponse = await apiClient.get(
+          `/api/student-answers/module/${foundModule.id}/final-submissions`
+        ).catch(() => ({ submissions: [] }));
+        const finalSubs = finalSubsResponse?.submissions || finalSubsResponse?.data?.submissions || [];
+        finalSubs.forEach(sub => {
+          if (sub.requires_teacher_review && !sub.released) {
+            pendingReviewMap.set(sub.student_id, (pendingReviewMap.get(sub.student_id) || 0) + 1);
+          }
+        });
+      } catch (_) {}
+
       // Enrich student data with grades
       const studentList = filteredStudents.map(student => ({
         ...student,
         attempts: student.attempts.size,
         gradedCount: allGradesMap.get(student.student_id) || 0,
-        totalQuestions: questions.length
+        totalQuestions: questions.length,
+        pendingReviewCount: pendingReviewMap.get(student.student_id) || 0,
       }));
 
       setStudents(studentList);
@@ -389,7 +408,7 @@ function GradingPageContent() {
     } finally {
       setLoadingData(false);
     }
-  }, [user, moduleName]);
+  }, [user?.id, user?.sub, moduleName, moduleIdFromParam]);
 
   const fetchStudentData = useCallback(async (student) => {
     if (!student || !moduleData) return;
@@ -397,36 +416,46 @@ function GradingPageContent() {
     try {
       setLoadingData(true);
 
-      // Get questions
-      const questionsResponse = await apiClient.get(`/api/student/modules/${moduleData.id}/questions`);
-      const questionsData = questionsResponse.data || questionsResponse;
-      setQuestions(questionsData);
+      // Reuse cached questions + answers from fetchStudents — no extra requests needed
+      const studentModuleAnswers = allModuleAnswersCache.filter(a => a.student_id === student.student_id);
 
-      // Get all student answers
-      const moduleAnswersResponse = await apiClient.get(`/api/student-answers?module_id=${moduleData.id}`);
-      const allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
-      const studentModuleAnswers = allModuleAnswers.filter(answer => answer.student_id === student.student_id);
+      // Fetch feedback + grades in parallel
+      const [feedbackResponse, gradesResponse] = await Promise.all([
+        apiClient.get(`/api/student/modules/${moduleData.id}/feedback?student_id=${student.student_id}`).catch(() => []),
+        apiClient.get(`/api/student-answers/teacher-grades/module/${moduleData.id}/student/${student.student_id}`).catch(() => null),
+      ]);
 
-      // Get AI feedback
+      // Process AI feedback
       let feedbackByAnswerId = {};
-      try {
-        const feedbackResponse = await apiClient.get(`/api/student/modules/${moduleData.id}/feedback?student_id=${student.student_id}`);
-        const feedbackData = feedbackResponse.data || feedbackResponse || [];
+      const feedbackData = feedbackResponse?.data || feedbackResponse || [];
+      feedbackData.forEach(feedback => { feedbackByAnswerId[feedback.answer_id] = feedback; });
+      setAiFeedbackMap(feedbackByAnswerId);
 
-        feedbackData.forEach(feedback => {
-          feedbackByAnswerId[feedback.answer_id] = feedback;
-        });
-        setAiFeedbackMap(feedbackByAnswerId);
-      } catch (err) {
-        console.log('No AI feedback available');
-      }
+      // Pre-populate draft edits for unreleased final-attempt feedback
+      const initialDrafts = {};
+      feedbackData.forEach(fb => {
+        if (fb.requires_teacher_review && !fb.released) {
+          // Resolve AI-suggested points: prefer points_earned, fall back to score%
+          let aiPoints = '';
+          if (fb.points_earned !== null && fb.points_earned !== undefined) {
+            aiPoints = fb.points_earned;
+          } else if (fb.score !== null && fb.score !== undefined && fb.points_possible) {
+            const pct = fb.score > 1 ? fb.score / 100 : fb.score;
+            aiPoints = parseFloat((pct * fb.points_possible).toFixed(1));
+          }
+          initialDrafts[fb.answer_id] = {
+            text: fb.explanation || '',
+            points: aiPoints,
+          };
+        }
+      });
+      setDraftEdits(initialDrafts);
 
-      // Get teacher grades for this student
+      // Process teacher grades
       let teacherGradesByAnswerId = {};
       let teacherGradesResponse = null;
       try {
-        const gradesResponse = await apiClient.get(`/api/student-answers/teacher-grades/module/${moduleData.id}/student/${student.student_id}`);
-        teacherGradesResponse = gradesResponse.data || gradesResponse;
+        teacherGradesResponse = gradesResponse?.data || gradesResponse;
 
         if (teacherGradesResponse?.grades) {
           teacherGradesResponse.grades.forEach(grade => {
@@ -479,8 +508,8 @@ function GradingPageContent() {
       const latestAttempt = attempts.length > 0 ? attempts[0] : 1;
       setSelectedAttempt(latestAttempt);
 
-      // Build student answers
-      const answersData = questionsData.map(question => {
+      // Build student answers (use `questions` state cached from fetchStudents)
+      const answersData = questions.map(question => {
         const answerForQuestion = studentModuleAnswers.find(
           answer => answer.question_id === question.id && (answer.attempt || 1) === selectedAttempt
         );
@@ -521,13 +550,14 @@ function GradingPageContent() {
     } finally {
       setLoadingData(false);
     }
-  }, [moduleData, selectedAttempt]);
+  }, [moduleData, selectedAttempt, allModuleAnswersCache, questions]);
 
   useEffect(() => {
-    if (moduleName && isAuthenticated && user) {
+    const userId = user?.id || user?.sub;
+    if (moduleName && isAuthenticated && userId) {
       fetchStudents();
     }
-  }, [moduleName, isAuthenticated, user, fetchStudents]);
+  }, [moduleName, isAuthenticated, user?.id, user?.sub, fetchStudents]);
 
   useEffect(() => {
     if (selectedStudent && moduleData) {
@@ -682,9 +712,103 @@ function GradingPageContent() {
     }));
   };
 
-  if (loading) {
+  const handleDraftChange = (answerId, field, value) => {
+    setDraftEdits(prev => ({ ...prev, [answerId]: { ...prev[answerId], [field]: value } }));
+  };
+
+  // Approve AI feedback as-is (no edits)
+  const handleApprove = async (answerId) => {
+    setReleasingAnswer(answerId);
+    setError('');
+    try {
+      const teacherId = user?.id || user?.sub;
+      await apiClient.post(
+        `/api/student-answers/review/release?answer_id=${answerId}&teacher_id=${teacherId}`
+      );
+      setAiFeedbackMap(prev => ({ ...prev, [answerId]: { ...prev[answerId], released: true } }));
+      setStudents(prev => prev.map(s =>
+        s.student_id === selectedStudent.student_id
+          ? { ...s, pendingReviewCount: Math.max(0, (s.pendingReviewCount || 1) - 1) }
+          : s
+      ));
+    } catch (err) {
+      setError('Failed to approve feedback. Please try again.');
+    } finally {
+      setReleasingAnswer(null);
+    }
+  };
+
+  // Release with teacher edits (feedback text and/or score override)
+  const handleReleaseWithEdits = async (answerId) => {
+    const edit = draftEdits[answerId] || {};
+    setReleasingAnswer(answerId);
+    setError('');
+    try {
+      const teacherId = user?.id || user?.sub;
+      const params = new URLSearchParams({ answer_id: answerId, teacher_id: teacherId });
+      if (edit.text?.trim()) params.append('feedback_text', edit.text.trim());
+      if (edit.points !== '' && edit.points !== undefined && edit.points !== null) {
+        params.append('points_awarded', parseFloat(edit.points));
+      }
+      await apiClient.post(`/api/student-answers/review/release?${params.toString()}`);
+      setAiFeedbackMap(prev => ({ ...prev, [answerId]: { ...prev[answerId], released: true } }));
+      setDraftEdits(prev => { const { [answerId]: _, ...rest } = prev; return rest; });
+      setStudents(prev => prev.map(s =>
+        s.student_id === selectedStudent.student_id
+          ? { ...s, pendingReviewCount: Math.max(0, (s.pendingReviewCount || 1) - 1) }
+          : s
+      ));
+    } catch (err) {
+      setError('Failed to release feedback. Please try again.');
+    } finally {
+      setReleasingAnswer(null);
+    }
+  };
+
+  // Approve and release ALL pending review items for the current student at once
+  const handleReleaseAll = async () => {
+    if (!selectedStudent || !moduleData) return;
+    setReleasingAll(true);
+    setError('');
+    try {
+      const teacherId = user?.id || user?.sub;
+      const params = new URLSearchParams({
+        module_id: moduleData.id,
+        student_id: selectedStudent.student_id,
+        teacher_id: teacherId,
+      });
+      await apiClient.post(`/api/student-answers/review/release-bulk?${params.toString()}`);
+      setAiFeedbackMap(prev => {
+        const updated = { ...prev };
+        Object.keys(updated).forEach(id => {
+          if (updated[id]?.requires_teacher_review && !updated[id]?.released) {
+            updated[id] = { ...updated[id], released: true };
+          }
+        });
+        return updated;
+      });
+      setDraftEdits({});
+      setStudents(prev => prev.map(s =>
+        s.student_id === selectedStudent.student_id
+          ? { ...s, pendingReviewCount: 0 }
+          : s
+      ));
+    } catch (err) {
+      setError('Failed to release all feedback. Please try again.');
+    } finally {
+      setReleasingAll(false);
+    }
+  };
+
+  if (!isAuthenticated && !user) {
     return <div className="p-8">Loading...</div>;
   }
+
+  const maxAttempts = moduleData?.assignment_config?.features?.multiple_attempts?.max_attempts || 2;
+  const isFinalAttempt = selectedAttempt === maxAttempts;
+  const pendingReviewAnswers = isFinalAttempt
+    ? studentAnswers.filter(a => aiFeedbackMap[a.answer_id]?.requires_teacher_review && !aiFeedbackMap[a.answer_id]?.released)
+    : [];
 
   if (!isAuthenticated) {
     return (
@@ -874,7 +998,13 @@ function GradingPageContent() {
                               </div>
                             </div>
 
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              {student.pendingReviewCount > 0 && (
+                                <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold border-2 bg-gradient-to-br from-orange-100 to-amber-100 dark:from-orange-900/40 dark:to-amber-900/30 text-orange-700 dark:text-orange-400 border-orange-300 dark:border-orange-700 shadow-md">
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>{student.pendingReviewCount} to review</span>
+                                </div>
+                              )}
                               <div className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold shadow-md border-2 transition-all ${
                                 student.gradedCount === student.totalQuestions
                                   ? 'bg-gradient-to-br from-emerald-100 to-emerald-200/80 dark:from-emerald-900/40 dark:to-emerald-800/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
@@ -957,6 +1087,34 @@ function GradingPageContent() {
                                   #{selectedAttempt}
                                 </span>
                               </div>
+
+                              {/* View previous attempts */}
+                              <Link href={`/dashboard/students/${selectedStudent.student_id}?module=${encodeURIComponent(moduleName || '')}`}>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-9 border-2 border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 font-bold transition-all flex-shrink-0"
+                                >
+                                  <ExternalLink className="w-4 h-4 mr-1.5" />
+                                  View Previous Attempts
+                                </Button>
+                              </Link>
+
+                              {/* Release All button — only visible when there are pending reviews */}
+                              {pendingReviewAnswers.length > 0 && (
+                                <Button
+                                  onClick={handleReleaseAll}
+                                  disabled={releasingAll}
+                                  size="sm"
+                                  className="h-9 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold shadow-lg hover:shadow-xl transition-all border-0 flex-shrink-0"
+                                >
+                                  {releasingAll ? (
+                                    <><Loader2 className="w-4 h-4 mr-1.5 animate-spin" />Releasing...</>
+                                  ) : (
+                                    <><SendHorizontal className="w-4 h-4 mr-1.5" />Approve All ({pendingReviewAnswers.length})</>
+                                  )}
+                                </Button>
+                              )}
                             </div>
                           </div>
                         </div>
@@ -1075,8 +1233,8 @@ function GradingPageContent() {
                                 </div>
                               </div>
 
-                              {/* AI Feedback */}
-                              {aiFeedback && aiFeedback.explanation && (
+                              {/* AI Feedback — shown when released OR not a review-gated answer */}
+                              {aiFeedback && aiFeedback.explanation && aiFeedback.released && (
                                 <div className="relative overflow-hidden rounded-xl border-2 border-violet-200 dark:border-violet-900/60 bg-gradient-to-br from-violet-50/80 to-purple-50/40 dark:from-violet-950/30 dark:to-purple-950/10 shadow-lg p-4">
                                   <div className="absolute top-0 right-0 w-32 h-32 bg-violet-400/10 dark:bg-violet-500/5 rounded-full blur-2xl"></div>
                                   <div className="relative">
@@ -1091,13 +1249,175 @@ function GradingPageContent() {
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">{aiFeedback.explanation}</p>
+                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium line-clamp-3">{aiFeedback.explanation}</p>
                                   </div>
                                 </div>
                               )}
 
-                              {/* Teacher Grading */}
-                              {teacherGrade ? (
+                              {/* ── AI DRAFT REVIEW PANEL (final attempt, not yet released) ── */}
+                              {isFinalAttempt && aiFeedback?.requires_teacher_review && !aiFeedback?.released && (
+                                <div className="relative overflow-hidden rounded-xl border-2 border-orange-300 dark:border-orange-700/60 bg-gradient-to-br from-orange-50/90 to-amber-50/60 dark:from-orange-950/30 dark:to-amber-950/20 shadow-xl p-5">
+                                  <div className="absolute top-0 right-0 w-40 h-40 bg-orange-400/10 dark:bg-orange-500/5 rounded-full blur-3xl"></div>
+                                  <div className="relative space-y-4">
+
+                                    {/* Header */}
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-2">
+                                        <div className="p-2 rounded-lg bg-gradient-to-br from-orange-500 to-amber-500 shadow-lg">
+                                          <Sparkles className="w-4 h-4 text-white" />
+                                        </div>
+                                        <span className="text-sm font-bold text-orange-700 dark:text-orange-400">AI Draft — Pending Your Review</span>
+                                      </div>
+                                      {aiFeedback.generation_status !== 'completed' && (
+                                        <span className="flex items-center gap-1.5 text-xs text-orange-600 dark:text-orange-400 font-medium">
+                                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                          AI generating…
+                                        </span>
+                                      )}
+                                    </div>
+
+                                    {aiFeedback.generation_status === 'completed' ? (() => {
+                                      // Resolve AI suggested points
+                                      let aiPts = aiFeedback.points_earned;
+                                      if (aiPts === null || aiPts === undefined) {
+                                        if (aiFeedback.score != null && answerData.points_possible) {
+                                          const pct = aiFeedback.score > 1 ? aiFeedback.score / 100 : aiFeedback.score;
+                                          aiPts = parseFloat((pct * answerData.points_possible).toFixed(1));
+                                        }
+                                      }
+                                      const aiPct = answerData.points_possible > 0 && aiPts != null
+                                        ? Math.round((aiPts / answerData.points_possible) * 100) : null;
+                                      const currentPoints = draftEdits[answerData.answer_id]?.points;
+                                      const pointsValue = currentPoints !== undefined && currentPoints !== '' ? currentPoints : (aiPts ?? '');
+                                      const textValue = draftEdits[answerData.answer_id]?.text ?? (aiFeedback.explanation || '');
+                                      return (
+                                        <>
+                                          {/* AI Grade badge */}
+                                          <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg bg-white/70 dark:bg-slate-900/50 border border-orange-200 dark:border-orange-800">
+                                            <div className="flex items-center gap-2">
+                                              <Bot className="w-4 h-4 text-violet-600 dark:text-violet-400" />
+                                              <span className="text-xs font-bold text-slate-600 dark:text-slate-400">AI Grade:</span>
+                                            </div>
+                                            {aiPts != null ? (
+                                              <div className="flex items-center gap-2">
+                                                <span className="text-base font-black text-violet-700 dark:text-violet-300">
+                                                  {aiPts} / {answerData.points_possible}
+                                                </span>
+                                                {aiPct !== null && (
+                                                  <span className="px-2 py-0.5 rounded-md bg-violet-100 dark:bg-violet-900/40 border border-violet-300 dark:border-violet-700 text-xs font-bold text-violet-700 dark:text-violet-300">
+                                                    {aiPct}%
+                                                  </span>
+                                                )}
+                                              </div>
+                                            ) : (
+                                              <span className="text-xs text-slate-400 italic">No score from AI</span>
+                                            )}
+                                            {aiFeedback.criterion_scores && Object.keys(aiFeedback.criterion_scores).length > 0 && (
+                                              <div className="ml-auto flex flex-wrap gap-1">
+                                                {Object.entries(aiFeedback.criterion_scores).map(([criterion, data]) => (
+                                                  <span key={criterion} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
+                                                    {criterion}: {data?.score ?? data}/{data?.out_of ?? '—'}
+                                                  </span>
+                                                ))}
+                                              </div>
+                                            )}
+                                          </div>
+
+                                          {/* AI feedback preview — 2 lines, expand to edit */}
+                                          <div className="space-y-1">
+                                            <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                                              {textValue || <span className="italic text-slate-400">No feedback text</span>}
+                                            </p>
+                                            <button
+                                              type="button"
+                                              onClick={() => setExpandedFeedback(prev => {
+                                                const next = new Set(prev);
+                                                next.has(answerData.answer_id) ? next.delete(answerData.answer_id) : next.add(answerData.answer_id);
+                                                return next;
+                                              })}
+                                              className="text-[11px] text-orange-600 dark:text-orange-400 hover:underline"
+                                            >
+                                              {expandedFeedback.has(answerData.answer_id) ? 'Hide editor' : 'Edit feedback text'}
+                                            </button>
+                                            {expandedFeedback.has(answerData.answer_id) && (
+                                              <Textarea
+                                                rows={4}
+                                                value={textValue}
+                                                onChange={e => handleDraftChange(answerData.answer_id, 'text', e.target.value)}
+                                                className="text-sm border-2 border-orange-300 dark:border-orange-700 focus:ring-2 focus:ring-orange-400 rounded-lg resize-none bg-white/80 dark:bg-slate-900/60 mt-1"
+                                                placeholder="AI feedback text…"
+                                              />
+                                            )}
+                                          </div>
+
+                                          {/* Editable score */}
+                                          <div className="space-y-1.5">
+                                            <Label className="text-xs font-bold text-orange-900 dark:text-orange-300">
+                                              Final Score <span className="font-normal text-slate-500">(override if needed)</span>
+                                            </Label>
+                                            <div className="flex items-center gap-2">
+                                              <Input
+                                                type="number"
+                                                min="0"
+                                                max={answerData.points_possible}
+                                                step={answerData.points_possible === 1 ? "1" : "0.5"}
+                                                value={pointsValue}
+                                                onChange={e => {
+                                                  const v = parseFloat(e.target.value);
+                                                  if (v <= answerData.points_possible || e.target.value === '') {
+                                                    handleDraftChange(answerData.answer_id, 'points', e.target.value);
+                                                  }
+                                                }}
+                                                className="h-9 w-28 text-sm font-bold border-2 border-orange-300 dark:border-orange-700 focus:ring-2 focus:ring-orange-400 rounded-lg bg-white/80 dark:bg-slate-900/60"
+                                              />
+                                              <span className="text-sm font-black text-orange-900 dark:text-orange-300">/ {answerData.points_possible}</span>
+                                            </div>
+                                          </div>
+
+                                          {/* Action buttons */}
+                                          <div className="flex gap-2 pt-1">
+                                            <Button
+                                              onClick={() => handleApprove(answerData.answer_id)}
+                                              disabled={releasingAnswer === answerData.answer_id}
+                                              size="sm"
+                                              variant="outline"
+                                              className="flex-1 h-9 border-2 border-orange-300 dark:border-orange-700 text-orange-700 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-950/30 font-bold transition-all"
+                                            >
+                                              {releasingAnswer === answerData.answer_id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                              ) : (
+                                                <><ThumbsUp className="w-3.5 h-3.5 mr-1.5" />Approve As-Is</>
+                                              )}
+                                            </Button>
+                                            <Button
+                                              onClick={() => handleReleaseWithEdits(answerData.answer_id)}
+                                              disabled={releasingAnswer === answerData.answer_id}
+                                              size="sm"
+                                              className="flex-1 h-9 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold shadow-lg hover:shadow-xl transition-all border-0"
+                                            >
+                                              {releasingAnswer === answerData.answer_id ? (
+                                                <Loader2 className="w-4 h-4 animate-spin" />
+                                              ) : (
+                                                <><SendHorizontal className="w-3.5 h-3.5 mr-1.5" />Release to Student</>
+                                              )}
+                                            </Button>
+                                          </div>
+                                        </>
+                                      );
+                                    })() : (
+                                      <div className="flex items-center gap-3 p-4 rounded-lg bg-orange-100/60 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800">
+                                        <Loader2 className="w-5 h-5 animate-spin text-orange-500 flex-shrink-0" />
+                                        <p className="text-sm text-orange-700 dark:text-orange-400 font-medium">
+                                          AI is generating feedback for this answer. Refresh in a moment.
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Teacher Grading — shown only when not in pending-review state */}
+                              {teacherGrade && !(isFinalAttempt && aiFeedback?.requires_teacher_review && !aiFeedback?.released) ? (
                                 <div className="relative overflow-hidden rounded-xl border-2 border-emerald-200 dark:border-emerald-900/60 bg-gradient-to-br from-emerald-50/80 to-emerald-100/40 dark:from-emerald-950/30 dark:to-emerald-900/10 shadow-lg p-5">
                                   <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-400/10 dark:bg-emerald-500/5 rounded-full blur-2xl"></div>
                                   <div className="relative">
@@ -1210,7 +1530,7 @@ function GradingPageContent() {
                                     </div>
                                   </div>
                                 </div>
-                              ) : answerData.answer_id ? (
+                              ) : answerData.answer_id && !(isFinalAttempt && aiFeedback?.requires_teacher_review && !aiFeedback?.released) ? (
                                 <div className="relative overflow-hidden rounded-xl border-2 border-amber-200 dark:border-amber-900/60 bg-gradient-to-br from-amber-50/80 to-orange-50/40 dark:from-amber-950/30 dark:to-orange-950/10 shadow-lg p-5">
                                   <div className="absolute top-0 right-0 w-32 h-32 bg-amber-400/10 dark:bg-amber-500/5 rounded-full blur-2xl"></div>
                                   <div className="relative space-y-4">

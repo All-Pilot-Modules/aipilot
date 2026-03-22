@@ -38,9 +38,10 @@ import { SkeletonDocumentCard } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 
 function DocumentsContent() {
-  const { user, loading, isAuthenticated } = useAuth();
+  const { user, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
   const moduleName = searchParams.get("module");
+  const moduleIdFromParam = searchParams.get("moduleId");
 
   const [documents, setDocuments] = useState([]);
   const [currentModule, setCurrentModule] = useState(null);
@@ -69,46 +70,48 @@ function DocumentsContent() {
     try {
       setIsLoadingDocuments(true);
 
-      // Get user ID - try both id and sub fields
       const userId = user?.id || user?.sub;
-      console.log('🔍 Documents page - user object:', { userId, fullUser: user });
-
       if (!userId) {
-        console.warn('⚠️ User ID not available yet');
         setIsLoadingDocuments(false);
         return;
       }
 
-      console.log('📚 Fetching modules for user:', userId);
-      const moduleData = await apiClient.get(`/api/modules?teacher_id=${userId}`);
-      console.log('📦 Received modules:', moduleData);
-      setAvailableModules(moduleData || []);
-
-      // eslint-disable-next-line @next/next/no-assign-module-variable
-      const module = moduleData.find(m => m.name === moduleName);
-
-      if (module) {
-        setCurrentModule(module);
-        const documentsData = await apiClient.get(`/api/documents?teacher_id=${userId}&module_id=${module.id}`);
+      if (moduleIdFromParam) {
+        // Skip module list fetch — ID is already in the URL
+        const [moduleData, documentsData] = await Promise.all([
+          apiClient.get(`/api/modules/${moduleIdFromParam}`),
+          apiClient.get(`/api/documents?teacher_id=${userId}&module_id=${moduleIdFromParam}`),
+        ]);
+        setCurrentModule(moduleData);
+        setAvailableModules([moduleData]);
         setDocuments(documentsData);
       } else {
-        console.log("Available modules:", moduleData.map(m => m.name));
-        console.warn(`Module "${moduleName}" not found. Please create a module or select an existing one.`);
-        setCurrentModule(null);
+        const moduleList = await apiClient.get(`/api/modules?teacher_id=${userId}`);
+        setAvailableModules(moduleList || []);
+
+        // eslint-disable-next-line @next/next/no-assign-module-variable
+        const module = moduleList.find(m => m.name === moduleName);
+        if (module) {
+          setCurrentModule(module);
+          const documentsData = await apiClient.get(`/api/documents?teacher_id=${userId}&module_id=${module.id}`);
+          setDocuments(documentsData);
+        } else {
+          setCurrentModule(null);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch module or documents:", error);
     } finally {
       setIsLoadingDocuments(false);
     }
-  }, [user, moduleName]);
+  }, [user?.id, user?.sub, moduleName, moduleIdFromParam]);
 
   // Load module and documents
   useEffect(() => {
-    if (isAuthenticated && user && moduleName) {
+    if (isAuthenticated && (user?.id || user?.sub) && moduleName) {
       fetchModuleAndDocuments();
     }
-  }, [isAuthenticated, user, moduleName, fetchModuleAndDocuments]);
+  }, [isAuthenticated, user?.id, user?.sub, moduleName, fetchModuleAndDocuments]);
 
   // Reset form when drawer closes
   useEffect(() => {
