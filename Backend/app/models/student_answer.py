@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, ForeignKey, TIMESTAMP, UniqueConstraint, Index
+from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, TIMESTAMP, UniqueConstraint, Index
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
@@ -16,6 +16,7 @@ class StudentAnswer(Base):
     answer = Column(JSONB, nullable=False)  # Supports MCQ + text answers
     attempt = Column(Integer, nullable=False)  # 1 or 2
     submitted_at = Column(TIMESTAMP, default=datetime.utcnow)
+    is_mastery = Column(Boolean, default=False, nullable=False, server_default='false')  # True = mastery practice answer (never shown in test feedback tab)
 
     __table_args__ = (
         UniqueConstraint('student_id', 'question_id', 'attempt', name='uix_student_question_attempt'),

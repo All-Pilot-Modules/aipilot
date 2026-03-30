@@ -187,21 +187,19 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
         </div>
 
         {/* Mastery Learning */}
-        <div className="border rounded-lg p-4 bg-gray-50/50 dark:bg-gray-950/10 border-gray-200 dark:border-gray-800 opacity-60">
+        <div className={`border rounded-lg p-4 border-purple-200 dark:border-purple-800 ${config.features.mastery_learning.enabled ? 'bg-purple-50/50 dark:bg-purple-950/10' : 'bg-gray-50/50 dark:bg-gray-950/10'}`}>
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <Target className="w-4 h-4 text-gray-600" />
+              <Target className="w-4 h-4 text-purple-600" />
               <h4 className="font-medium text-sm">Mastery Learning</h4>
-              <Badge variant="secondary" className="text-xs bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400">Coming Soon</Badge>
             </div>
             <Switch
-              checked={false}
-              disabled={true}
-              onCheckedChange={() => {}}
+              checked={config.features.mastery_learning.enabled}
+              onCheckedChange={(checked) => updateConfig('features.mastery_learning.enabled', checked)}
             />
           </div>
           <p className="text-xs text-muted-foreground mb-3">
-            Repeat questions until students achieve consecutive correct answers (Feature in development)
+            Repeat questions until students achieve consecutive correct answers
           </p>
           {config.features.mastery_learning.enabled && (
             <div className="space-y-3">

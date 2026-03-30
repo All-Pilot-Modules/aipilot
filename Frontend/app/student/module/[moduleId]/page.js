@@ -118,6 +118,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   const [surveySubmitted, setSurveySubmitted] = useState(false);
   const [surveyRequired, setSurveyRequired] = useState(false);
 
+  // Mastery learning state
+  const [masteryState, setMasteryState] = useState(null);
+  const [masteryLoading, setMasteryLoading] = useState(false);
+
   // Check if chatbot is enabled based on module settings
   const isChatbotEnabled = moduleData?.assignment_config?.features?.chatbot_feedback?.enabled ?? true;
 
@@ -964,6 +968,33 @@ const StudentModuleContent = memo(function StudentModuleContent() {
     router.push(`/student/test/${moduleId}`);
   };
 
+  const handleStartMastery = () => {
+    router.push(`/student/mastery/${moduleId}`);
+  };
+
+  const isMasteryEnabled = moduleData?.assignment_config?.features?.mastery_learning?.enabled ?? false;
+  const isTestEnabled = moduleData?.assignment_config?.features?.multiple_attempts?.enabled ?? true;
+
+  // Load mastery progress when mastery is enabled and student is identified
+  const masteryEnabled = moduleData?.assignment_config?.features?.mastery_learning?.enabled ?? false;
+  useEffect(() => {
+    if (!masteryEnabled || !moduleAccess?.studentId || !moduleId) return;
+    const load = async () => {
+      setMasteryLoading(true);
+      try {
+        const res = await apiClient.get(
+          `/api/student/modules/${moduleId}/mastery/state?student_id=${moduleAccess.studentId}`
+        );
+        setMasteryState(res?.data || res || null);
+      } catch {
+        // Mastery not started yet or backend not ready — fail silently
+      } finally {
+        setMasteryLoading(false);
+      }
+    };
+    load();
+  }, [masteryEnabled, moduleAccess?.studentId, moduleId]);
+
   const handleManualCleanup = async () => {
     if (!moduleAccess) return;
 
@@ -1510,38 +1541,48 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                           }
 
                           return (
-                            <Button
-                              onClick={() => handleStartTest()}
-                              className={(() => {
-                                const currentAttempt = submissionStatus?.current_attempt || 1;
-
-                                return currentAttempt > 1
-                                  ? "bg-orange-600 hover:bg-orange-700"
-                                  : "bg-blue-600 hover:bg-blue-700";
-                              })()}
-                              size="lg"
-                            >
-                              {(() => {
-                                const currentAttempt = submissionStatus?.current_attempt || 1;
-
-                                if (currentAttempt > 1) {
-                                  // If current attempt is 2+, button should start that attempt
-                                  return (
-                                    <>
-                                      <Target className="w-4 h-4 mr-2" />
-                                      Start Attempt {currentAttempt}
-                                    </>
-                                  );
-                                } else {
-                                  return (
-                                    <>
-                                      <Play className="w-4 h-4 mr-2" />
-                                      Start Test
-                                    </>
-                                  );
-                                }
-                              })()}
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              {isTestEnabled && (
+                                <Button
+                                  onClick={() => handleStartTest()}
+                                  className={(() => {
+                                    const currentAttempt = submissionStatus?.current_attempt || 1;
+                                    return currentAttempt > 1
+                                      ? "bg-orange-600 hover:bg-orange-700"
+                                      : "bg-blue-600 hover:bg-blue-700";
+                                  })()}
+                                  size="lg"
+                                >
+                                  {(() => {
+                                    const currentAttempt = submissionStatus?.current_attempt || 1;
+                                    if (currentAttempt > 1) {
+                                      return (
+                                        <>
+                                          <Target className="w-4 h-4 mr-2" />
+                                          Start Attempt {currentAttempt}
+                                        </>
+                                      );
+                                    }
+                                    return (
+                                      <>
+                                        <Play className="w-4 h-4 mr-2" />
+                                        Start Test
+                                      </>
+                                    );
+                                  })()}
+                                </Button>
+                              )}
+                              {isMasteryEnabled && (
+                                <Button
+                                  onClick={() => handleStartMastery()}
+                                  size="lg"
+                                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                                >
+                                  <Target className="w-4 h-4 mr-2" />
+                                  Start Mastery Practice
+                                </Button>
+                              )}
+                            </div>
                           );
                         })()}
                       </div>
@@ -1566,6 +1607,94 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
           {/* Feedback Tab */}
           <TabsContent value="feedback" className="space-y-6">
+
+            {/* ── Mastery Learning Progress Card ── */}
+            {isMasteryEnabled && (
+              <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-indigo-50/30 dark:from-purple-950/20 dark:to-indigo-950/10">
+                <CardContent className="p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <Target className="w-5 h-5 text-purple-600" />
+                      <h3 className="font-semibold text-purple-900 dark:text-purple-100">Mastery Learning</h3>
+                    </div>
+                    <Button
+                      onClick={() => handleStartMastery()}
+                      size="sm"
+                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                    >
+                      <Target className="w-4 h-4 mr-1" />
+                      {masteryState?.progress?.all_mastered ? 'Review' : 'Practice'}
+                    </Button>
+                  </div>
+
+                  {masteryLoading ? (
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-500" />
+                      Loading progress...
+                    </div>
+                  ) : masteryState ? (
+                    <div className="space-y-3">
+                      {/* Progress bar */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">
+                            {masteryState.progress?.mastered ?? 0} / {masteryState.progress?.total ?? 0} questions mastered
+                          </span>
+                          <span className="font-semibold text-purple-700 dark:text-purple-300">
+                            {masteryState.progress?.total > 0
+                              ? Math.round((masteryState.progress.mastered / masteryState.progress.total) * 100)
+                              : 0}%
+                          </span>
+                        </div>
+                        <div className="w-full h-2 bg-purple-100 dark:bg-purple-900/40 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-purple-500 rounded-full transition-all"
+                            style={{
+                              width: masteryState.progress?.total > 0
+                                ? `${(masteryState.progress.mastered / masteryState.progress.total) * 100}%`
+                                : '0%'
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Per-question dots */}
+                      {masteryState.queue?.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {masteryState.queue.map((entry, i) => (
+                            <div
+                              key={entry.question_id}
+                              title={`Q${i + 1}: streak ${entry.streak_count}/${masteryState.streak_required}`}
+                              className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold border transition-all ${
+                                entry.is_mastered
+                                  ? 'bg-purple-100 border-purple-400 text-purple-700 dark:bg-purple-900/40 dark:border-purple-600 dark:text-purple-300'
+                                  : entry.streak_count > 0
+                                  ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-600 dark:text-amber-300'
+                                  : 'bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400'
+                              }`}
+                            >
+                              {entry.is_mastered ? '✓' : entry.streak_count > 0 ? entry.streak_count : i + 1}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {masteryState.progress?.all_mastered && (
+                        <div className="flex items-center gap-2 text-sm font-medium text-purple-700 dark:text-purple-300">
+                          <CheckCircle className="w-4 h-4" />
+                          All questions mastered!
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      You haven&apos;t started mastery practice yet. Click <strong>Practice</strong> to begin.
+                    </p>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {/* Show beautiful loading banner when actively generating feedback */}
             {isPolling && feedbackStatus && (
               <FeedbackGeneratingBanner
@@ -1826,24 +1955,39 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 }
                               </p>
                             </div>
-                            <Button
-                              onClick={() => router.push(`/student/test/${moduleId}`)}
-                              disabled={isPolling}
-                              className="bg-orange-600 hover:bg-orange-700 text-white px-6 disabled:opacity-50 disabled:cursor-not-allowed"
-                              size="lg"
-                            >
-                              {isPolling ? (
-                                <>
-                                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                  Generating feedback...
-                                </>
-                              ) : (
-                                <>
-                                  <Target className="w-4 h-4 mr-2" />
-                                  Start Attempt {nextAttemptNumber}
-                                </>
+                            <div className="flex flex-wrap gap-2">
+                              {isTestEnabled && (
+                                <Button
+                                  onClick={() => router.push(`/student/test/${moduleId}`)}
+                                  disabled={isPolling}
+                                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  size="lg"
+                                >
+                                  {isPolling ? (
+                                    <>
+                                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                      Generating feedback...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Target className="w-4 h-4 mr-2" />
+                                      Start Attempt {nextAttemptNumber}
+                                    </>
+                                  )}
+                                </Button>
                               )}
-                            </Button>
+                              {isMasteryEnabled && (
+                                <Button
+                                  onClick={() => handleStartMastery()}
+                                  disabled={isPolling}
+                                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  size="lg"
+                                >
+                                  <Target className="w-4 h-4 mr-2" />
+                                  Mastery Practice
+                                </Button>
+                              )}
+                            </div>
                           </div>
                         </div>
                       );
@@ -2556,9 +2700,19 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                   <p className="text-gray-600 dark:text-gray-400 mb-4">
                     Complete the test to receive AI feedback on your answers.
                   </p>
-                  <Button onClick={() => handleStartTest()} className="bg-blue-600 hover:bg-blue-700">
-                    Start Test
-                  </Button>
+                  <div className="flex flex-wrap gap-2 justify-center">
+                    {isTestEnabled && (
+                      <Button onClick={() => handleStartTest()} className="bg-blue-600 hover:bg-blue-700">
+                        Start Test
+                      </Button>
+                    )}
+                    {isMasteryEnabled && (
+                      <Button onClick={() => handleStartMastery()} className="bg-purple-600 hover:bg-purple-700 text-white">
+                        <Target className="w-4 h-4 mr-2" />
+                        Start Mastery Practice
+                      </Button>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}

@@ -383,13 +383,14 @@ def get_my_module_answers(
     from app.models.student_answer import StudentAnswer
     from app.models.question import Question
 
-    # Get all answers for this student in this module
+    # Get all answers for this student in this module (exclude mastery practice answers)
     try:
         # Try new schema first (with module_id)
         answers = db.query(StudentAnswer).filter(
             StudentAnswer.student_id == student_id,
             StudentAnswer.module_id == module_id,
-            StudentAnswer.attempt == attempt
+            StudentAnswer.attempt == attempt,
+            StudentAnswer.is_mastery == False
         ).all()
     except Exception:
         # Fallback to old schema (via document_id)
@@ -436,11 +437,14 @@ def get_module_feedback(
     from sqlalchemy.orm import aliased
 
     # Single JOIN query: feedback + answer in one shot
+    # Exclude mastery practice answers (is_mastery=True) — those are ephemeral and
+    # should never appear in the test feedback tab.
     feedback_rows = db.query(AIFeedback, StudentAnswer).join(
         StudentAnswer, AIFeedback.answer_id == StudentAnswer.id
     ).filter(
         StudentAnswer.student_id == student_id,
-        StudentAnswer.module_id == module_id
+        StudentAnswer.module_id == module_id,
+        StudentAnswer.is_mastery == False
     ).order_by(AIFeedback.generated_at.desc()).all()
 
     # Collect all answer_ids to batch-fetch teacher grades
@@ -507,6 +511,7 @@ def get_module_feedback(
     ).filter(
         TeacherGrade.student_id == student_id,
         TeacherGrade.module_id == module_id,
+        StudentAnswer.is_mastery == False,
     )
     if processed_answer_ids:
         teacher_only_query = teacher_only_query.filter(
@@ -736,11 +741,12 @@ async def submit_test(
             detail=f"Maximum {max_attempts} attempts allowed"
         )
 
-    # Get all answers for this attempt
+    # Get all answers for this attempt (exclude mastery practice answers)
     answers = db.query(StudentAnswer).filter(
         StudentAnswer.student_id == student_id,
         StudentAnswer.module_id == module_id,
-        StudentAnswer.attempt == attempt
+        StudentAnswer.attempt == attempt,
+        StudentAnswer.is_mastery == False
     ).all()
 
     if not answers:
@@ -870,11 +876,12 @@ def get_feedback_status(
     from app.models.ai_feedback import AIFeedback
     from app.models.feedback_job import FeedbackJob
 
-    # Get all answers for this attempt
+    # Get all answers for this attempt (exclude mastery practice answers)
     answers = db.query(StudentAnswer).filter(
         StudentAnswer.student_id == student_id,
         StudentAnswer.module_id == module_id,
-        StudentAnswer.attempt == attempt
+        StudentAnswer.attempt == attempt,
+        StudentAnswer.is_mastery == False
     ).all()
 
     if not answers:
@@ -996,10 +1003,11 @@ def cleanup_stale_module_feedback(
 
     logger.info(f"🧹 Cleanup requested for module {module_id}, student {student_id}")
 
-    # First, check if feedback rows even exist
+    # First, check if feedback rows even exist (exclude mastery answers)
     answers = db.query(StudentAnswer).filter(
         StudentAnswer.student_id == student_id,
-        StudentAnswer.module_id == module_id
+        StudentAnswer.module_id == module_id,
+        StudentAnswer.is_mastery == False
     ).all()
 
     logger.info(f"📊 Found {len(answers)} answers for student")
@@ -1093,11 +1101,12 @@ def regenerate_all_failed_feedback(
             detail=f"Cannot regenerate AI feedback for attempt {attempt}. This is the final attempt reserved for teacher manual grading. AI feedback is only available for attempts 1-{max_attempts - 1}."
         )
 
-    # Find all answers for this attempt
+    # Find all answers for this attempt (exclude mastery practice answers)
     answers = db.query(StudentAnswer).filter(
         StudentAnswer.student_id == student_id,
         StudentAnswer.module_id == module_id,
-        StudentAnswer.attempt == attempt
+        StudentAnswer.attempt == attempt,
+        StudentAnswer.is_mastery == False
     ).all()
 
     if not answers:
@@ -1292,9 +1301,10 @@ def get_module_feedback_critiques(
     from app.models.student_answer import StudentAnswer
     from app.models.question import Question
 
-    # Get all feedback for this module with joins
+    # Get all feedback for this module with joins (exclude mastery practice answers)
     feedbacks = db.query(AIFeedback).join(StudentAnswer).filter(
-        StudentAnswer.module_id == module_id
+        StudentAnswer.module_id == module_id,
+        StudentAnswer.is_mastery == False
     ).all()
 
     feedback_ids = [fb.id for fb in feedbacks]
@@ -1398,3 +1408,201 @@ def get_module_feedback_critiques(
         "feedback_types": feedback_types,
         "critiques": critiques_with_context
     }
+
+
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# 🎯 MASTERY LEARNING ENDPOINTS
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+@router.get("/modules/{module_id}/mastery/state")
+def get_mastery_state(
+    module_id: UUID,
+    student_id: str = Query(..., description="Student ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get (and initialize if needed) the mastery queue state for a student.
+    Returns queue entries with streak info and overall progress.
+    """
+    from app.crud.question_queue import initialize_queue, get_queue_state, get_mastery_progress
+    from app.crud.question import get_questions_by_status
+    from app.models.question import QuestionStatus
+
+    module = get_module_by_id(db, str(module_id))
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    # Get active questions
+    questions = get_questions_by_status(db, module_id, QuestionStatus.ACTIVE)
+    if not questions:
+        raise HTTPException(status_code=404, detail="No active questions found in this module")
+
+    # Get mastery config
+    mastery_config = (module.assignment_config or {}).get("features", {}).get("mastery_learning", {})
+    randomize = mastery_config.get("queue_randomization", False)
+
+    # Initialize queue (no-op if already exists)
+    initialize_queue(
+        db=db,
+        student_id=student_id,
+        module_id=module_id,
+        question_ids=[q.id for q in questions],
+        randomize=randomize
+    )
+
+    queue = get_queue_state(db, student_id, module_id)
+    progress = get_mastery_progress(db, student_id, module_id)
+
+    return {
+        "progress": progress,
+        "streak_required": mastery_config.get("streak_required", 3),
+        "reset_on_wrong": mastery_config.get("reset_on_wrong", False),
+        "queue": [
+            {
+                "question_id": str(entry.question_id),
+                "position": entry.position,
+                "streak_count": entry.streak_count,
+                "is_mastered": entry.is_mastered,
+                "attempts": entry.attempts
+            }
+            for entry in queue
+        ]
+    }
+
+
+@router.post("/mastery/submit-answer")
+def mastery_submit_answer(
+    answer_data: StudentAnswerCreate,
+    db: Session = Depends(get_db)
+):
+    """
+    Submit an answer in mastery mode.
+    - Saves the answer
+    - Determines correctness (exact match for MCQ, AI feedback for open-ended)
+    - Updates the streak in the question queue
+    - Returns: is_correct, updated streak, feedback (only if wrong), progress, next_question_id
+    """
+    from app.crud.question import get_question_by_id
+    from app.crud.question_queue import update_streak, get_mastery_progress, get_next_unmastered
+    from app.models.question import QuestionStatus
+    from app.services.ai_feedback import AIFeedbackService
+
+    # Validate question exists and is active
+    question = get_question_by_id(db, str(answer_data.question_id))
+    if not question:
+        raise HTTPException(status_code=404, detail="Question not found")
+    if question.status != QuestionStatus.ACTIVE:
+        raise HTTPException(status_code=403, detail="Question is not available")
+
+    # Get module and mastery config
+    module = get_module_by_id(db, str(answer_data.module_id))
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    mastery_config = (module.assignment_config or {}).get("features", {}).get("mastery_learning", {})
+    streak_required = mastery_config.get("streak_required", 3)
+    reset_on_wrong = mastery_config.get("reset_on_wrong", False)
+
+    # Save or update the answer (tagged is_mastery=True so it never leaks into test feedback tab)
+    existing = get_student_answer(
+        db, answer_data.student_id, answer_data.question_id, answer_data.attempt
+    )
+    if existing:
+        created_answer = update_student_answer(db, existing.id, StudentAnswerUpdate(answer=answer_data.answer))
+    else:
+        created_answer = create_student_answer(db, answer_data)
+
+    # Tag as mastery — belt-and-suspenders in case the delete below fails silently
+    created_answer.is_mastery = True
+    db.commit()
+
+    # ── Determine correctness ──────────────────────────────────────
+    is_correct = False
+    feedback_result = None
+
+    answer_payload = answer_data.answer or {}
+    q_type = (question.type or "").lower()
+
+    if q_type in ("mcq", "mcq_multiple"):
+        # Exact match for MCQ
+        selected = answer_payload.get("selected_option_id", "")
+        correct = question.correct_option_id or question.correct_answer or ""
+        is_correct = bool(selected and correct and selected.upper() == correct.upper())
+        # Generate feedback only when wrong
+        if not is_correct:
+            try:
+                feedback_service = AIFeedbackService()
+                feedback_result = feedback_service.generate_instant_feedback(
+                    db=db,
+                    student_answer=created_answer,
+                    question_id=str(answer_data.question_id),
+                    module_id=str(answer_data.module_id)
+                )
+            except Exception as e:
+                logger.warning(f"Mastery feedback generation failed: {e}")
+    else:
+        # Open-ended: always generate AI feedback; use its is_correct flag
+        try:
+            feedback_service = AIFeedbackService()
+            feedback_result = feedback_service.generate_instant_feedback(
+                db=db,
+                student_answer=created_answer,
+                question_id=str(answer_data.question_id),
+                module_id=str(answer_data.module_id)
+            )
+            is_correct = bool(feedback_result.get("is_correct", False))
+        except Exception as e:
+            logger.warning(f"Mastery feedback generation failed: {e}")
+            is_correct = False
+
+    # ── Delete the saved answer so mastery attempts don't appear in the feedback tab
+    # Mastery is practice mode — only the streak matters, not the answer history.
+    # ai_feedback cascades automatically (ondelete="CASCADE" on the FK).
+    try:
+        delete_student_answer(db, created_answer.id)
+    except Exception as e:
+        logger.warning(f"Could not delete mastery answer record: {e}")
+
+    # ── Update streak ──────────────────────────────────────────────
+    updated_entry = update_streak(
+        db=db,
+        student_id=answer_data.student_id,
+        question_id=answer_data.question_id,
+        module_id=answer_data.module_id,
+        is_correct=is_correct,
+        reset_on_wrong=reset_on_wrong,
+        streak_required=streak_required
+    )
+
+    # ── Progress & next question ───────────────────────────────────
+    progress = get_mastery_progress(db, answer_data.student_id, answer_data.module_id)
+    next_entry = get_next_unmastered(db, answer_data.student_id, answer_data.module_id)
+
+    return {
+        "is_correct": is_correct,
+        "streak_count": updated_entry.streak_count if updated_entry else 0,
+        "is_mastered": updated_entry.is_mastered if updated_entry else False,
+        "streak_required": streak_required,
+        # Feedback only when wrong (hints, no correct answer revealed)
+        "feedback": feedback_result if not is_correct else None,
+        "progress": progress,
+        "next_question_id": str(next_entry.question_id) if next_entry else None,
+        "all_mastered": progress["all_mastered"]
+    }
+
+
+@router.post("/modules/{module_id}/mastery/reset")
+def reset_mastery_queue(
+    module_id: UUID,
+    student_id: str = Query(..., description="Student ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Reset all mastery progress for a student in a module so they can practice again.
+    Clears streaks, mastered flags, and attempt counts.
+    """
+    from app.crud.question_queue import reset_queue, get_mastery_progress
+
+    reset_queue(db, student_id=student_id, module_id=module_id)
+    progress = get_mastery_progress(db, student_id, module_id)
+    return {"reset": True, "progress": progress}
