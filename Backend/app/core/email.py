@@ -4,6 +4,7 @@ Supports both verification codes and magic links.
 """
 
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from app.core.config import (
@@ -214,14 +215,15 @@ def send_verification_email(to_email: str, username: str, code: str, token: str)
 
         # Send email - use SSL for port 465, TLS for port 587
         if EMAIL_PORT == 465:
-            # Use SMTP_SSL for port 465
-            with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT) as server:
+            with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT, context=ssl.create_default_context()) as server:
+                server.ehlo()
                 server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
                 server.send_message(msg)
         else:
-            # Use SMTP with starttls for port 587
             with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
-                server.starttls()
+                server.ehlo()
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
                 server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
                 server.send_message(msg)
 
@@ -510,14 +512,15 @@ def send_reset_password_email(to_email: str, username: str, code: str, token: st
 
         # Send email - use SSL for port 465, TLS for port 587
         if EMAIL_PORT == 465:
-            # Use SMTP_SSL for port 465
-            with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT) as server:
+            with smtplib.SMTP_SSL(EMAIL_HOST, EMAIL_PORT, context=ssl.create_default_context()) as server:
+                server.ehlo()
                 server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
                 server.send_message(msg)
         else:
-            # Use SMTP with starttls for port 587
             with smtplib.SMTP(EMAIL_HOST, EMAIL_PORT) as server:
-                server.starttls()
+                server.ehlo()
+                server.starttls(context=ssl.create_default_context())
+                server.ehlo()
                 server.login(EMAIL_USERNAME, EMAIL_PASSWORD)
                 server.send_message(msg)
 
