@@ -14,7 +14,7 @@ function HelpPageContent() {
         <div className="flex flex-1 flex-col gap-4 p-4 md:p-6 lg:p-8">
           {/* Hero Section */}
           <div className="text-center mb-8">
-            <div className="inline-flex w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl items-center justify-center mx-auto mb-4 shadow-lg">
+            <div className="inline-flex w-16 h-16 bg-gray-900 rounded-2xl items-center justify-center mx-auto mb-4 shadow-lg">
               <HelpCircle className="w-8 h-8 text-white" />
             </div>
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3">
@@ -79,7 +79,7 @@ function HelpPageContent() {
           <div className="mb-8">
             <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Main Features</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Card className="border-2 border-blue-200 dark:border-blue-800 hover:shadow-lg transition-shadow">
+              <Card className="border-2 border-gray-200 dark:border-blue-800 hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-blue-900 dark:text-blue-100">
                     <Book className="w-5 h-5" />
@@ -93,9 +93,9 @@ function HelpPageContent() {
                 </CardContent>
               </Card>
 
-              <Card className="border-2 border-purple-200 dark:border-purple-800 hover:shadow-lg transition-shadow">
+              <Card className="border-2 border-gray-200 dark:border-purple-800 hover:shadow-lg transition-shadow">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-purple-900 dark:text-purple-100">
+                  <CardTitle className="flex items-center gap-2 text-purple-900 dark:text-gray-100">
                     <FileText className="w-5 h-5" />
                     Questions
                   </CardTitle>
@@ -121,7 +121,7 @@ function HelpPageContent() {
                 </CardContent>
               </Card>
 
-              <Card className="border-2 border-indigo-200 dark:border-indigo-800 hover:shadow-lg transition-shadow">
+              <Card className="border-2 border-gray-200 dark:border-indigo-800 hover:shadow-lg transition-shadow">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-100">
                     <Sparkles className="w-5 h-5" />
@@ -169,12 +169,12 @@ function HelpPageContent() {
           <Card className="mb-8 border-2 border-gray-200 dark:border-gray-700">
             <CardHeader className="border-b">
               <CardTitle className="flex items-center gap-2 text-xl">
-                <HelpCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                <HelpCircle className="w-5 h-5 text-gray-700 dark:text-gray-500" />
                 Frequently Asked Questions
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pt-6">
-              <div className="p-4 rounded-lg bg-blue-50 dark:bg-blue-950/20 border-l-4 border-blue-500">
+              <div className="p-4 rounded-lg bg-gray-50 dark:bg-blue-950/20 border-l-4 border-gray-400">
                 <h4 className="font-bold mb-2 text-blue-900 dark:text-blue-100">How do I get started?</h4>
                 <p className="text-sm text-gray-700 dark:text-gray-300">
                   Sign up for a free account, create your first module, add questions, configure AI grading, and share the access code with students.
@@ -186,8 +186,8 @@ function HelpPageContent() {
                   Students can join using the unique access code provided for each module. They can enter the code at the /join page.
                 </p>
               </div>
-              <div className="p-4 rounded-lg bg-purple-50 dark:bg-purple-950/20 border-l-4 border-purple-500">
-                <h4 className="font-bold mb-2 text-purple-900 dark:text-purple-100">How does AI grading work?</h4>
+              <div className="p-4 rounded-lg bg-gray-50 dark:bg-gray-950/20 border-l-4 border-gray-400">
+                <h4 className="font-bold mb-2 text-purple-900 dark:text-gray-100">How does AI grading work?</h4>
                 <p className="text-sm text-gray-700 dark:text-gray-300">
                   Configure your rubric with grading criteria and weights. The AI evaluates answers based on your settings and provides detailed feedback.
                 </p>
@@ -202,15 +202,15 @@ function HelpPageContent() {
           </Card>
 
           {/* Contact Section */}
-          <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 dark:from-blue-950/20 dark:to-indigo-950/10">
+          <Card className="border-2 border-gray-200 dark:border-blue-800 bg-gradient-to-br from-gray-800/50 to-gray-900/30 dark:from-gray-800/20 dark:to-gray-900/10">
             <CardContent className="p-6 text-center">
-              <MessageCircle className="w-12 h-12 mx-auto mb-3 text-blue-600 dark:text-blue-400" />
+              <MessageCircle className="w-12 h-12 mx-auto mb-3 text-gray-700 dark:text-gray-500" />
               <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Need More Help?</h3>
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 max-w-2xl mx-auto">
                 Visit our research lab for comprehensive documentation and community support.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
-                <Button asChild className="bg-blue-600 hover:bg-blue-700">
+                <Button asChild className="bg-gray-900 hover:bg-gray-900">
                   <a href="https://brockportsigai.org" target="_blank" rel="noopener noreferrer">
                     <BookOpen className="w-4 h-4 mr-2" />
                     Visit Research Lab

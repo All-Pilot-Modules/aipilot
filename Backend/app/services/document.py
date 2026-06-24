@@ -21,7 +21,7 @@ from app.services.module import get_or_create_module
 from app.services.storage import storage_service
 from app.services.document_status import update_document_status, set_document_error
 from app.services.embedding import generate_embeddings_for_document
-from app.core.config import EMBED_MODEL
+from app.core.config import EMBED_MODEL, SUPABASE_URL
 
 
 def handle_document_upload(
@@ -188,7 +188,7 @@ def handle_document_upload(
 
             # Save chunks to database
             if chunks:
-                bulk_create_chunks(db, str(document.id), chunks)
+                bulk_create_chunks(db, str(document.id), chunks, module_id=str(document.module_id))
 
             # Update status: chunked
             update_document_status(
@@ -232,19 +232,23 @@ def handle_document_upload(
 
                 except Exception as embedding_error:
                     print(f"❌ Failed to generate embeddings: {str(embedding_error)}")
-                    # Don't fail the whole upload if embeddings fail
-                    # Just log the error in metadata
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
                     update_document_status(
                         db,
                         str(document.id),
-                        ProcessingStatus.CHUNKED,  # Revert to chunked status
-                        {
-                            'embedding_error': str(embedding_error)
-                        }
+                        ProcessingStatus.CHUNKED,
+                        {'embedding_error': str(embedding_error)}
                     )
 
         except Exception as e:
             print(f"❌ Failed to extract/chunk document: {str(e)}")
+            try:
+                db.rollback()
+            except Exception:
+                pass
             set_document_error(
                 db,
                 str(document.id),
@@ -256,6 +260,84 @@ def handle_document_upload(
             if temp_file_path and os.path.exists(temp_file_path):
                 os.unlink(temp_file_path)
 
+    return document
+
+
+def reprocess_document(db: Session, document_id: UUID):
+    """Re-trigger extraction, chunking, and embedding for a stuck/failed document."""
+    from app.models.document import Document
+
+    document = db.query(Document).filter(Document.id == document_id).first()
+    if not document:
+        raise ValueError(f"Document {document_id} not found")
+
+    file_ext = document.file_type
+    supabase_file_path = document.storage_path
+
+    # Strip the Supabase public URL prefix if present, to get the storage path
+    bucket_prefix = f"{SUPABASE_URL}/storage/v1/object/public/documents/"
+    if supabase_file_path.startswith(bucket_prefix):
+        supabase_file_path = supabase_file_path[len(bucket_prefix):]
+
+    temp_file_path = None
+    try:
+        update_document_status(db, str(document.id), ProcessingStatus.EXTRACTING)
+
+        temp_file_path = storage_service.download_file_temporarily(supabase_file_path)
+        extracted_data = extract_text_from_file(temp_file_path, file_ext)
+        extracted_text = extracted_data['text']
+        extraction_metadata = extracted_data['metadata']
+
+        update_document_status(db, str(document.id), ProcessingStatus.EXTRACTED, {
+            'char_count': len(extracted_text),
+            **extraction_metadata
+        })
+
+        update_document_status(db, str(document.id), ProcessingStatus.CHUNKING)
+
+        # Delete any existing chunks before re-chunking
+        from app.crud.document_chunk import delete_chunks_by_document
+        delete_chunks_by_document(db, str(document.id))
+
+        chunks = chunk_text(text=extracted_text, chunk_size=1000, overlap=200)
+
+        if chunks:
+            bulk_create_chunks(db, str(document.id), chunks, module_id=str(document.module_id))
+
+        update_document_status(db, str(document.id), ProcessingStatus.CHUNKED, {
+            'chunk_count': len(chunks),
+            'total_chars': len(extracted_text),
+            'avg_chunk_size': len(extracted_text) // len(chunks) if chunks else 0
+        })
+
+        if chunks:
+            try:
+                update_document_status(db, str(document.id), ProcessingStatus.EMBEDDING)
+                generate_embeddings_for_document(db, str(document.id), model=EMBED_MODEL)
+                update_document_status(db, str(document.id), ProcessingStatus.EMBEDDED, {
+                    'embed_model': EMBED_MODEL
+                })
+            except Exception as embedding_error:
+                print(f"⚠️ Embedding failed during reprocess: {str(embedding_error)}")
+                update_document_status(db, str(document.id), ProcessingStatus.CHUNKED, {
+                    'embedding_error': str(embedding_error)
+                })
+
+    except Exception as e:
+        print(f"❌ Reprocess failed: {str(e)}")
+        try:
+            db.rollback()
+        except Exception:
+            pass
+        set_document_error(db, str(document.id), f"Reprocess failed: {str(e)}", {
+            'error_type': 'reprocess_error', 'file_type': file_ext
+        })
+
+    finally:
+        if temp_file_path and os.path.exists(temp_file_path):
+            os.unlink(temp_file_path)
+
+    db.refresh(document)
     return document
 
 

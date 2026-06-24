@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from urllib.parse import quote
 from app.schemas.document import DocumentOut, DocumentUpdate
 from app.schemas.question import QuestionGenerationRequest, QuestionGenerationResponse, QuestionCreate
-from app.services.document import handle_document_upload
+from app.services.document import handle_document_upload, reparse_testbank_document, reprocess_document
 from app.crud.document import (
     create_document,
     get_document_by_id as fetch_document_by_id,
@@ -16,7 +16,6 @@ from app.crud.document import (
 )
 from app.crud.question import create_question
 from app.database import get_db
-from app.services.document import reparse_testbank_document
 from app.services.question_generation import question_generation_service
 from app.models.module import Module
 router = APIRouter()
@@ -145,6 +144,21 @@ def reparse_document(
     return reparse_testbank_document(db, doc_id)
 
 
+@router.post("/documents/{doc_id}/reprocess")
+def reprocess_document_endpoint(
+    doc_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """Re-trigger text extraction, chunking, and embedding for a stuck document."""
+    doc = fetch_document_by_id(db, str(doc_id))
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if doc.processing_status in ["embedded", "indexed"]:
+        raise HTTPException(status_code=400, detail="Document is already fully processed")
+
+    return reprocess_document(db, doc_id)
+
+
 @router.post("/documents/{doc_id}/generate-questions", response_model=QuestionGenerationResponse)
 def generate_questions_from_document(
     doc_id: UUID,
@@ -197,17 +211,25 @@ def generate_questions_from_document(
             num_mcq=request.num_mcq
         )
 
-        # Save all generated questions to database with status='unreviewed'
+        # Get module to check ownership and for review URL
+        module = db.query(Module).filter(Module.id == doc.module_id).first()
+
+        # Auto-approve questions when the module owner is a student (self-learning flow)
+        from app.models.user import User
+        from app.models.question import QuestionStatus
+        owner = db.query(User).filter(User.id == module.teacher_id).first() if module else None
+        auto_approve = owner is not None and owner.role == "student"
+
         saved_count = 0
         for question_data in generated_questions:
             try:
-                # Convert dict to QuestionCreate schema
+                if auto_approve:
+                    question_data["status"] = QuestionStatus.ACTIVE
                 question_create = QuestionCreate(**question_data)
                 create_question(db, question_create)
                 saved_count += 1
             except Exception as e:
                 print(f"Warning: Failed to save question: {str(e)}")
-                # Continue saving other questions even if one fails
                 continue
 
         if saved_count == 0:
@@ -221,8 +243,6 @@ def generate_questions_from_document(
         num_long_generated = sum(1 for q in generated_questions if q["type"] == "long")
         num_mcq_generated = sum(1 for q in generated_questions if q["type"] == "mcq")
 
-        # Get module name for review URL
-        module = db.query(Module).filter(Module.id == doc.module_id).first()
         module_name = module.name if module else ""
 
         # Construct review URL with module name for proper browser back button support

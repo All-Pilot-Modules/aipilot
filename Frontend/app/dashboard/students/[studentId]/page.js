@@ -788,7 +788,7 @@ function StudentDetailPageContent() {
               <div className="px-4 lg:px-6">
                 {/* Professional Header with Gradient Banner */}
                 <div className="mb-8 relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 dark:from-blue-500/5 dark:via-purple-500/5 dark:to-pink-500/5 rounded-2xl"></div>
+                  <div className="absolute inset-0 bg-gradient-to-r from-gray-800/10 via-gray-800/10 to-pink-500/10 dark:from-gray-800/5 dark:via-gray-800/5 dark:to-pink-500/5 rounded-2xl"></div>
                   <div className="relative p-6 md:p-8 rounded-2xl border border-border/50 backdrop-blur-sm">
                     {/* Top Row: Back + Breadcrumb + Prev/Next Nav */}
                     <div className="flex items-center justify-between mb-6">
@@ -884,7 +884,7 @@ function StudentDetailPageContent() {
                               {student?.teacher_graded_count > 0
                                 ? <strong className="text-green-600 dark:text-green-400">{student.teacher_graded_count} Teacher Graded</strong>
                                 : student?.ai_only_count > 0
-                                  ? <strong className="text-blue-600 dark:text-blue-400">AI Graded</strong>
+                                  ? <strong className="text-gray-700 dark:text-gray-500">AI Graded</strong>
                                   : <strong className="text-gray-500">Pending</strong>
                               }
                             </span>
@@ -919,7 +919,7 @@ function StudentDetailPageContent() {
                                   onClick={() => { downloadStudentReportJSON(); setShowDownloadMenu(false); }}
                                   className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
                                 >
-                                  <FileJson className="w-4 h-4 text-blue-600" />
+                                  <FileJson className="w-4 h-4 text-gray-700" />
                                   Export as JSON
                                 </button>
                               </div>
@@ -934,17 +934,17 @@ function StudentDetailPageContent() {
                 {/* Performance Summary Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                   {/* Score Overview */}
-                  <Card className="border-border bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 overflow-hidden">
+                  <Card className="border-border bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30 overflow-hidden">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Score Overview</p>
-                        <Target className="w-5 h-5 text-blue-500" />
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-400">Score Overview</p>
+                        <Target className="w-5 h-5 text-gray-600" />
                       </div>
                       <div className="flex items-center gap-3">
                         {/* Circular Progress */}
                         <div className="relative w-16 h-16 flex-shrink-0">
                           <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="6" className="text-blue-200 dark:text-blue-800" />
+                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="6" className="text-gray-200 dark:text-gray-700" />
                             <circle cx="32" cy="32" r="28" fill="none" strokeWidth="6" strokeLinecap="round"
                               strokeDasharray={`${(student?.avg_score || 0) * 1.759} 175.9`}
                               className={`${(student?.avg_score || 0) >= 80 ? 'text-green-500' : (student?.avg_score || 0) >= 60 ? 'text-yellow-500' : 'text-red-500'}`}
@@ -999,22 +999,22 @@ function StudentDetailPageContent() {
                   </Card>
 
                   {/* Attempts Used */}
-                  <Card className="border-border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 overflow-hidden">
+                  <Card className="border-border bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30 overflow-hidden">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Attempts Used</p>
-                        <Activity className="w-5 h-5 text-purple-500" />
+                        <p className="text-sm font-medium text-gray-800 dark:text-gray-400">Attempts Used</p>
+                        <Activity className="w-5 h-5 text-gray-600" />
                       </div>
                       <div className="flex items-baseline gap-2 mb-2">
-                        <span className="text-3xl font-bold text-purple-600 dark:text-purple-400">{student?.total_attempts || 1}</span>
+                        <span className="text-3xl font-bold text-gray-700 dark:text-gray-500">{student?.total_attempts || 1}</span>
                         {moduleData?.max_attempts && (
                           <span className="text-lg text-muted-foreground">/ {moduleData.max_attempts}</span>
                         )}
                       </div>
                       {moduleData?.max_attempts ? (
                         <>
-                          <div className="w-full bg-purple-200 dark:bg-purple-800 rounded-full h-2 overflow-hidden">
-                            <div className={`h-full rounded-full ${(student?.total_attempts || 1) >= moduleData.max_attempts ? 'bg-red-500' : 'bg-purple-500'}`}
+                          <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-2 overflow-hidden">
+                            <div className={`h-full rounded-full ${(student?.total_attempts || 1) >= moduleData.max_attempts ? 'bg-red-500' : 'bg-gray-800'}`}
                               style={{width: `${Math.min(100, ((student?.total_attempts || 1) / moduleData.max_attempts) * 100)}%`}}
                             ></div>
                           </div>
@@ -1041,7 +1041,7 @@ function StudentDetailPageContent() {
                           <span className="font-bold text-foreground">{student?.teacher_graded_count || 0}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-500 inline-block"></span> AI Only</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-800 inline-block"></span> AI Only</span>
                           <span className="font-bold text-foreground">{student?.ai_only_count || 0}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
@@ -1059,7 +1059,7 @@ function StudentDetailPageContent() {
                     <Card className="border-border">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5 text-blue-500" />
+                          <TrendingUp className="w-5 h-5 text-gray-600" />
                           Attempt Comparison
                         </CardTitle>
                       </CardHeader>
@@ -1076,8 +1076,8 @@ function StudentDetailPageContent() {
                                 onClick={() => setSelectedAttempt(attempt.attempt)}
                                 className={`flex-shrink-0 p-4 rounded-xl border-2 transition-all min-w-[140px] text-left ${
                                   selectedAttempt === attempt.attempt
-                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/30 shadow-md'
-                                    : 'border-border hover:border-blue-300 hover:bg-muted/50'
+                                    ? 'border-gray-400 bg-gray-50 dark:bg-gray-950/30 shadow-md'
+                                    : 'border-border hover:border-gray-300 hover:bg-muted/50'
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-2">
@@ -1110,14 +1110,14 @@ function StudentDetailPageContent() {
                 {/* Survey Response Section */}
                 {surveyData && surveyData.survey_questions && surveyData.survey_questions.length > 0 && (
                   <div className="mb-8">
-                    <Card className="border-2 border-purple-200 dark:border-purple-800">
+                    <Card className="border-2 border-gray-200 dark:border-gray-700">
                       <CardHeader
-                        className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 border-b border-purple-200 dark:border-purple-800 cursor-pointer hover:from-purple-100 hover:to-pink-100 dark:hover:from-purple-950/30 dark:hover:to-pink-950/30 transition-colors"
+                        className="bg-gradient-to-r from-gray-800 to-pink-50 dark:from-gray-800/20 dark:to-pink-950/20 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:from-gray-800 hover:to-pink-100 dark:hover:from-gray-800/30 dark:hover:to-pink-950/30 transition-colors"
                         onClick={() => setShowSurvey(!showSurvey)}
                       >
                         <CardTitle className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 rounded-lg flex items-center justify-center">
+                            <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-pink-500 rounded-lg flex items-center justify-center">
                               <ClipboardList className="w-6 h-6 text-white" />
                             </div>
                             <div>
@@ -1139,7 +1139,7 @@ function StudentDetailPageContent() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="hover:bg-purple-100 dark:hover:bg-purple-900/30"
+                            className="hover:bg-gray-100 dark:hover:bg-gray-900 dark:bg-gray-900/30"
                           >
                             {showSurvey ? (
                               <ChevronUp className="w-5 h-5" />
@@ -1156,8 +1156,8 @@ function StudentDetailPageContent() {
                             {surveyData.survey_questions.map((question, qIdx) => (
                               <div key={question.id} className="border-b border-gray-200 dark:border-gray-800 pb-6 last:border-0 last:pb-0">
                                 <div className="flex items-start gap-3 mb-3">
-                                  <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                                    <span className="text-sm font-bold text-purple-600 dark:text-purple-400">Q{qIdx + 1}</span>
+                                  <div className="w-8 h-8 bg-gray-100 dark:bg-gray-900 dark:bg-gray-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-500">Q{qIdx + 1}</span>
                                   </div>
                                   <div className="flex-1">
                                     <p className="font-semibold text-base text-foreground mb-1">
@@ -1167,8 +1167,8 @@ function StudentDetailPageContent() {
                                     <div className="flex items-center gap-2 mt-2">
                                       <div className={`text-xs px-2 py-1 rounded ${
                                         question.type === 'short'
-                                          ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
-                                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                                          ? 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-400'
+                                          : 'bg-gray-100 dark:bg-gray-900 dark:bg-gray-900/30 text-gray-800 dark:text-gray-400'
                                       }`}>
                                         {question.type === 'short' ? 'Short Answer' : 'Long Answer'}
                                       </div>
@@ -1218,7 +1218,7 @@ function StudentDetailPageContent() {
                           onClick={() => setSelectedAttempt(Number(attempt))}
                           className={`px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
                             selectedAttempt === Number(attempt)
-                              ? 'bg-blue-600 text-white shadow-lg'
+                              ? 'bg-gray-900 text-white shadow-lg'
                               : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'
                           }`}
                         >
@@ -1371,10 +1371,10 @@ function StudentDetailPageContent() {
                                   <div className="flex items-center gap-2 mt-1.5">
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
                                       isMCQ
-                                        ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                                        ? 'bg-gray-50 dark:bg-gray-900/30 text-gray-700 dark:text-gray-500'
                                         : questionType === 'essay'
                                           ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
-                                          : 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400'
+                                          : 'bg-gray-50 dark:bg-gray-900 dark:bg-gray-900/30 text-gray-700 dark:text-gray-500'
                                     }`}>
                                       {isMCQ ? 'MCQ' : questionType === 'essay' ? 'Essay' : 'Short Answer'}
                                     </span>
@@ -1517,7 +1517,7 @@ function StudentDetailPageContent() {
                                               {entries.map(([idx, val]) => (
                                                 <div key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${
                                                   isCorrectish
-                                                    ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800 text-blue-800 dark:text-blue-200'
+                                                    ? 'bg-gray-50 dark:bg-gray-950/20 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200'
                                                     : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
                                                 }`}>
                                                   <span className="text-[10px] font-bold text-muted-foreground">Blank {Number(idx) + 1}:</span>
@@ -1567,11 +1567,11 @@ function StudentDetailPageContent() {
                                             </div>
                                             <div className={`border rounded-lg p-3 ${
                                               isCorrectish
-                                                ? 'bg-blue-50/70 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800'
+                                                ? 'bg-gray-50/70 dark:bg-gray-950/20 border-gray-200 dark:border-gray-700'
                                                 : 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800'
                                             }`}>
                                               <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${
-                                                isCorrectish ? 'text-blue-600 dark:text-blue-400' : 'text-rose-600 dark:text-rose-400'
+                                                isCorrectish ? 'text-gray-700 dark:text-gray-500' : 'text-rose-600 dark:text-rose-400'
                                               }`}>
                                                 <User className="w-3 h-3" /> Student&apos;s Answer
                                               </p>
@@ -1603,7 +1603,7 @@ function StudentDetailPageContent() {
                                 <div className="px-4 pb-3">
                                   <div className="relative inline-block group/feedback">
                                     {/* Eye icon trigger */}
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-blue-600 dark:text-blue-400 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950/30 transition-colors">
+                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-gray-700 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-950/30 transition-colors">
                                       <Eye className="w-3.5 h-3.5" />
                                       View Feedback
                                     </div>
@@ -1615,9 +1615,9 @@ function StudentDetailPageContent() {
                                       <div className="rounded-xl border border-slate-300 dark:border-slate-600 shadow-2xl bg-white dark:bg-slate-900 max-h-[450px] overflow-y-auto">
                                         <div className="p-4 space-y-3">
                                           {feedback?.explanation && (
-                                            <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">Feedback</p>
-                                              <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">{feedback.explanation}</p>
+                                            <div className="bg-gray-50 dark:bg-gray-950/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-blue-900 dark:text-gray-400 mb-1">Feedback</p>
+                                              <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{feedback.explanation}</p>
                                             </div>
                                           )}
 
@@ -1655,9 +1655,9 @@ function StudentDetailPageContent() {
                                           )}
 
                                           {feedback?.concept_explanation && (
-                                            <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-1">Key concept</p>
-                                              <p className="text-sm text-purple-800 dark:text-purple-200 leading-relaxed">{feedback.concept_explanation}</p>
+                                            <div className="bg-gray-50 dark:bg-gray-950/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Key concept</p>
+                                              <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{feedback.concept_explanation}</p>
                                             </div>
                                           )}
 

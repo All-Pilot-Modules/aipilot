@@ -7,13 +7,14 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class DocumentChunk(Base):
     """
-    Represents a text chunk from a document
-    Documents are split into chunks for efficient embedding and retrieval
+    Represents a text chunk from a document.
+    module_id is stored directly for fast RAG queries ("all chunks for module X")
+    without needing to JOIN through documents.
     """
     __tablename__ = "document_chunks"
 
@@ -21,6 +22,12 @@ class DocumentChunk(Base):
     document_id = Column(
         UUID(as_uuid=True),
         ForeignKey("documents.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True
+    )
+    module_id = Column(
+        UUID(as_uuid=True),
+        ForeignKey("modules.id", ondelete="CASCADE"),
         nullable=False,
         index=True
     )
@@ -34,7 +41,7 @@ class DocumentChunk(Base):
     chunk_metadata = Column(JSONB, default={})  # Store: page_num, section, start_pos, end_pos, heading, etc.
 
     # Timestamps
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     # Ensure each document has unique chunk indices
     __table_args__ = (

@@ -36,8 +36,12 @@ steps:
       - '--allow-unauthenticated'
       - '--port=8080'
       - '--timeout=300'
-      - '--memory=2Gi'
-      - '--cpu=2'
+      - '--memory=4Gi'
+      - '--cpu=4'
+      - '--cpu-boost'
+      - '--min-instances=1'
+      - '--max-instances=10'
+      - '--concurrency=200'
       - '--set-env-vars=ENV=production'
       # Secrets from Secret Manager — create these once with:
       #   gcloud secrets create SECRET_NAME --data-file=-

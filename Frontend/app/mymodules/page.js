@@ -20,6 +20,7 @@ import {
 import { Copy, RotateCcw, ExternalLink, Check, Trash2, Settings, FileText, Plus, Loader2, Sparkles, Rocket } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { apiClient } from "@/lib/auth";
 import AssignmentFeaturesSelector from "@/components/AssignmentFeaturesSelector";
 import RubricQuickSelector from "@/components/rubric/RubricQuickSelector";
@@ -27,38 +28,33 @@ import { LoadingSpinner } from "@/components/LoadingSpinner";
 
 export default function MyModules() {
   const { user, loading, isAuthenticated } = useAuth();
+  const router = useRouter();
   const [modules, setModules] = useState([]);
   const [fetchingModules, setFetchingModules] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const defaultAssignmentConfig = {
+    grading: {
+      mode: 'ai_visible',
+      per_attempt_enabled: false,
+      attempt_modes: {},
+    },
+    features: {
+      multiple_attempts: { enabled: true, max_attempts: 2, show_feedback_after_each: true },
+      chatbot_feedback:  { enabled: true, conversation_mode: 'guided', ai_model: 'gpt-4' },
+      mastery_learning:  { enabled: true, streak_required: 3, queue_randomization: true, reset_on_wrong: false },
+    },
+    display_settings: {
+      show_progress_bar: true,
+      show_streak_counter: true,
+      show_attempt_counter: true,
+    },
+  };
+
   const [formData, setFormData] = useState({
     name: '',
     description: '',
     rubric_template: 'default',
-    assignment_config: {
-      features: {
-        multiple_attempts: {
-          enabled: true,
-          max_attempts: 2,
-          show_feedback_after_each: true
-        },
-        chatbot_feedback: {
-          enabled: true,
-          conversation_mode: "guided",
-          ai_model: "gpt-4"
-        },
-        mastery_learning: {
-          enabled: false,
-          streak_required: 3,
-          queue_randomization: true,
-          reset_on_wrong: false
-        }
-      },
-      display_settings: {
-        show_progress_bar: true,
-        show_streak_counter: true,
-        show_attempt_counter: true
-      }
-    }
+    assignment_config: defaultAssignmentConfig,
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [copiedItems, setCopiedItems] = useState({});
@@ -70,6 +66,13 @@ export default function MyModules() {
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  // Redirect students away from the teacher view
+  useEffect(() => {
+    if (!loading && isAuthenticated && user && user.role === 'student') {
+      router.replace('/student-dashboard');
+    }
+  }, [loading, isAuthenticated, user, router]);
 
   const fetchModules = async () => {
     try {
@@ -128,6 +131,15 @@ export default function MyModules() {
         throw new Error('User ID not available. Please try logging in again.');
       }
 
+      // Derive ai_grading_mode from grading config
+      const gradingModeMap = {
+        ai_visible:      'visible',
+        ai_teacher_only: 'teacher_only',
+        manual:          'disabled',
+      };
+      const gradingMode = formData.assignment_config?.grading?.mode || 'ai_visible';
+      const ai_grading_mode = gradingModeMap[gradingMode] || 'visible';
+
       // Create module first
       const moduleData = {
         teacher_id: userId,
@@ -135,7 +147,8 @@ export default function MyModules() {
         description: formData.description,
         is_active: true,
         visibility: 'class-only',
-        assignment_config: formData.assignment_config
+        ai_grading_mode,
+        assignment_config: formData.assignment_config,
       };
 
       const createdModule = await apiClient.post('/api/modules', moduleData);
@@ -153,36 +166,7 @@ export default function MyModules() {
         }
       }
 
-      setFormData({
-        name: '',
-        description: '',
-        rubric_template: 'default',
-        assignment_config: {
-          features: {
-            multiple_attempts: {
-              enabled: true,
-              max_attempts: 2,
-              show_feedback_after_each: true
-            },
-            chatbot_feedback: {
-              enabled: true,
-              conversation_mode: "guided",
-              ai_model: "gpt-4"
-            },
-            mastery_learning: {
-              enabled: false,
-              streak_required: 3,
-              queue_randomization: true,
-              reset_on_wrong: false
-            }
-          },
-          display_settings: {
-            show_progress_bar: true,
-            show_streak_counter: true,
-            show_attempt_counter: true
-          }
-        }
-      });
+      setFormData({ name: '', description: '', rubric_template: 'default', assignment_config: defaultAssignmentConfig });
       fetchModules(); // Refresh the list
     } catch (error) {
       console.error('Failed to create module:', error);
@@ -245,25 +229,17 @@ export default function MyModules() {
     }
   };
 
-  // Show loading during SSR or while mounting to prevent hydration errors
-  if (!mounted) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 dark:from-gray-950 dark:via-blue-950/10 dark:to-purple-950/10 flex items-center justify-center">
-        <LoadingSpinner size="large" text="Loading modules..." />
-      </div>
-    );
-  }
+  if (!mounted) return null;
 
   // Show loading while auth is initializing OR user data not yet available
   if (loading || (isAuthenticated && !user)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 dark:from-gray-950 dark:via-blue-950/10 dark:to-purple-950/10 flex items-center justify-center">
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-800/30 to-gray-900/30 dark:from-gray-950 dark:via-gray-800/10 dark:to-gray-900/10 flex items-center justify-center">
         <LoadingSpinner size="large" text="Loading modules..." />
       </div>
     );
   }
 
-  // Check authentication (now checks token directly, not user state)
   if (!isAuthenticated) {
     return (
       <div className="p-8 text-center">
@@ -275,8 +251,10 @@ export default function MyModules() {
     );
   }
 
+  if (user && user.role === 'student') return null;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 dark:from-gray-950 dark:via-blue-950/10 dark:to-purple-950/10">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-800/30 to-gray-900/30 dark:from-gray-950 dark:via-gray-800/10 dark:to-gray-900/10">
       <div className="max-w-7xl mx-auto px-6 py-8">
         {/* Premium Header */}
         <div className="mb-10 relative overflow-hidden rounded-3xl">
@@ -313,11 +291,11 @@ export default function MyModules() {
           <div className="lg:col-span-1">
             <div className="space-y-6">
               <div className="relative overflow-hidden rounded-2xl sticky top-6">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500"></div>
+                <div className="absolute top-0 left-0 w-full h-1.5 bg-gray-900"></div>
                 <Card className="shadow-2xl border-2 border-indigo-100 dark:border-indigo-900">
-                  <CardHeader className="pb-4 bg-gradient-to-br from-indigo-50 to-purple-50 dark:from-indigo-950/30 dark:to-purple-950/30">
+                  <CardHeader className="pb-4 bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30">
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-lg">
+                      <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center shadow-lg">
                         <Plus className="w-5 h-5 text-white" />
                       </div>
                       <CardTitle className="text-xl font-bold">Create New Module</CardTitle>
@@ -370,6 +348,11 @@ export default function MyModules() {
                         <p className="text-xs text-muted-foreground mt-1">Configure student interaction settings</p>
                         <div className="flex flex-wrap gap-1 mt-1">
                           <span className="text-xs text-muted-foreground">Active:</span>
+                          {(() => {
+                            const gm = formData.assignment_config?.grading?.mode;
+                            const label = gm === 'ai_visible' ? 'AI Grading' : gm === 'ai_teacher_only' ? 'AI (Teacher Only)' : 'Manual Grading';
+                            return <Badge variant="secondary" className="text-xs">{label}</Badge>;
+                          })()}
                           {formData.assignment_config.features.multiple_attempts.enabled && (
                             <Badge variant="secondary" className="text-xs">Multiple Attempts</Badge>
                           )}
@@ -390,7 +373,7 @@ export default function MyModules() {
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full h-12 text-base font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 mt-6"
+                      className="w-full h-12 text-base font-bold bg-gray-900 hover:from-gray-800 hover:to-gray-900 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 mt-6"
                     >
                       {isSubmitting ? (
                         <>

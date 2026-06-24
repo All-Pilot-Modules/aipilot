@@ -11,6 +11,8 @@ This module provides a robust wrapper around OpenAI API calls with:
 import openai
 import time
 import logging
+import itertools
+import threading
 from typing import Dict, Any, List
 from tenacity import (
     retry,
@@ -25,23 +27,30 @@ logger = logging.getLogger(__name__)
 
 class OpenAIClientWithRetry:
     """
-    OpenAI client with built-in retry logic and timeout handling.
+    OpenAI client with built-in retry logic, timeout handling, and key rotation.
+    Pass a list of API keys to distribute requests across rate-limit buckets.
     """
 
-    def __init__(self, api_key: str, default_model: str = "gpt-4"):
-        """
-        Initialize the OpenAI client with retry capabilities.
+    def __init__(self, api_key: str = None, default_model: str = "gpt-4o-mini", api_keys: list = None):
+        keys = api_keys or ([api_key] if api_key else [])
+        if not keys:
+            raise ValueError("At least one OpenAI API key is required")
 
-        Args:
-            api_key: OpenAI API key
-            default_model: Default model to use (default: gpt-4)
-        """
-        self.client = openai.OpenAI(
-            api_key=api_key,
-            timeout=30.0,  # 30 second timeout per request
-            max_retries=0   # We handle retries ourselves for better control
-        )
+        # Build one client per key; rotate round-robin across them
+        self._clients = [
+            openai.OpenAI(api_key=k, timeout=30.0, max_retries=0)
+            for k in keys
+        ]
+        self._key_cycle = itertools.cycle(self._clients)
+        self._lock = threading.Lock()
         self.default_model = default_model
+
+        if len(keys) > 1:
+            logger.info(f"[OpenAI] Rotating across {len(keys)} API keys")
+
+    def _next_client(self):
+        with self._lock:
+            return next(self._key_cycle)
 
     @retry(
         stop=stop_after_attempt(2),  # Try up to 2 times (fits within 45s stale window)
@@ -84,12 +93,13 @@ class OpenAIClientWithRetry:
         logger.info(f"🤖 OpenAI API call starting: model={model}, temp={temperature}, max_tokens={max_tokens}")
 
         try:
-            response = self.client.chat.completions.create(
+            client = self._next_client()
+            response = client.chat.completions.create(
                 model=model,
                 messages=messages,
                 temperature=temperature,
                 max_tokens=max_tokens,
-                timeout=30.0,  # Explicit timeout
+                timeout=30.0,
                 **kwargs
             )
 
@@ -130,6 +140,40 @@ class OpenAIClientWithRetry:
 
         except Exception as e:
             logger.error(f"💥 Unexpected error in OpenAI call: {type(e).__name__}: {e}")
+            raise
+
+    @retry(
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=2, max=5),
+        retry=retry_if_exception_type((
+            openai.APITimeoutError,
+            openai.APIConnectionError,
+            openai.RateLimitError
+        )),
+        before_sleep=before_sleep_log(logger, logging.WARNING)
+    )
+    def create_embedding(
+        self,
+        input: Any,
+        model: str = "text-embedding-ada-002",
+        **kwargs
+    ) -> Any:
+        """Create an embedding with automatic retry and key rotation."""
+        try:
+            client = self._next_client()
+            return client.embeddings.create(input=input, model=model, **kwargs)
+        except openai.APITimeoutError as e:
+            logger.error(f"⏱️ OpenAI embedding timeout: {e}")
+            raise
+        except openai.RateLimitError as e:
+            logger.error(f"🚫 OpenAI embedding rate limit: {e}")
+            time.sleep(20)
+            raise
+        except openai.APIConnectionError as e:
+            logger.error(f"🔌 OpenAI embedding connection error: {e}")
+            raise
+        except Exception as e:
+            logger.error(f"💥 Unexpected error in embedding call: {type(e).__name__}: {e}")
             raise
 
     def create_completion_with_fallback(

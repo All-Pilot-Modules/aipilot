@@ -85,7 +85,7 @@ function TestsPageContent() {
                           <p className="text-sm text-muted-foreground">Total Tests</p>
                           <p className="text-2xl font-bold">{tests.length}</p>
                         </div>
-                        <FileText className="w-8 h-8 text-blue-600" />
+                        <FileText className="w-8 h-8 text-gray-700" />
                       </div>
                     </CardContent>
                   </Card>
@@ -107,7 +107,7 @@ function TestsPageContent() {
                           <p className="text-sm text-muted-foreground">Total Submissions</p>
                           <p className="text-2xl font-bold">0</p>
                         </div>
-                        <Users className="w-8 h-8 text-purple-600" />
+                        <Users className="w-8 h-8 text-gray-700" />
                       </div>
                     </CardContent>
                   </Card>

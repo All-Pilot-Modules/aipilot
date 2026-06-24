@@ -51,6 +51,103 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* ─── Student Dashboard Theme Variables ─────────────────────────────────────── */
+:root {
+  /* Structure */
+  --sd-bg:          #f8fafc;
+  --sd-card:        #ffffff;
+  --sd-card2:       #f1f5f9;
+  --sd-border:      #e2e8f0;
+  --sd-text:        #0f172a;
+  --sd-muted:       #64748b;
+  --sd-muted2:      #94a3b8;
+  --sd-surface:     rgba(0,0,0,0.02);
+  --sd-surface2:    rgba(0,0,0,0.05);
+  --sd-hero-border: rgba(0,0,0,0.08);
+  --sd-hero:        linear-gradient(135deg, #eef2ff 0%, #ede9fe 50%, #eef2ff 100%);
+  --sd-color-scheme: light;
+  /* Indigo accent */
+  --sd-indigo-text:    #4338ca;
+  --sd-indigo-pill-bg: rgba(99,102,241,0.08);
+  --sd-indigo-pill-bd: rgba(99,102,241,0.2);
+  --sd-username:       #6366f1;
+  /* Status: green / active */
+  --sd-green-text: #065f46;
+  --sd-green-bg:   rgba(16,185,129,0.08);
+  --sd-green-bd:   rgba(16,185,129,0.2);
+  /* Status: amber / pending */
+  --sd-amber-text: #92400e;
+  --sd-amber-bg:   rgba(245,158,11,0.08);
+  --sd-amber-bd:   rgba(245,158,11,0.2);
+  /* Status: red / error / denied */
+  --sd-red-text:   #991b1b;
+  --sd-red-bg:     rgba(239,68,68,0.08);
+  --sd-red-bd:     rgba(239,68,68,0.2);
+  /* Status: orange / due-soon */
+  --sd-orange-text: #9a3412;
+  --sd-orange-bg:   rgba(249,115,22,0.08);
+  --sd-orange-bd:   rgba(249,115,22,0.2);
+  /* Status: cyan / public */
+  --sd-cyan-text:  #0e7490;
+  --sd-cyan-bg:    rgba(6,182,212,0.08);
+  --sd-cyan-bd:    rgba(6,182,212,0.2);
+}
+.dark {
+  /* Structure */
+  --sd-bg:          #070b14;
+  --sd-card:        #0d1424;
+  --sd-card2:       #111827;
+  --sd-border:      #1e2d45;
+  --sd-text:        #e2e8f0;
+  --sd-muted:       #475569;
+  --sd-muted2:      #94a3b8;
+  --sd-surface:     rgba(255,255,255,0.03);
+  --sd-surface2:    rgba(255,255,255,0.05);
+  --sd-hero-border: rgba(255,255,255,0.05);
+  --sd-hero:        linear-gradient(135deg, #0d1424 0%, #0f1635 50%, #0d1424 100%);
+  --sd-color-scheme: dark;
+  /* Indigo accent */
+  --sd-indigo-text:    #a5b4fc;
+  --sd-indigo-pill-bg: rgba(99,102,241,0.15);
+  --sd-indigo-pill-bd: rgba(99,102,241,0.3);
+  --sd-username:       #a5b4fc;
+  /* Status: green / active */
+  --sd-green-text: #6ee7b7;
+  --sd-green-bg:   rgba(16,185,129,0.12);
+  --sd-green-bd:   rgba(16,185,129,0.2);
+  /* Status: amber / pending */
+  --sd-amber-text: #fcd34d;
+  --sd-amber-bg:   rgba(245,158,11,0.12);
+  --sd-amber-bd:   rgba(245,158,11,0.2);
+  /* Status: red / error / denied */
+  --sd-red-text:   #fca5a5;
+  --sd-red-bg:     rgba(239,68,68,0.12);
+  --sd-red-bd:     rgba(239,68,68,0.2);
+  /* Status: orange / due-soon */
+  --sd-orange-text: #fdba74;
+  --sd-orange-bg:   rgba(249,115,22,0.1);
+  --sd-orange-bd:   rgba(249,115,22,0.2);
+  /* Status: cyan / public */
+  --sd-cyan-text:  #67e8f9;
+  --sd-cyan-bg:    rgba(6,182,212,0.08);
+  --sd-cyan-bd:    rgba(6,182,212,0.2);
+}
+
+/* Slate text overrides scoped to student dashboard */
+.sd-page .text-slate-100 { color: #1e293b; }
+.sd-page .text-slate-200 { color: #334155; }
+.sd-page .text-slate-300 { color: #475569; }
+.sd-page .text-slate-400 { color: #64748b; }
+.sd-page .text-slate-500 { color: #94a3b8; }
+.sd-page .text-slate-600 { color: #94a3b8; }
+.dark .sd-page .text-slate-100 { color: #f1f5f9; }
+.dark .sd-page .text-slate-200 { color: #e2e8f0; }
+.dark .sd-page .text-slate-300 { color: #cbd5e1; }
+.dark .sd-page .text-slate-400 { color: #94a3b8; }
+.dark .sd-page .text-slate-500 { color: #64748b; }
+.dark .sd-page .text-slate-600 { color: #475569; }
+
+/* ─────────────────────────────────────────────────────────────────────────── */
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);

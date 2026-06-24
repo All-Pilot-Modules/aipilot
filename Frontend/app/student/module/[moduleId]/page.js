@@ -859,17 +859,16 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
       es.addEventListener('complete', async (e) => {
         if (stopped) return;
+        stopped = true; // prevent onerror from firing when we call es.close() below
         try {
           const data = JSON.parse(e.data);
           console.log(`🎉 SSE complete: ${data.ready}/${data.total}`);
-          if (stopped) return;
           setFeedbackStatus(prev => ({ ...prev, all_complete: true, feedback_ready: data.ready, total_questions: data.total }));
           await loadFeedbackForAnswersRef.current(moduleAccess);
-          if (stopped) return;
           setIsPolling(false);
           setPollCount(0);
         } catch (err) {
-          if (!stopped) console.warn('SSE complete parse error:', err);
+          console.warn('SSE complete parse error:', err);
         }
         es.close();
         eventSourceRef.current = null;
@@ -877,6 +876,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
       es.addEventListener('timeout', (e) => {
         console.log('⏱️ SSE timeout — server closed stream');
+        stopped = true; // prevent onerror from firing when we call es.close() below
         es.close();
         eventSourceRef.current = null;
         setIsPolling(false);

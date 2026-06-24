@@ -28,6 +28,12 @@ class Question(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     module_id = Column(UUID(as_uuid=True), ForeignKey("modules.id", ondelete="CASCADE"), nullable=False)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=True)
+    # null = unassigned (lives in module pool); set when teacher assigns to a batch
+    batch_id = Column(UUID(as_uuid=True), ForeignKey("module_batches.id", ondelete="SET NULL"), nullable=True)
+
+    # null = inherit from batch (which inherits from module)
+    # "visible" | "teacher_only" | "disabled"
+    grading_mode = Column(String, nullable=True)
 
     type = Column(String, nullable=False)  # mcq, short, long
     text = Column(Text, nullable=False)
@@ -64,6 +70,7 @@ class Question(Base):
     __table_args__ = (
         Index('ix_questions_module_id', 'module_id'),
         Index('ix_questions_document_id', 'document_id'),
+        Index('ix_questions_batch_id', 'batch_id'),
         Index('ix_questions_status', 'status'),
         Index('ix_questions_module_status', 'module_id', 'status'),
     )

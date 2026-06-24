@@ -1,5 +1,5 @@
 import uuid
-from datetime import timedelta, datetime
+from datetime import timedelta, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
@@ -56,14 +56,23 @@ def register(user_data: UserCreate, db: Session = Depends(get_db)):
     verification_code = generate_verification_code()
     verification_token = generate_verification_token()
 
-    # Create user with email verification fields
+    role = user_data.role or "student"
+
+    # Teachers always get module creation; students only if explicitly requested
+    if user_data.can_create_modules is not None:
+        can_create = user_data.can_create_modules
+    else:
+        can_create = role in ("teacher", "admin")
+
     db_user = User(
-        id=user_data.id or str(uuid.uuid4()),
+        id=str(uuid.uuid4()),              # always UUID, never Banner ID
+        banner_id=user_data.banner_id,     # institutional ID stored separately
         username=user_data.username,
         email=user_data.email,
         hashed_password=hashed_password,
         profile_image=user_data.profile_image,
-        role=user_data.role or "student",  # Default role
+        role=role,
+        can_create_modules=can_create,
         is_email_verified=False,
         verification_code=verification_code,
         verification_code_expires=get_verification_code_expiry(),
@@ -144,6 +153,7 @@ def login(user_data: UserLogin, db: Session = Depends(get_db)):
             "username": user.username,
             "email": user.email,
             "role": user.role,
+            "can_create_modules": user.can_create_modules,
             "profile_image": user.profile_image,
             "is_email_verified": user.is_email_verified,
             "is_active": user.is_active,

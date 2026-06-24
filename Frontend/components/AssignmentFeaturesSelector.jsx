@@ -7,10 +7,53 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { RotateCcw, MessageCircle, Target, Settings, Info } from "lucide-react";
+import { RotateCcw, MessageCircle, Target, Settings, Info, Brain, Eye, EyeOff, PenLine } from "lucide-react";
+
+const GRADING_MODES = [
+  {
+    value: 'ai_visible',
+    label: 'AI Grading',
+    sub: 'Score & feedback shown to student immediately',
+    icon: Brain,
+    color: 'blue',
+  },
+  {
+    value: 'teacher_assist',
+    label: 'AI Assists Teacher',
+    sub: 'AI suggests grade to you; you approve before student sees anything',
+    icon: Eye,
+    color: 'purple',
+  },
+  {
+    value: 'ai_teacher_only',
+    label: 'Grade — Hide from Student',
+    sub: 'AI grades automatically; result visible to teacher only',
+    icon: EyeOff,
+    color: 'amber',
+  },
+  {
+    value: 'manual',
+    label: 'Manual Grading',
+    sub: 'Teacher reviews and grades each answer themselves',
+    icon: PenLine,
+    color: 'gray',
+  },
+];
+
+const ATTEMPT_MODE_OPTIONS = [
+  { value: 'ai_visible',      label: 'AI → Show student' },
+  { value: 'teacher_assist',  label: 'AI → Teacher approves' },
+  { value: 'ai_teacher_only', label: 'AI → Teacher only' },
+  { value: 'manual',          label: 'Manual' },
+];
 
 export default function AssignmentFeaturesSelector({ value, onChange }) {
   const defaultConfig = {
+    grading: {
+      mode: 'ai_visible',
+      per_attempt_enabled: false,
+      attempt_modes: {},
+    },
     features: {
       multiple_attempts: {
         enabled: true,
@@ -23,7 +66,7 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
         ai_model: "gpt-4"
       },
       mastery_learning: {
-        enabled: false,
+        enabled: true,
         streak_required: 3,
         queue_randomization: true,
         reset_on_wrong: false
@@ -36,26 +79,52 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
     }
   };
 
-  const config = value || defaultConfig;
+  const config = value
+    ? { grading: defaultConfig.grading, ...value }
+    : defaultConfig;
+
+  // ensure grading block always exists
+  if (!config.grading) config.grading = { ...defaultConfig.grading };
 
   const updateConfig = (path, newValue) => {
     const newConfig = JSON.parse(JSON.stringify(config));
     const keys = path.split('.');
     let current = newConfig;
-    
     for (let i = 0; i < keys.length - 1; i++) {
+      if (!current[keys[i]]) current[keys[i]] = {};
       current = current[keys[i]];
     }
     current[keys[keys.length - 1]] = newValue;
-    
     onChange(newConfig);
   };
 
+  const setGradingMode = (mode) => {
+    const newConfig = JSON.parse(JSON.stringify(config));
+    newConfig.grading = { ...newConfig.grading, mode, attempt_modes: {} };
+    // manual grading → disable per-attempt (no point)
+    if (mode === 'manual') newConfig.grading.per_attempt_enabled = false;
+    onChange(newConfig);
+  };
+
+  const setAttemptMode = (attempt, mode) => {
+    const newConfig = JSON.parse(JSON.stringify(config));
+    newConfig.grading.attempt_modes = { ...newConfig.grading.attempt_modes, [attempt]: mode };
+    onChange(newConfig);
+  };
+
+  const maxAttempts = config.features?.multiple_attempts?.max_attempts || 2;
+  const attemptsEnabled = config.features?.multiple_attempts?.enabled;
+
   const getEnabledFeatures = () => {
     const features = [];
-    if (config.features.multiple_attempts.enabled) features.push('Multiple Attempts');
-    if (config.features.chatbot_feedback.enabled) features.push('AI Chatbot');
-    if (config.features.mastery_learning.enabled) features.push('Mastery Learning');
+    const g = config.grading;
+    if (g?.mode === 'ai_visible')      features.push('AI Grading');
+    if (g?.mode === 'teacher_assist')  features.push('AI Assists Teacher');
+    if (g?.mode === 'ai_teacher_only') features.push('AI (Hidden from Student)');
+    if (g?.mode === 'manual')          features.push('Manual Grading');
+    if (config.features?.multiple_attempts?.enabled) features.push('Multiple Attempts');
+    if (config.features?.chatbot_feedback?.enabled)  features.push('AI Chatbot');
+    if (config.features?.mastery_learning?.enabled)  features.push('Mastery Learning');
     return features;
   };
 
@@ -83,6 +152,95 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
         )}
       </CardHeader>
       <CardContent className="space-y-4">
+
+        {/* ── Grading Mode ─────────────────────────────────── */}
+        <div className="border rounded-lg p-4 bg-blue-50/50 dark:bg-blue-950/10 border-blue-200 dark:border-blue-800">
+          <div className="flex items-center gap-2 mb-3">
+            <Brain className="w-4 h-4 text-blue-600" />
+            <h4 className="font-medium text-sm">Grading Mode</h4>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Choose how student answers are graded
+          </p>
+
+          <div className="space-y-2">
+            {GRADING_MODES.map(({ value: mv, label, sub, icon: Icon, color }) => {
+              const active = config.grading.mode === mv;
+              const colorMap = {
+                blue:   'border-blue-500 bg-blue-50 dark:bg-blue-950/30',
+                purple: 'border-purple-500 bg-purple-50 dark:bg-purple-950/30',
+                amber:  'border-amber-500 bg-amber-50 dark:bg-amber-950/30',
+                gray:   'border-gray-400 bg-gray-50 dark:bg-gray-900/30',
+              };
+              const iconMap = {
+                blue:   'text-blue-600',
+                purple: 'text-purple-600',
+                amber:  'text-amber-600',
+                gray:   'text-gray-500',
+              };
+              return (
+                <button
+                  key={mv}
+                  type="button"
+                  onClick={() => setGradingMode(mv)}
+                  className={`w-full flex items-start gap-3 p-3 rounded-lg border-2 text-left transition-colors ${
+                    active ? colorMap[color] : 'border-transparent bg-muted/30 hover:bg-muted/60'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 mt-0.5 flex-shrink-0 ${active ? iconMap[color] : 'text-muted-foreground'}`} />
+                  <div>
+                    <p className={`text-xs font-semibold ${active ? '' : 'text-muted-foreground'}`}>{label}</p>
+                    <p className="text-xs text-muted-foreground">{sub}</p>
+                  </div>
+                  {active && (
+                    <div className={`ml-auto w-2 h-2 rounded-full mt-1 flex-shrink-0 ${
+                      color === 'blue' ? 'bg-blue-500' :
+                      color === 'purple' ? 'bg-purple-500' :
+                      color === 'amber' ? 'bg-amber-500' : 'bg-gray-400'
+                    }`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Per-attempt override — only shown when AI mode + multiple attempts on */}
+          {config.grading.mode !== 'manual' && attemptsEnabled && maxAttempts > 1 && (
+            <div className="mt-3 pt-3 border-t border-blue-200 dark:border-blue-800">
+              <div className="flex items-center justify-between mb-2">
+                <Label className="text-xs font-medium">Configure per attempt</Label>
+                <Switch
+                  checked={config.grading.per_attempt_enabled}
+                  onCheckedChange={(v) => updateConfig('grading.per_attempt_enabled', v)}
+                />
+              </div>
+              {config.grading.per_attempt_enabled && (
+                <div className="space-y-2 mt-2">
+                  {Array.from({ length: maxAttempts }, (_, i) => i + 1).map((attempt) => {
+                    const current = config.grading.attempt_modes?.[attempt] || config.grading.mode;
+                    return (
+                      <div key={attempt} className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground w-20 flex-shrink-0">Attempt {attempt}</span>
+                        <Select value={current} onValueChange={(v) => setAttemptMode(attempt, v)}>
+                          <SelectTrigger className="h-7 text-xs flex-1">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {ATTEMPT_MODE_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value} className="text-xs">
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
         {/* Multiple Attempts */}
         <div className="border rounded-lg p-4 bg-orange-50/50 dark:bg-orange-950/10 border-orange-200 dark:border-orange-800">

@@ -3,7 +3,7 @@ from sqlalchemy import func
 from typing import List, Optional
 from uuid import UUID
 import random
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.models.question_queue import QuestionQueue
 
@@ -42,7 +42,7 @@ def initialize_queue(
             is_mastered=False,
             streak_count=0,
             last_attempt_at=None,
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
         db.add(entry)
         entries.append(entry)
@@ -163,7 +163,7 @@ def update_streak(
         return None
 
     entry.attempts = (entry.attempts or 0) + 1
-    entry.last_attempt_at = datetime.utcnow()
+    entry.last_attempt_at = datetime.now(timezone.utc)
 
     if is_correct:
         entry.streak_count = (entry.streak_count or 0) + 1

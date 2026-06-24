@@ -559,3 +559,104 @@ def retry_all_failed_feedback(
         "retry_count": len(failed_answer_ids),
         "poll_url": f"/api/student/modules/{module_id}/feedback-status?student_id={student_id}&attempt={attempt}"
     }
+
+
+# ── Teacher-only grading mode: view and release feedback ──────────────────────
+
+@router.get("/teacher/module/{module_id}/unreleased")
+def get_unreleased_feedback(
+    module_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Teacher endpoint: list all AI feedback not yet released to students.
+    Used when ai_grading_mode is 'teacher_only'.
+    """
+    rows = (
+        db.query(AIFeedback, StudentAnswer)
+        .join(StudentAnswer, AIFeedback.answer_id == StudentAnswer.id)
+        .filter(
+            StudentAnswer.module_id == module_id,
+            AIFeedback.released == False,
+            AIFeedback.generation_status == "completed",
+        )
+        .order_by(AIFeedback.generated_at.desc())
+        .all()
+    )
+
+    result = []
+    for feedback, answer in rows:
+        data = feedback.feedback_data or {}
+        result.append({
+            "feedback_id": str(feedback.id),
+            "answer_id": str(feedback.answer_id),
+            "student_id": answer.student_id,
+            "question_id": str(answer.question_id),
+            "attempt": answer.attempt,
+            "score": feedback.score,
+            "is_correct": feedback.is_correct,
+            "points_earned": feedback.points_earned,
+            "points_possible": feedback.points_possible,
+            "explanation": data.get("explanation", ""),
+            "generated_at": feedback.generated_at.isoformat() if feedback.generated_at else None,
+        })
+
+    return {"unreleased_count": len(result), "feedback": result}
+
+
+@router.post("/teacher/release/{feedback_id}")
+def release_feedback_to_student(
+    feedback_id: UUID,
+    db: Session = Depends(get_db)
+):
+    """
+    Teacher endpoint: release a single AI feedback item to the student.
+    """
+    feedback = db.query(AIFeedback).filter(AIFeedback.id == feedback_id).first()
+    if not feedback:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+
+    feedback.released = True
+    feedback.requires_teacher_review = False
+    db.commit()
+
+    return {"success": True, "feedback_id": str(feedback_id), "released": True}
+
+
+@router.post("/teacher/release/module/{module_id}")
+def release_all_feedback_for_module(
+    module_id: UUID,
+    student_id: str = Query(None, description="Optionally release for one student only"),
+    attempt: int = Query(None, description="Optionally release for one attempt only"),
+    db: Session = Depends(get_db)
+):
+    """
+    Teacher endpoint: bulk-release all unreleased AI feedback for a module.
+    Optionally scoped to a specific student and/or attempt.
+    """
+    query = (
+        db.query(AIFeedback)
+        .join(StudentAnswer, AIFeedback.answer_id == StudentAnswer.id)
+        .filter(
+            StudentAnswer.module_id == module_id,
+            AIFeedback.released == False,
+            AIFeedback.generation_status == "completed",
+        )
+    )
+    if student_id:
+        query = query.filter(StudentAnswer.student_id == student_id)
+    if attempt is not None:
+        query = query.filter(StudentAnswer.attempt == attempt)
+
+    rows = query.all()
+    for feedback in rows:
+        feedback.released = True
+        feedback.requires_teacher_review = False
+
+    db.commit()
+
+    return {
+        "success": True,
+        "released_count": len(rows),
+        "module_id": str(module_id),
+    }

@@ -401,7 +401,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
       case 'partially_graded':
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700"><HelpCircle className="w-3 h-3" />Partial</span>;
       case 'ai_graded':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 dark:bg-blue-900/40 text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-700"><Shield className="w-3 h-3" />AI Graded</span>;
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-900/40 text-gray-700 dark:text-gray-400 border border-gray-200 dark:border-border"><Shield className="w-3 h-3" />AI Graded</span>;
       default:
         return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700"><Clock className="w-3 h-3" />Pending</span>;
     }
@@ -607,11 +607,11 @@ const StudentsPageContent = memo(function StudentsPageContent() {
           <div className="max-w-7xl mx-auto px-6 py-8">
             {/* Header with Gradient Background */}
             <div className="mb-8 relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/10 via-purple-500/10 to-pink-500/10 dark:from-blue-500/5 dark:via-purple-500/5 dark:to-pink-500/5 rounded-2xl"></div>
+              <div className="absolute inset-0 bg-gradient-to-r from-gray-800/10 via-gray-800/10 to-pink-500/10 dark:from-gray-800/5 dark:via-gray-800/5 dark:to-pink-500/5 rounded-2xl"></div>
               <div className="relative p-8 rounded-2xl border border-border/50 backdrop-blur-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg">
+                    <div className="w-16 h-16 bg-gray-900 rounded-2xl flex items-center justify-center shadow-lg">
                       <GraduationCap className="w-8 h-8 text-white" />
                     </div>
                     <div>
@@ -671,8 +671,8 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                               }}
                               className="w-full text-left px-3 py-2.5 text-sm hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg flex items-center gap-3 transition-colors"
                             >
-                              <div className="w-8 h-8 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center">
-                                <BarChart3 className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                              <div className="w-8 h-8 bg-gray-100 dark:bg-muted/20 rounded-lg flex items-center justify-center">
+                                <BarChart3 className="w-4 h-4 text-gray-700 dark:text-gray-400" />
                               </div>
                               <div>
                                 <div className="font-medium text-gray-900 dark:text-gray-100">Feedback Report</div>
@@ -725,27 +725,27 @@ const StudentsPageContent = memo(function StudentsPageContent() {
 
             {/* Enhanced Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <Card className="border-border bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Card className="border-border bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all">
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-800/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg">
+                    <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg">
                       <Users className="w-6 h-6 text-white" />
                     </div>
-                    <div className="px-2 py-1 bg-blue-200/50 dark:bg-blue-800/50 rounded-full">
-                      <TrendingUp className="w-3 h-3 text-blue-700 dark:text-blue-300" />
+                    <div className="px-2 py-1 bg-gray-200/50 dark:bg-gray-800/50 rounded-full">
+                      <TrendingUp className="w-3 h-3 text-gray-800 dark:text-gray-400" />
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">Total Students</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-400 mb-1">Total Students</p>
                     {loadingStudents ? (
                       <Skeleton className="h-9 w-16 mb-1" />
                     ) : (
-                      <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
+                      <p className="text-3xl font-bold text-blue-900 dark:text-gray-400">
                         {students.length}
                       </p>
                     )}
-                    <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">Enrolled in module</p>
+                    <p className="text-xs text-gray-900/70 dark:text-gray-300/70 mt-1">Enrolled in module</p>
                   </div>
                 </CardContent>
               </Card>
@@ -779,40 +779,40 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                 </CardContent>
               </Card>
 
-              <Card className="border-border bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/30 dark:to-purple-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all">
-                <div className="absolute inset-0 bg-gradient-to-br from-purple-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Card className="border-border bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all">
+                <div className="absolute inset-0 bg-gradient-to-br from-gray-800/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-purple-500 rounded-xl flex items-center justify-center shadow-lg">
+                    <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg">
                       <Target className="w-6 h-6 text-white" />
                     </div>
                     <div className={`px-2 py-1 rounded-full ${
                       !loadingStudents && students.length > 0 &&
                       Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= thresholds.goodScore
                         ? 'bg-green-200/50 dark:bg-green-800/50'
-                        : 'bg-purple-200/50 dark:bg-purple-800/50'
+                        : 'bg-gray-200/50 dark:bg-gray-800/50'
                     }`}>
                       <CheckCircle className={`w-3 h-3 ${
                         !loadingStudents && students.length > 0 &&
                         Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= thresholds.goodScore
                           ? 'text-green-700 dark:text-green-300'
-                          : 'text-purple-700 dark:text-purple-300'
+                          : 'text-gray-800 dark:text-gray-400'
                       }`} />
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-purple-700 dark:text-purple-300 mb-1">Avg Score</p>
+                    <p className="text-sm font-medium text-gray-800 dark:text-gray-400 mb-1">Avg Score</p>
                     {loadingStudents ? (
                       <Skeleton className="h-9 w-20 mb-1" />
                     ) : (
-                      <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
+                      <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
                         {students.length > 0 ?
                           Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) + '%' :
                           '-'
                         }
                       </p>
                     )}
-                    <p className="text-xs text-purple-600/70 dark:text-purple-400/70 mt-1">Overall performance</p>
+                    <p className="text-xs text-gray-700/70 dark:text-gray-400/70 mt-1">Overall performance</p>
                   </div>
                 </CardContent>
               </Card>
@@ -994,13 +994,13 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                             <td className="p-4">
                               <div className="flex items-center gap-3">
                                 <div className="relative">
-                                  <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:shadow-lg transition-shadow">
+                                  <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center text-white font-bold text-sm shadow-md group-hover:shadow-lg transition-shadow">
                                     {student.student_id?.charAt(0)?.toUpperCase() || 'S'}
                                   </div>
                                   <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
                                 </div>
                                 <div>
-                                  <div className="font-mono text-sm font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent group-hover:from-blue-500 group-hover:to-purple-500 transition-all">
+                                  <div className="font-mono text-sm font-bold bg-gray-900 bg-clip-text text-transparent group-hover:from-gray-800 group-hover:to-gray-900 transition-all">
                                     {student.student_id}
                                   </div>
                                   <div className="text-xs text-muted-foreground">
@@ -1081,7 +1081,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                                   <div
                                     className={`h-full rounded-full ${
                                       (student.attempt_count || 1) >= moduleData.max_attempts
-                                        ? 'bg-red-500' : 'bg-blue-500'
+                                        ? 'bg-red-500' : 'bg-gray-800'
                                     }`}
                                     style={{width: `${Math.min(100, ((student.attempt_count || 1) / moduleData.max_attempts) * 100)}%`}}
                                   ></div>

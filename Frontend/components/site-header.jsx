@@ -45,7 +45,7 @@ export function SiteHeader() {
           {moduleName && (
             <>
               <span className="text-muted-foreground">•</span>
-              <span className="px-2 py-1 text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-full font-medium">
+              <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-muted/20 text-gray-800 dark:text-gray-400 rounded-full font-medium">
                 {moduleName}
               </span>
             </>

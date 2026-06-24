@@ -4,16 +4,17 @@ Generates vector embeddings for text chunks
 """
 import os
 from typing import List, Dict, Any, Optional
-from openai import OpenAI
 from sqlalchemy.orm import Session
 
 from app.models.document_chunk import DocumentChunk
 from app.crud.document_embedding import bulk_create_embeddings
-from app.core.config import OPENAI_API_KEY, EMBED_MODEL
+from app.core.config import OPENAI_API_KEYS, EMBED_MODEL
+
+EMBED_DIMENSIONS = 1536  # cap at 1536 so pgvector HNSW index works (max 2000 dims)
+from app.services.openai_client import OpenAIClientWithRetry
 
 
-# Initialize OpenAI client
-client = OpenAI(api_key=OPENAI_API_KEY)
+client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS)
 
 
 def generate_embedding(
@@ -38,9 +39,10 @@ def generate_embedding(
         model = EMBED_MODEL
 
     try:
-        response = client.embeddings.create(
+        response = client.create_embedding(
             input=text,
-            model=model
+            model=model,
+            dimensions=EMBED_DIMENSIONS
         )
 
         embedding_data = response.data[0]
@@ -75,9 +77,10 @@ def generate_embeddings_batch(
         model = EMBED_MODEL
 
     try:
-        response = client.embeddings.create(
+        response = client.create_embedding(
             input=texts,
-            model=model
+            model=model,
+            dimensions=EMBED_DIMENSIONS
         )
 
         results = []
@@ -145,7 +148,8 @@ def generate_embeddings_for_document(
             for chunk, embedding_info in zip(batch_chunks, embeddings_data):
                 embeddings_to_insert.append({
                     'chunk_id': chunk.id,
-                    'document_id': chunk.document_id,  # Use document_id from chunk to ensure consistency
+                    'document_id': chunk.document_id,
+                    'module_id': chunk.module_id,
                     'embedding_vector': embedding_info['embedding'],
                     'embedding_model': model,
                     'embedding_dimensions': embedding_info['dimensions'],

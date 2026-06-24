@@ -443,8 +443,13 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
             else:
                 logger.info(f"[worker] Job {job.id} completed with real AI feedback")
 
-        # Final-attempt jobs: lock feedback behind teacher review gate
-        if job.is_final_attempt:
+        # Lock feedback from students when the module uses teacher_only mode,
+        # or when this is the final attempt (teacher reviews before releasing).
+        from app.models.module import Module
+        module_obj = db.query(Module).filter(Module.id == job.module_id).first()
+        ai_grading_mode = getattr(module_obj, "ai_grading_mode", "visible") or "visible"
+
+        if ai_grading_mode == "teacher_only" or job.is_final_attempt:
             fb = db.query(AIFeedback).filter(
                 AIFeedback.answer_id == job.answer_id,
                 AIFeedback.generation_status == 'completed',
@@ -453,9 +458,9 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
                 fb.released = False
                 fb.requires_teacher_review = True
                 db.commit()
+                reason = "teacher_only mode" if ai_grading_mode == "teacher_only" else "final attempt"
                 logger.info(
-                    f"[worker] Final-attempt feedback {fb.id} marked as draft "
-                    f"(pending teacher review)"
+                    f"[worker] Feedback {fb.id} marked as unreleased ({reason})"
                 )
 
         # Check if all jobs for this attempt are done and calculate score

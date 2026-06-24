@@ -23,6 +23,12 @@ os.environ.setdefault("ENV", "testing")
 os.environ.setdefault("LLM_MODEL", "gpt-4")
 os.environ.setdefault("EMBED_MODEL", "text-embedding-ada-002")
 
+# Patch Supabase before any app module is imported so the singleton doesn't
+# try to reach a real API with fake test credentials.
+from unittest.mock import patch, MagicMock
+_supabase_patch = patch("supabase.create_client", return_value=MagicMock())
+_supabase_patch.start()
+
 from app.database import Base, get_db
 from app.models.user import User
 from app.models.module import Module
@@ -137,6 +143,7 @@ def teacher_user(db_session) -> User:
         email="teacher@test.com",
         hashed_password=get_password_hash("password123"),
         role="teacher",
+        can_create_modules=True,
         is_active=True,
         is_email_verified=True,
         created_at=datetime.now(timezone.utc),
@@ -157,6 +164,7 @@ def student_user(db_session) -> User:
         email="student@test.com",
         hashed_password=get_password_hash("password123"),
         role="student",
+        can_create_modules=False,
         is_active=True,
         is_email_verified=True,
         created_at=datetime.now(timezone.utc),
@@ -177,6 +185,7 @@ def admin_user(db_session) -> User:
         email="admin@test.com",
         hashed_password=get_password_hash("password123"),
         role="admin",
+        can_create_modules=True,
         is_active=True,
         is_email_verified=True,
         created_at=datetime.now(timezone.utc),

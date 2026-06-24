@@ -4,7 +4,11 @@ from uuid import UUID
 from typing import List, Dict, Any
 from datetime import datetime, timezone
 
-from app.schemas.module import ModuleCreate, ModuleOut, ConsentFormUpdate
+from app.schemas.module import (
+    ModuleCreate, ModuleOut, ConsentFormUpdate,
+    ModuleStatusUpdate, AIConfigUpdate, EnrollmentConfigUpdate,
+    GradingSettingsUpdate,
+)
 from app.schemas.student_enrollment import WaiverStatusUpdate
 from app.crud.module import (
     create_module,
@@ -71,6 +75,35 @@ def list_all_modules(db: Session = Depends(get_db)):
 def list_modules(teacher_id: str = Query(...), db: Session = Depends(get_db)):
     return get_modules_by_teacher(db, teacher_id)
 
+# 🌐 List public modules (for student discovery) — must come before /{module_id}
+@router.get("/modules/public")
+def list_public_modules(db: Session = Depends(get_db)):
+    """Return all active public modules with basic stats for student discovery."""
+    from app.models.question import Question
+    from app.models.user import User
+    from sqlalchemy import func
+
+    modules = (
+        db.query(Module)
+        .filter(Module.visibility == "public", Module.is_active == True)
+        .order_by(Module.created_at.desc())
+        .all()
+    )
+
+    result = []
+    for m in modules:
+        q_count = db.query(func.count(Question.id)).filter(Question.module_id == m.id).scalar()
+        owner = db.query(User).filter(User.id == m.teacher_id).first()
+        result.append({
+            "id": str(m.id),
+            "name": m.name,
+            "description": m.description,
+            "owner_username": owner.username if owner else "Unknown",
+            "question_count": q_count or 0,
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+        })
+    return result
+
 # 🔍 Get single module by ID
 @router.get("/modules/{module_id}", response_model=ModuleOut)
 def get_single_module(module_id: UUID, db: Session = Depends(get_db)):
@@ -78,6 +111,7 @@ def get_single_module(module_id: UUID, db: Session = Depends(get_db)):
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
     return module
+
 
 # ➕ Create new module
 @router.post("/modules", response_model=ModuleOut)
@@ -88,11 +122,33 @@ def create_new_module(payload: ModuleCreate, db: Session = Depends(get_db)):
             validation_errors = validate_assignment_config(payload.assignment_config)
             if validation_errors:
                 raise HTTPException(
-                    status_code=400, 
+                    status_code=400,
                     detail=f"Invalid assignment configuration: {'; '.join(validation_errors)}"
                 )
-        
-        return create_module(db, payload)
+
+        created = create_module(db, payload)
+
+        # Auto-enroll student-owners so they can immediately study their own module
+        from app.models.user import User
+        from app.models.student_enrollment import StudentEnrollment
+        from datetime import datetime, timezone
+
+        owner = db.query(User).filter(User.id == created.teacher_id).first()
+        if owner and owner.role == "student":
+            already = db.query(StudentEnrollment).filter(
+                StudentEnrollment.student_id == owner.id,
+                StudentEnrollment.module_id == created.id,
+            ).first()
+            if not already:
+                db.add(StudentEnrollment(
+                    student_id=owner.id,
+                    module_id=created.id,
+                    access_code_used=created.access_code,
+                    enrolled_at=datetime.now(timezone.utc),
+                ))
+                db.commit()
+
+        return created
     except HTTPException:
         raise
     except Exception as e:
@@ -665,3 +721,179 @@ def get_dashboard_metrics(
         _dashboard_cache[cache_key] = {"data": data, "ts": time.time()}
 
     return data
+
+
+# ─── New lifecycle / config endpoints ────────────────────────────────────────
+
+from app.models.module import Module
+
+
+@router.patch("/modules/{module_id}/status", response_model=ModuleOut)
+def update_module_status(
+    module_id: UUID,
+    payload: ModuleStatusUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update module lifecycle status: draft → published → archived."""
+    valid = {"draft", "published", "archived"}
+    if payload.status not in valid:
+        raise HTTPException(status_code=400, detail=f"status must be one of {valid}")
+
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    module.status = payload.status
+    module.is_active = (payload.status == "published")
+    db.commit()
+    db.refresh(module)
+    return module
+
+
+@router.patch("/modules/{module_id}/ai-config", response_model=ModuleOut)
+def update_ai_config(
+    module_id: UUID,
+    payload: AIConfigUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update AI grading mode, extended ai_config, and/or safety config."""
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    if payload.ai_grading_mode is not None:
+        valid = {"auto", "teacher_assist", "teacher_only", "disabled"}
+        if payload.ai_grading_mode not in valid:
+            raise HTTPException(status_code=400, detail=f"ai_grading_mode must be one of {valid}")
+        module.ai_grading_mode = payload.ai_grading_mode
+        # Keep ai_config.grading.mode in sync
+        if module.ai_config:
+            from sqlalchemy.orm.attributes import flag_modified
+            config = dict(module.ai_config)
+            config.setdefault("grading", {})["mode"] = payload.ai_grading_mode
+            module.ai_config = config
+            flag_modified(module, "ai_config")
+
+    if payload.ai_config is not None:
+        from sqlalchemy.orm.attributes import flag_modified
+        merged = {**(module.ai_config or {}), **payload.ai_config}
+        module.ai_config = merged
+        flag_modified(module, "ai_config")
+
+    if payload.ai_safety_config is not None:
+        from sqlalchemy.orm.attributes import flag_modified
+        merged = {**(module.ai_safety_config or {}), **payload.ai_safety_config}
+        module.ai_safety_config = merged
+        flag_modified(module, "ai_safety_config")
+
+    db.commit()
+    db.refresh(module)
+    return module
+
+
+_VALID_GRADING_MODES = {"auto", "teacher_assist", "teacher_only", "disabled"}
+
+
+@router.get("/modules/{module_id}/grading-settings")
+def get_grading_settings(module_id: UUID, db: Session = Depends(get_db)):
+    """Return current grading settings for a module."""
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    grading = (module.ai_config or {}).get("grading", {})
+    return {
+        "module_id": str(module_id),
+        "mode": module.ai_grading_mode,
+        "show_score_to_student": grading.get("show_score_to_student", True),
+        "show_explanation_to_student": grading.get("show_explanation_to_student", True),
+        "show_hints_to_student": grading.get("show_hints_to_student", True),
+        "teacher_sees_ai_suggestions": grading.get("teacher_sees_ai_suggestions", True),
+        "require_teacher_approval": grading.get("require_teacher_approval", False),
+        "model": grading.get("model", "gpt-4"),
+    }
+
+
+@router.patch("/modules/{module_id}/grading-settings", response_model=ModuleOut)
+def update_grading_settings(
+    module_id: UUID,
+    payload: GradingSettingsUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update teacher grading preferences for a module.
+
+    Grading modes:
+    - auto           – AI grades; result shown to student immediately
+    - teacher_assist – AI shows suggested grade/explanation to teacher only;
+                       teacher approves before student sees anything
+    - teacher_only   – AI grades automatically; result hidden from student,
+                       visible to teacher only
+    - disabled       – AI grading off; teacher grades entirely manually
+    """
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    if payload.mode is not None:
+        if payload.mode not in _VALID_GRADING_MODES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"mode must be one of {_VALID_GRADING_MODES}"
+            )
+        module.ai_grading_mode = payload.mode
+
+    # Merge grading sub-keys into ai_config.grading
+    from sqlalchemy.orm.attributes import flag_modified
+
+    ai_config = dict(module.ai_config or {})
+    grading = dict(ai_config.get("grading", {}))
+
+    field_map = {
+        "mode": payload.mode,
+        "show_score_to_student": payload.show_score_to_student,
+        "show_explanation_to_student": payload.show_explanation_to_student,
+        "show_hints_to_student": payload.show_hints_to_student,
+        "teacher_sees_ai_suggestions": payload.teacher_sees_ai_suggestions,
+        "require_teacher_approval": payload.require_teacher_approval,
+        "model": payload.model,
+    }
+    for key, val in field_map.items():
+        if val is not None:
+            grading[key] = val
+
+    ai_config["grading"] = grading
+    module.ai_config = ai_config
+    flag_modified(module, "ai_config")
+
+    db.commit()
+    db.refresh(module)
+    return module
+
+
+@router.patch("/modules/{module_id}/enrollment-config", response_model=ModuleOut)
+def update_enrollment_config(
+    module_id: UUID,
+    payload: EnrollmentConfigUpdate,
+    db: Session = Depends(get_db)
+):
+    """Update enrollment type and/or detailed enrollment rules."""
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+
+    if payload.enrollment_type is not None:
+        valid = {"open", "invite_only", "code_required"}
+        if payload.enrollment_type not in valid:
+            raise HTTPException(status_code=400, detail=f"enrollment_type must be one of {valid}")
+        module.enrollment_type = payload.enrollment_type
+
+    if payload.enrollment_config is not None:
+        from sqlalchemy.orm.attributes import flag_modified
+        merged = {**(module.enrollment_config or {}), **payload.enrollment_config}
+        module.enrollment_config = merged
+        flag_modified(module, "enrollment_config")
+
+    db.commit()
+    db.refresh(module)
+    return module

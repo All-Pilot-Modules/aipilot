@@ -131,7 +131,7 @@ function ChatbotSettingsContent() {
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-800/30 to-gray-900/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
             <div className="max-w-5xl mx-auto px-6 py-8">
               {/* Breadcrumb Skeleton */}
               <div className="mb-6">
@@ -193,7 +193,7 @@ function ChatbotSettingsContent() {
       <AppSidebar />
       <SidebarInset>
         <SiteHeader />
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-800/30 to-gray-900/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
           <div className="max-w-5xl mx-auto px-6 py-8">
         {/* Breadcrumb Navigation */}
         <div className="mb-6">
@@ -229,7 +229,7 @@ function ChatbotSettingsContent() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 bg-gradient-to-br from-purple-600 to-blue-600 rounded-xl flex items-center justify-center">
+            <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center">
               <Brain className="w-6 h-6 text-white" />
             </div>
             <div>
@@ -258,7 +258,7 @@ function ChatbotSettingsContent() {
                   {moduleData.chatbot_enabled ? "Chatbot Enabled" : "Chatbot Disabled"}
                 </Badge>
                 {isCustom && (
-                  <Badge variant="outline" className="bg-purple-50 dark:bg-purple-950">
+                  <Badge variant="outline" className="bg-gray-50 dark:bg-gray-950">
                     <Sparkles className="w-3 h-3 mr-1" />
                     Custom Instructions
                   </Badge>
@@ -341,7 +341,7 @@ function ChatbotSettingsContent() {
                 <Button
                   onClick={handleSave}
                   disabled={!moduleData.chatbot_enabled || saving || chatCharCount > maxChars || !instructions.trim()}
-                  className="bg-blue-600 hover:bg-blue-700"
+                  className="bg-gray-900 hover:bg-gray-900"
                 >
                   {saving ? (
                     <>
@@ -372,7 +372,7 @@ function ChatbotSettingsContent() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-600" />
+              <Sparkles className="w-5 h-5 text-gray-700" />
               Tips for Writing Instructions
             </CardTitle>
           </CardHeader>

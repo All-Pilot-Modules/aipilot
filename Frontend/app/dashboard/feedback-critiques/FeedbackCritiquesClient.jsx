@@ -278,7 +278,7 @@ export default function FeedbackCritiquesPage() {
           {/* Header */}
           <div>
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <MessageSquare className="w-8 h-8 text-blue-600" />
+              <MessageSquare className="w-8 h-8 text-gray-900" />
               Feedback Critiques
             </h1>
             <p className="text-gray-600 dark:text-gray-400 mt-1">
@@ -288,26 +288,26 @@ export default function FeedbackCritiquesPage() {
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50 border-blue-200 dark:border-blue-800">
+            <Card className="bg-gray-900 dark:from-gray-800/50 dark:to-gray-900/50 border-gray-200 dark:border-border">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Total Students</p>
+                    <p className="text-sm text-gray-800 dark:text-gray-400 font-medium">Total Students</p>
                     <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{studentCritiques.length}</p>
                   </div>
-                  <User className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  <User className="w-8 h-8 text-gray-900 dark:text-gray-300" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50 border-purple-200 dark:border-purple-800">
+            <Card className="bg-gray-900 dark:from-gray-800/50 dark:to-gray-900/50 border-gray-200 dark:border-border">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">Total Critiques</p>
-                    <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">{critiquesData?.total_critiques || 0}</p>
+                    <p className="text-sm text-gray-800 dark:text-gray-400 font-medium">Total Critiques</p>
+                    <p className="text-3xl font-bold text-purple-900 dark:text-gray-100">{critiquesData?.total_critiques || 0}</p>
                   </div>
-                  <MessageSquare className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                  <MessageSquare className="w-8 h-8 text-gray-700 dark:text-gray-400" />
                 </div>
               </CardContent>
             </Card>
@@ -376,8 +376,8 @@ export default function FeedbackCritiquesPage() {
                       className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors rounded-lg"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900/30 rounded-full flex items-center justify-center">
-                          <User className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        <div className="w-12 h-12 bg-gray-100 dark:bg-muted/20 rounded-full flex items-center justify-center">
+                          <User className="w-6 h-6 text-gray-900 dark:text-gray-300" />
                         </div>
                         <div className="text-left">
                           <p className="font-semibold text-gray-900 dark:text-white">
@@ -412,7 +412,7 @@ export default function FeedbackCritiquesPage() {
                               {/* Question */}
                               <div className="mb-3">
                                 <div className="flex items-start gap-2 mb-2">
-                                  <FileText className="w-4 h-4 text-blue-600 mt-1 flex-shrink-0" />
+                                  <FileText className="w-4 h-4 text-gray-900 mt-1 flex-shrink-0" />
                                   <div className="flex-1">
                                     <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Question:</p>
                                     <p className="text-sm text-gray-900 dark:text-white mb-2">
@@ -438,7 +438,7 @@ export default function FeedbackCritiquesPage() {
                               {critique.answer && (
                                 <div className="mb-3 pl-6">
                                   <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Student Answer:</p>
-                                  <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded border border-blue-200 dark:border-blue-800">
+                                  <div className="bg-gray-50 dark:bg-muted/20/20 p-3 rounded border border-gray-200 dark:border-border">
                                     <p className="text-sm text-gray-800 dark:text-gray-200">
                                       {formatAnswer(critique.answer.answer, critique.question?.options) || 'No answer provided'}
                                     </p>
@@ -450,7 +450,7 @@ export default function FeedbackCritiquesPage() {
                               {critique.feedback && (
                                 <div className="mb-3 pl-6">
                                   <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">AI Feedback:</p>
-                                  <div className="bg-purple-50 dark:bg-purple-950/20 p-3 rounded border border-purple-200 dark:border-purple-800">
+                                  <div className="bg-gray-50 dark:bg-muted/20/20 p-3 rounded border border-gray-200 dark:border-border">
                                     <p className="text-sm text-gray-800 dark:text-gray-200">
                                       {critique.feedback.feedback_text || 'No feedback text'}
                                     </p>

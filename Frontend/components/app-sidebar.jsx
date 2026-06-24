@@ -27,7 +27,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
-import { LogOut, Settings, User, ChevronDown, LayoutDashboard, FolderOpen, HelpCircle, Users, BookOpen, ClipboardCheck, Sparkles, Shield, Brain, FileText, BarChart3, LifeBuoy, MessageSquare } from "lucide-react";
+import { LogOut, Settings, User, ChevronDown, LayoutDashboard, FolderOpen, HelpCircle, Users, BookOpen, ClipboardCheck, LifeBuoy, MessageSquare } from "lucide-react";
 import { useAPI } from "@/lib/useSWR";
 
 export function AppSidebar(props) {
@@ -222,7 +222,7 @@ export function AppSidebar(props) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Module Settings - Always Open */}
+        {/* Module Settings */}
         <SidebarGroup className="mb-2">
           <SidebarGroupLabel className="px-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 group-data-[collapsible=icon]:hidden">
             MODULE SETTINGS
@@ -232,66 +232,13 @@ export function AppSidebar(props) {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   asChild
-                  isActive={pathname.includes('/rubric')}
-                  tooltip="AI Feedback Rubric"
-                  className="h-9 px-2 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
-                >
-                  <Link href={`/dashboard/rubric?module=${module}`} onClick={(e) => e.stopPropagation()}>
-                    <Sparkles className="w-4 h-4" />
-                    <span className="text-sm font-medium">AI Feedback Rubric</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.includes('/chatbot-settings')}
-                  tooltip="AI Chatbot Settings"
-                  className="h-9 px-2 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
-                >
-                  <Link href={`/dashboard/chatbot-settings?module=${module}`} onClick={(e) => e.stopPropagation()}>
-                    <Brain className="w-5 h-5" />
-                    <span className="font-medium">AI Chatbot Settings</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.includes('/survey')}
-                  tooltip="Survey Settings"
-                  className="h-9 px-2 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
-                >
-                  <Link href={`/dashboard/survey?module=${module}`} onClick={(e) => e.stopPropagation()}>
-                    <FileText className="w-5 h-5" />
-                    <span className="font-medium">Survey Settings</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
-                  isActive={pathname.includes('/consent')}
-                  tooltip="Consent Form"
-                  className="h-9 px-2 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
-                  disabled={!currentModuleId}
-                >
-                  <Link href={currentModuleId ? `/module/${currentModuleId}/consent?module=${module}` : '#'} onClick={(e) => { if (!currentModuleId) e.preventDefault(); e.stopPropagation(); }}>
-                    <Shield className="w-5 h-5" />
-                    <span className="font-medium">Consent Form</span>
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton
-                  asChild
                   isActive={pathname.includes('/dashboard/settings')}
                   tooltip="Settings"
-                  className="h-11 px-3 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
+                  className="h-9 px-2 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
                 >
                   <Link href={`/dashboard/settings?module=${module}`} onClick={(e) => e.stopPropagation()}>
-                    <Settings className="w-5 h-5" />
-                    <span className="font-medium">Settings</span>
+                    <Settings className="w-4 h-4" />
+                    <span className="text-sm font-medium">Settings</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
@@ -300,7 +247,7 @@ export function AppSidebar(props) {
         </SidebarGroup>
 
         {/* Help Section */}
-        <SidebarGroup>
+        <SidebarGroup className="mt-auto">
           <SidebarGroupContent>
             <SidebarMenu className="space-y-0.5">
               {bottomNav.map((item) => (

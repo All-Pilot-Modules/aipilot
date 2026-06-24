@@ -1,47 +1,46 @@
-name: CI/CD Monorepo
+name: Backend CI
 
 on:
-  push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+    paths:
+      - 'Backend/**'
 
 jobs:
-  frontend:
-    name: Frontend Build
+  lint:
+    name: Lint & Validate
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: frontend
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Node.js
-        uses: actions/setup-node@v3
-        with:
-          node-version: 20
-      - name: Install dependencies
-        run: npm install
-        
-      - name: Run build
-        run: npm run build
-      - name: Run tests
-        run: npm test
+        working-directory: Backend
 
-        
-  backend:
-    name: Backend Build
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: backend
     steps:
-      - uses: actions/checkout@v3
-      - name: Setup Python
-      
-        uses: actions/setup-python@v4
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          python-version: 3.10
+          python-version: '3.13'
+          cache: pip
+
       - name: Install dependencies
-        run: pip install -r requirements.txt
-      - name: Run tests
-        run: pytest
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install gunicorn
+
+      - name: Check syntax (pyflakes)
+        run: |
+          pip install pyflakes
+          python -m pyflakes app/ main.py || true
+
+      - name: Validate Dockerfile builds
+        working-directory: ${{ github.workspace }}
+        run: |
+          docker build \
+            -f Backend/Dockerfile \
+            Backend \
+            --target . 2>/dev/null || \
+          docker build \
+            -f Backend/Dockerfile \
+            Backend

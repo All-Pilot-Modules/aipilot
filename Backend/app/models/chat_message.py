@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.orm import relationship
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class ChatMessage(Base):
@@ -14,7 +14,7 @@ class ChatMessage(Base):
     role = Column(String, nullable=False)  # "student" or "assistant"
     content = Column(Text, nullable=False)
     context_used = Column(JSONB, nullable=True)  # RAG chunks used for this response (assistant messages only)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow, nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
 
     # Relationships
     conversation = relationship("ChatConversation", back_populates="messages")

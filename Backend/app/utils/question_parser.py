@@ -1,9 +1,7 @@
 # app/utils/question_parser.py
 import re
 import json
-import os
 from uuid import UUID
-from openai import OpenAI
 
 def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id: UUID = None) -> list[dict]:
     questions = []
@@ -177,7 +175,9 @@ def parse_testbank_with_ai(raw_text: str, module_id: UUID, document_id: UUID = N
         List of question dictionaries
     """
     try:
-        client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
+        from app.core.config import OPENAI_API_KEYS
+        from app.services.openai_client import OpenAIClientWithRetry
+        client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS)
 
         prompt = f"""You are an expert at extracting multiple-choice questions from testbank documents.
 
@@ -214,12 +214,12 @@ Testbank Text:
 
 Return ONLY the JSON array, no additional text."""
 
-        response = client.chat.completions.create(
-            model="gpt-4o",
+        response = client.create_chat_completion(
             messages=[
                 {"role": "system", "content": "You are a precise testbank question extractor. Return only valid JSON."},
                 {"role": "user", "content": prompt}
             ],
+            model="gpt-4o",
             temperature=0.1,
             response_format={"type": "json_object"}
         )

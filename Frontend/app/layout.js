@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Lora } from "next/font/google";
 import "./globals.css";
 import { Analytics } from "@vercel/analytics/next";
 import { ClientProviders } from "@/components/ClientProviders";
@@ -19,6 +19,13 @@ const geistMono = Geist_Mono({
   preload: true,
 });
 
+const lora = Lora({
+  variable: "--font-lora",
+  subsets: ["latin"],
+  display: "swap",
+  preload: false,
+});
+
 export const metadata = {
   title: "Ai Education Pilot",
   description: "AI-powered education and learning platform for students and teachers",
@@ -35,7 +42,7 @@ export default function RootLayout({ children }) {
         <link rel="preconnect" href={apiOrigin} />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} ${lora.variable} antialiased`}
       >
         <ClientProviders>
           {children}

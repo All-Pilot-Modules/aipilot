@@ -173,7 +173,7 @@ function SurveyEditorContent() {
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-100 dark:from-slate-950 dark:via-blue-950/10 dark:to-slate-900">
+          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-800/20 to-slate-100 dark:from-slate-950 dark:via-gray-800/10 dark:to-slate-900">
             <div className="max-w-5xl mx-auto px-6 py-12">
               {/* Header Skeleton */}
               <div className="mb-10">
@@ -232,7 +232,7 @@ function SurveyEditorContent() {
       <AppSidebar />
       <SidebarInset>
         <SiteHeader />
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-100 dark:from-slate-950 dark:via-blue-950/10 dark:to-slate-900">
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-800/20 to-slate-100 dark:from-slate-950 dark:via-gray-800/10 dark:to-slate-900">
           <div className="max-w-5xl mx-auto px-6 py-12">
         {/* Premium Header */}
         <div className="mb-10">
@@ -240,16 +240,16 @@ function SurveyEditorContent() {
             <div className="space-y-4 flex-1">
               <div className="flex items-center gap-4">
                 <div className="relative">
-                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl blur-xl opacity-25"></div>
-                  <div className="relative p-4 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 shadow-xl">
+                  <div className="absolute inset-0 bg-gray-900 rounded-2xl blur-xl opacity-25"></div>
+                  <div className="relative p-4 rounded-2xl bg-gray-900 shadow-xl">
                     <ClipboardList className="w-8 h-8 text-white" />
                   </div>
                 </div>
                 <div>
-                  <h1 className="text-4xl font-black bg-gradient-to-r from-slate-900 via-blue-900 to-purple-900 dark:from-slate-100 dark:via-blue-100 dark:to-purple-100 bg-clip-text text-transparent">
+                  <h1 className="text-4xl font-black bg-gradient-to-r from-slate-900 via-gray-800 to-gray-900 dark:from-slate-100 dark:via-gray-800 dark:to-gray-900 bg-clip-text text-transparent">
                     Survey Configuration
                   </h1>
-                  <Badge className="mt-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white border-0 shadow-md">
+                  <Badge className="mt-2 bg-gray-900 text-white border-0 shadow-md">
                     📚 Module: {module.name}
                   </Badge>
                 </div>
@@ -264,7 +264,7 @@ function SurveyEditorContent() {
                 onClick={handleSave}
                 disabled={saving}
                 size="lg"
-                className="shadow-xl hover:shadow-2xl transition-all bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 border-0 px-8 font-semibold"
+                className="shadow-xl hover:shadow-2xl transition-all bg-gray-900 hover:from-gray-800 hover:to-gray-900 border-0 px-8 font-semibold"
               >
                 {saving ? (
                   <>
@@ -321,18 +321,18 @@ function SurveyEditorContent() {
         )}
 
         {/* Survey Questions */}
-        <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50/30 to-cyan-50/20 dark:from-blue-950/20 dark:to-cyan-950/10 shadow-lg">
-          <CardHeader className="border-b-2 border-blue-200 dark:border-blue-700 bg-gradient-to-r from-blue-100/50 to-cyan-100/50 dark:from-blue-900/40 dark:to-cyan-900/30">
+        <Card className="border-2 border-gray-200 dark:border-blue-800 bg-gradient-to-br from-gray-800/30 to-cyan-50/20 dark:from-gray-800/20 dark:to-cyan-950/10 shadow-lg">
+          <CardHeader className="border-b-2 border-gray-200 dark:border-blue-700 bg-gradient-to-r from-gray-800/50 to-cyan-100/50 dark:from-gray-800/40 dark:to-cyan-900/30">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-600 shadow-lg">
+                <div className="p-3 rounded-xl bg-gradient-to-br from-gray-800 to-cyan-600 shadow-lg">
                   <MessageSquare className="w-6 h-6 text-white" />
                 </div>
                 <div>
                   <CardTitle className="text-xl font-bold text-blue-900 dark:text-blue-100">
                     Survey Questions
                   </CardTitle>
-                  <CardDescription className="text-blue-800 dark:text-blue-300 mt-1">
+                  <CardDescription className="text-blue-800 dark:text-gray-400 mt-1">
                     Add and customize survey questions for student feedback
                   </CardDescription>
                 </div>
@@ -340,7 +340,7 @@ function SurveyEditorContent() {
               <Button
                 onClick={handleAddQuestion}
                 size="lg"
-                className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-md hover:shadow-lg transition-all"
+                className="bg-gradient-to-r from-gray-800 to-cyan-600 hover:from-gray-800 hover:to-cyan-700 text-white shadow-md hover:shadow-lg transition-all"
               >
                 <Plus className="w-4 h-4 mr-2" />
                 Add Question
@@ -350,16 +350,16 @@ function SurveyEditorContent() {
           <CardContent className="pt-6">
             <div className="space-y-6">
               {surveyQuestions.length === 0 ? (
-                <div className="text-center py-16 border-2 border-dashed border-blue-300 dark:border-blue-700 rounded-xl bg-gradient-to-br from-blue-50/50 to-cyan-50/30 dark:from-blue-950/10 dark:to-cyan-950/10">
-                  <div className="mb-4 p-4 rounded-full bg-blue-100 dark:bg-blue-900/30 w-20 h-20 flex items-center justify-center mx-auto">
-                    <ClipboardList className="w-10 h-10 text-blue-600 dark:text-blue-400" />
+                <div className="text-center py-16 border-2 border-dashed border-gray-300 dark:border-blue-700 rounded-xl bg-gradient-to-br from-gray-800/50 to-cyan-50/30 dark:from-gray-800/10 dark:to-cyan-950/10">
+                  <div className="mb-4 p-4 rounded-full bg-gray-100 dark:bg-gray-900/30 w-20 h-20 flex items-center justify-center mx-auto">
+                    <ClipboardList className="w-10 h-10 text-gray-700 dark:text-gray-500" />
                   </div>
                   <p className="text-blue-900 dark:text-blue-100 font-semibold mb-2 text-lg">No survey questions yet</p>
-                  <p className="text-blue-700 dark:text-blue-300 mb-6 text-sm">Create your first question to start gathering student feedback</p>
+                  <p className="text-gray-800 dark:text-gray-400 mb-6 text-sm">Create your first question to start gathering student feedback</p>
                   <Button
                     onClick={handleAddQuestion}
                     size="lg"
-                    className="bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white shadow-lg hover:shadow-xl transition-all"
+                    className="bg-gradient-to-r from-gray-800 to-cyan-600 hover:from-gray-800 hover:to-cyan-700 text-white shadow-lg hover:shadow-xl transition-all"
                   >
                     <Plus className="w-5 h-5 mr-2" />
                     Add Your First Question
@@ -369,17 +369,17 @@ function SurveyEditorContent() {
                 surveyQuestions.map((question, index) => (
                   <Card
                     key={index}
-                    className="border-2 border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-600 transition-all duration-300 bg-white dark:bg-slate-900 shadow-md hover:shadow-xl"
+                    className="border-2 border-slate-200 dark:border-slate-700 hover:border-gray-300 dark:hover:border-gray-300 transition-all duration-300 bg-white dark:bg-slate-900 shadow-md hover:shadow-xl"
                   >
                     <CardContent className="pt-6">
                       <div className="space-y-4">
                         {/* Question Header */}
                         <div className="flex items-start justify-between gap-4">
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 cursor-move transition-colors">
-                              <GripVertical className="w-5 h-5 text-blue-700 dark:text-blue-400" />
+                            <div className="p-2 rounded-lg bg-gray-100 dark:bg-gray-900/30 hover:bg-blue-200 dark:hover:bg-gray-900/50 cursor-move transition-colors">
+                              <GripVertical className="w-5 h-5 text-gray-800 dark:text-gray-500" />
                             </div>
-                            <Badge className="bg-gradient-to-r from-blue-600 to-cyan-600 text-white border-0 px-3 py-1.5 shadow-md text-sm">
+                            <Badge className="bg-gradient-to-r from-gray-800 to-cyan-600 text-white border-0 px-3 py-1.5 shadow-md text-sm">
                               Question {index + 1}
                             </Badge>
                           </div>
@@ -403,7 +403,7 @@ function SurveyEditorContent() {
                             value={question.question}
                             onChange={(e) => handleQuestionChange(index, 'question', e.target.value)}
                             placeholder="Enter your survey question..."
-                            className="mt-2 border-2 border-slate-200 dark:border-slate-700 focus:border-blue-400 dark:focus:border-blue-600 transition-colors"
+                            className="mt-2 border-2 border-slate-200 dark:border-slate-700 focus:border-gray-300 dark:focus:border-blue-600 transition-colors"
                             rows={3}
                           />
                         </div>
@@ -418,13 +418,13 @@ function SurveyEditorContent() {
                             value={question.placeholder || ''}
                             onChange={(e) => handleQuestionChange(index, 'placeholder', e.target.value)}
                             placeholder="Hint text for students..."
-                            className="mt-2 border-2 border-slate-200 dark:border-slate-700 focus:border-blue-400 dark:focus:border-blue-600 transition-colors"
+                            className="mt-2 border-2 border-slate-200 dark:border-slate-700 focus:border-gray-300 dark:focus:border-blue-600 transition-colors"
                           />
                         </div>
 
                         {/* Question Type & Required */}
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div className="p-4 rounded-lg bg-gradient-to-br from-slate-50 to-blue-50 dark:from-slate-800/50 dark:to-blue-900/20 border-2 border-slate-200 dark:border-slate-700">
+                          <div className="p-4 rounded-lg bg-gradient-to-br from-slate-50 to-gray-900 dark:from-slate-800/50 dark:to-gray-900/20 border-2 border-slate-200 dark:border-slate-700">
                             <Label htmlFor={`type-${index}`} className="text-sm font-bold text-slate-900 dark:text-slate-100">
                               Answer Type
                             </Label>
@@ -432,14 +432,14 @@ function SurveyEditorContent() {
                               id={`type-${index}`}
                               value={question.type}
                               onChange={(e) => handleQuestionChange(index, 'type', e.target.value)}
-                              className="w-full mt-2 px-3 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 font-medium focus:border-blue-400 dark:focus:border-blue-600 transition-colors"
+                              className="w-full mt-2 px-3 py-2.5 border-2 border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-900 font-medium focus:border-gray-300 dark:focus:border-blue-600 transition-colors"
                             >
                               <option value="short">📝 Short Answer (1 line)</option>
                               <option value="long">📄 Long Answer (Multi-line)</option>
                             </select>
                           </div>
 
-                          <div className="p-4 rounded-lg bg-gradient-to-br from-slate-50 to-purple-50 dark:from-slate-800/50 dark:to-purple-900/20 border-2 border-slate-200 dark:border-slate-700">
+                          <div className="p-4 rounded-lg bg-gradient-to-br from-slate-50 to-gray-900 dark:from-slate-800/50 dark:to-gray-900/20 border-2 border-slate-200 dark:border-slate-700">
                             <Label className="text-sm font-bold text-slate-900 dark:text-slate-100 block mb-3">
                               Options
                             </Label>
@@ -472,7 +472,7 @@ function SurveyEditorContent() {
               onClick={handleSave}
               disabled={saving}
               size="lg"
-              className="shadow-xl hover:shadow-2xl transition-all bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 border-0 px-10 py-6 font-bold text-base"
+              className="shadow-xl hover:shadow-2xl transition-all bg-gray-900 hover:from-gray-800 hover:to-gray-900 border-0 px-10 py-6 font-bold text-base"
             >
               {saving ? (
                 <>
@@ -525,7 +525,7 @@ function SurveyEditorContent() {
                   {surveyQuestions.map((question, index) => (
                     <div key={index} className="space-y-3">
                       <Label className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-blue-600 text-white text-sm font-bold">
+                        <span className="flex items-center justify-center w-7 h-7 rounded-full bg-gray-900 text-white text-sm font-bold">
                           {index + 1}
                         </span>
                         {question.question}
@@ -562,7 +562,7 @@ function SurveyEditorContent() {
                   <Button
                     disabled
                     size="lg"
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white shadow-lg"
+                    className="w-full bg-gray-900 text-white shadow-lg"
                   >
                     <CheckCircle className="w-5 h-5 mr-2" />
                     Submit Survey

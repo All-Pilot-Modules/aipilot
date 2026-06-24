@@ -20,10 +20,10 @@ export default function LoginForm() {
   const { login } = useAuth();
   const router = useRouter();
 
-  // Prefetch the dashboard page when user starts typing for instant navigation
   useEffect(() => {
     if (identifier || password) {
-      router.prefetch('/mymodules');
+      router.prefetch('/dashboard');
+      router.prefetch('/student-dashboard');
     }
   }, [identifier, password, router]);
 
@@ -38,11 +38,11 @@ export default function LoginForm() {
     setError('');
 
     try {
-      await login(identifier, password);
-
-      // Use window.location for navigation to ensure full page reload
-      // This ensures AuthContext reinitializes with the user data from sessionStorage
-      window.location.href = '/mymodules';
+      const result = await login(identifier, password);
+      const role = result?.user?.role;
+      window.location.href = (role === 'teacher' || role === 'admin')
+        ? '/mymodules'
+        : '/student-dashboard';
     } catch (error) {
       console.error('Login error:', error);
 

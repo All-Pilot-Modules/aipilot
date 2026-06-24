@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server';
 import { jwtDecode } from 'jwt-decode';
 
-const protectedRoutes = ['/dashboard', '/forum', '/mymodules'];
-const adminRoutes = ['/dashboard/admin'];
-const teacherRoutes = ['/dashboard/teacher'];
+const protectedRoutes  = ['/dashboard', '/forum', '/mymodules', '/student-dashboard'];
+const adminRoutes      = ['/dashboard/admin'];
+const teacherRoutes    = ['/dashboard/teacher'];
+const studentOnlyRoutes  = ['/student-dashboard'];
+const teacherOnlyRoutes  = ['/dashboard'];
 
 function isProtectedRoute(pathname) {
   return protectedRoutes.some(route => pathname.startsWith(route));
@@ -57,21 +59,26 @@ export default async function middleware(request) {
         return response;
       }
 
-      // Role-Based Access Control (RBAC)
       const userRole = decoded.role;
 
-      // Check admin routes
-      if (isAdminRoute(pathname)) {
-        if (userRole !== 'admin') {
-          return NextResponse.redirect(new URL('/dashboard', request.url));
-        }
+      // Admin-only routes
+      if (isAdminRoute(pathname) && userRole !== 'admin') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
       }
 
-      // Check teacher routes
-      if (isTeacherRoute(pathname)) {
-        if (userRole !== 'teacher' && userRole !== 'admin') {
-          return NextResponse.redirect(new URL('/dashboard', request.url));
-        }
+      // Teacher-only sub-routes
+      if (isTeacherRoute(pathname) && userRole !== 'teacher' && userRole !== 'admin') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
+      }
+
+      // Students cannot access /dashboard — send them to their own dashboard
+      if (teacherOnlyRoutes.some(r => pathname.startsWith(r)) && userRole === 'student') {
+        return NextResponse.redirect(new URL('/student-dashboard', request.url));
+      }
+
+      // Teachers/admins cannot access /student-dashboard — send them to /dashboard
+      if (studentOnlyRoutes.some(r => pathname.startsWith(r)) && userRole !== 'student') {
+        return NextResponse.redirect(new URL('/dashboard', request.url));
       }
 
       // Add user role to request headers for use in pages

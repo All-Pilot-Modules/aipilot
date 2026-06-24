@@ -3,8 +3,8 @@ Question-specific grading logic for different question types
 """
 import logging
 from typing import Dict, Any, List, Optional
-import openai
-from app.core.config import OPENAI_API_KEY, LLM_MODEL
+from app.core.config import OPENAI_API_KEYS, LLM_MODEL
+from app.services.openai_client import OpenAIClientWithRetry
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +12,7 @@ class QuestionGradingService:
     """Service for grading different question types"""
 
     def __init__(self):
-        self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        self.client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS, default_model=LLM_MODEL)
         self.default_model = LLM_MODEL
 
     def grade_fill_blank(
@@ -136,8 +136,7 @@ Response (YES or NO):"""
 
             logger.info(f"🤖 AI Semantic Check: '{student_answer}' vs {correct_answers}")
 
-            response = self.client.chat.completions.create(
-                model=self.default_model,
+            response = self.client.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
                 temperature=0.1,
                 max_tokens=10

@@ -4,8 +4,14 @@ import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import Image from 'next/image';
 import { FadeIn, SlideInLeft, SlideInRight, ScaleIn, Float } from './AnimationWrapper';
+import { useAuth } from '@/context/AuthContext';
 
 export default function HeroSection() {
+  const { user, isAuthenticated } = useAuth();
+
+  const dashboardHref = user?.role === 'student' ? '/student-dashboard' : '/mymodules';
+  const dashboardLabel = user?.role === 'student' ? 'Go to My Dashboard' : 'Go to Dashboard';
+
   return (
     <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 px-4 py-12 md:py-20">
       <div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 lg:gap-20 items-center">
@@ -68,22 +74,32 @@ export default function HeroSection() {
           </FadeIn>
 
           <FadeIn delay={0.6} duration={0.8} className="flex flex-col gap-3 sm:gap-4 w-full max-w-sm">
-            {/* Primary Action - Brand Emerald Green */}
-            <Button
-              asChild
-              className="h-12 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all rounded-2xl text-base sm:text-lg font-bold uppercase tracking-wider shadow-lg"
-            >
-              <Link href="/sign-up">Get Started</Link>
-            </Button>
-
-            {/* Secondary Action - Outline Style */}
-            <Button
-              asChild
-              variant="outline"
-              className="h-12 sm:h-14 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-400 border-2 border-b-4 border-emerald-700 dark:border-emerald-600 hover:border-emerald-800 active:border-b-2 active:translate-y-1 transition-all rounded-2xl text-base sm:text-lg font-bold uppercase tracking-wider"
-            >
-              <Link href="/sign-in">I already have an account</Link>
-            </Button>
+            {isAuthenticated ? (
+              /* Logged-in: single CTA to their dashboard */
+              <Button
+                asChild
+                className="h-12 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all rounded-2xl text-base sm:text-lg font-bold uppercase tracking-wider shadow-lg"
+              >
+                <Link href={dashboardHref}>{dashboardLabel}</Link>
+              </Button>
+            ) : (
+              /* Not logged-in: sign-up + sign-in */
+              <>
+                <Button
+                  asChild
+                  className="h-12 sm:h-14 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 text-white border-b-4 border-emerald-800 active:border-b-0 active:translate-y-1 transition-all rounded-2xl text-base sm:text-lg font-bold uppercase tracking-wider shadow-lg"
+                >
+                  <Link href="/sign-up">Get Started</Link>
+                </Button>
+                <Button
+                  asChild
+                  variant="outline"
+                  className="h-12 sm:h-14 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-400 border-2 border-b-4 border-emerald-700 dark:border-emerald-600 hover:border-emerald-800 active:border-b-2 active:translate-y-1 transition-all rounded-2xl text-base sm:text-lg font-bold uppercase tracking-wider"
+                >
+                  <Link href="/sign-in">I already have an account</Link>
+                </Button>
+              </>
+            )}
           </FadeIn>
         </SlideInRight>
 

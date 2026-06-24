@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, ForeignKey, TIMESTAMP, UniqueConstraint, 
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class ConsentStatus:
@@ -20,13 +20,13 @@ class StudentEnrollment(Base):
     student_id = Column(String, nullable=False)  # Banner ID - student identifier
     module_id = Column(UUID(as_uuid=True), ForeignKey("modules.id", ondelete="CASCADE"), nullable=False)
 
-    enrolled_at = Column(TIMESTAMP, default=datetime.utcnow)
+    enrolled_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc))
     access_code_used = Column(String, nullable=False)  # The access code used to join
 
     # Consent/Waiver status for research participation
     # 1=Agree to research, 2=Not agree, 3=Not eligible, NULL=Not yet submitted
     waiver_status = Column(Integer, nullable=True, default=None)
-    consent_submitted_at = Column(TIMESTAMP, nullable=True)
+    consent_submitted_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     # Ensure a student can only be enrolled once per module
     __table_args__ = (

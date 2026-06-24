@@ -12,9 +12,17 @@ import os
 load_dotenv()
 
 # === Environment Variables ===
+# Support multiple OpenAI keys for rate-limit distribution.
+# Set OPENAI_API_KEY_2, OPENAI_API_KEY_3, etc. in Cloud Run env vars.
+# The client will round-robin across all available keys.
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+_extra_keys = [
+    os.getenv(f"OPENAI_API_KEY_{i}") for i in range(2, 6)
+    if os.getenv(f"OPENAI_API_KEY_{i}")
+]
+OPENAI_API_KEYS: list[str] = [k for k in [OPENAI_API_KEY] + _extra_keys if k]
 EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-ada-002")
-LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4")
+LLM_MODEL = os.getenv("LLM_MODEL", "gpt-4o-mini")
 UPLOAD_DIR = os.getenv("UPLOAD_DIR", "uploads")
 INDEX_DIR = os.getenv("INDEX_DIR", "index_store")
 PARSED_DOC_DIR = os.getenv("PARSED_DOC_DIR", "parsed_docs")
@@ -84,9 +92,18 @@ print(f"☁️  Supabase: {'✅ Set' if SUPABASE_URL and SUPABASE_SERVICE_KEY el
 
 # === CORS Setup ===
 def add_cors(app: FastAPI):
+    # "allow_origins=['*']" + "allow_credentials=True" is rejected by browsers.
+    # Always list explicit origins when credentials are enabled.
+    origins = [
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ]
+    if FRONTEND_URL and FRONTEND_URL not in origins:
+        origins.append(FRONTEND_URL)
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Use domain in production
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

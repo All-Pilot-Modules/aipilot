@@ -19,7 +19,7 @@ from app.core.config import (
 import random
 import string
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 
 def generate_verification_code() -> str:
@@ -34,22 +34,22 @@ def generate_verification_token() -> str:
 
 def get_verification_code_expiry() -> datetime:
     """Get expiry time for verification code (15 minutes from now)."""
-    return datetime.utcnow() + timedelta(minutes=15)
+    return datetime.now(timezone.utc) + timedelta(minutes=15)
 
 
 def get_verification_token_expiry() -> datetime:
     """Get expiry time for verification token (24 hours from now)."""
-    return datetime.utcnow() + timedelta(hours=24)
+    return datetime.now(timezone.utc) + timedelta(hours=24)
 
 
 def get_reset_code_expiry() -> datetime:
     """Get expiry time for password reset code (15 minutes from now)."""
-    return datetime.utcnow() + timedelta(minutes=15)
+    return datetime.now(timezone.utc) + timedelta(minutes=15)
 
 
 def get_reset_token_expiry() -> datetime:
     """Get expiry time for password reset token (15 minutes from now)."""
-    return datetime.utcnow() + timedelta(minutes=15)
+    return datetime.now(timezone.utc) + timedelta(minutes=15)
 
 
 def create_verification_email_html(username: str, code: str, token: str) -> str:
@@ -142,7 +142,8 @@ def create_verification_email_html(username: str, code: str, token: str) -> str:
 
             <div class="footer">
                 <p>If you didn't sign up for this account, you can safely ignore this email.</p>
-                <p>Need help? Contact our support team.</p>
+                <p>Since we are still developing it. if you find any fault or Need help or anything else Contact nyu@brockport.edu or ykhat1@brockport.edu.</p>
+              
             </div>
         </div>
     </body>
@@ -307,7 +308,7 @@ def send_welcome_email(to_email: str, username: str) -> bool:
 
         Visit your dashboard: {FRONTEND_URL}/dashboard
 
-        Happy learning!
+        Happy learning, special good wishes from the dev!❤️❤️❤️
         """
 
         part1 = MIMEText(text_content, 'plain')

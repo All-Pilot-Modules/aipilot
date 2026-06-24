@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Integer, Boolean, TIMESTAMP, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class QuestionQueue(Base):
@@ -16,5 +16,5 @@ class QuestionQueue(Base):
     attempts = Column(Integer, default=0)
     is_mastered = Column(Boolean, default=False)
     streak_count = Column(Integer, default=0)
-    last_attempt_at = Column(TIMESTAMP, nullable=True)
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    last_attempt_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc))

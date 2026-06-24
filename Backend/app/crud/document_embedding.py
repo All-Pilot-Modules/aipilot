@@ -54,6 +54,7 @@ def bulk_create_embeddings(
         embedding = DocumentEmbedding(
             chunk_id=data['chunk_id'],
             document_id=data['document_id'],
+            module_id=data.get('module_id'),
             embedding_vector=data['embedding_vector'],
             embedding_model=data.get('embedding_model', 'text-embedding-ada-002'),
             embedding_dimensions=data.get('embedding_dimensions', 1536),

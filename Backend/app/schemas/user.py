@@ -6,13 +6,14 @@ class UserBase(BaseModel):
     username: Optional[str] = None
     email: Optional[str] = None
     profile_image: Optional[str] = None
-    role: Optional[str] = None  # ✅ Now optional
+    role: Optional[str] = None
 
 class UserCreate(UserBase):
-    id: Optional[str] = None  # Auto-generated if not provided
-    username: str  # Required
-    email: str     # Required
-    password: str  # Required password for registration
+    username: str
+    email: str
+    password: str
+    banner_id: Optional[str] = None           # institutional ID (optional)
+    can_create_modules: Optional[bool] = None  # defaults by role if not set
 
 class UserUpdate(BaseModel):
     username: Optional[str] = None
@@ -20,9 +21,13 @@ class UserUpdate(BaseModel):
     profile_image: Optional[str] = None
     role: Optional[str] = None
     is_active: Optional[bool] = None
+    banner_id: Optional[str] = None
+    can_create_modules: Optional[bool] = None
 
 class UserOut(UserBase):
     id: str
+    banner_id: Optional[str] = None
+    can_create_modules: bool
     created_at: datetime
     updated_at: datetime
     is_active: bool
@@ -31,19 +36,20 @@ class UserOut(UserBase):
     class Config:
         from_attributes = True
 
-# Auth-specific schemas
 class UserLogin(BaseModel):
-    identifier: str  # Can be Banner ID or email
+    identifier: str  # email or username
     password: str
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: Optional[str] = None
     token_type: str = "bearer"
+    expires_in: Optional[int] = None
+    user: Optional[dict] = None
 
 class TokenData(BaseModel):
     user_id: Optional[str] = None
 
-# Password Reset schemas
 class PasswordResetRequest(BaseModel):
     email: str
 

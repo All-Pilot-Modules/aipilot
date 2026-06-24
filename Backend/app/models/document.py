@@ -2,7 +2,7 @@ from sqlalchemy import Boolean, Column, String, Integer, TIMESTAMP, ForeignKey, 
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class ProcessingStatus:
@@ -49,7 +49,7 @@ class Document(Base):
     parse_error = Column(String, nullable=True)
     is_testbank = Column(Boolean, default=False)
 
-    uploaded_at = Column(TIMESTAMP, default=datetime.utcnow)
+    uploaded_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         UniqueConstraint('teacher_id', 'file_hash', 'module_id', name='uix_teacher_filehash'),

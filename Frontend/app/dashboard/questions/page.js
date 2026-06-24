@@ -85,6 +85,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
   const [unreviewedCount, setUnreviewedCount] = useState(0);
   const [moduleRubric, setModuleRubric] = useState(null);
   const [loadingQuestions, setLoadingQuestions] = useState(true);
+  const [fetchError, setFetchError] = useState(null);
 
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
@@ -178,7 +179,17 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
         setModuleRubric(rubricData?.rubric || null);
       }
     } catch (error) {
-      console.error('Failed to fetch module or questions:', error);
+      const isNetworkError = error.message?.includes('Failed to fetch') ||
+        error.message?.includes('fetch') ||
+        error.message?.includes('network') ||
+        error.message?.includes('timed out') ||
+        error.name === 'TypeError';
+
+      if (isNetworkError) {
+        setFetchError('Unable to connect to the server. Make sure the backend is running.');
+      } else {
+        setFetchError(error.message || 'Failed to load questions.');
+      }
       setQuestions([]);
     } finally {
       setLoadingQuestions(false);
@@ -415,17 +426,17 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
   const getQuestionIcon = (type) => {
     switch (type) {
       case 'mcq':
-        return <CheckCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
+        return <CheckCircle className="w-5 h-5 text-gray-900 dark:text-gray-300" />;
       case 'mcq_multiple':
         return <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />;
       case 'fill_blank':
         return <FileText className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />;
       case 'multi_part':
-        return <AlignLeft className="w-5 h-5 text-purple-600 dark:text-purple-400" />;
+        return <AlignLeft className="w-5 h-5 text-gray-700 dark:text-gray-400" />;
       case 'short':
-        return <MessageCircle className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
+        return <MessageCircle className="w-5 h-5 text-gray-900 dark:text-gray-300" />;
       case 'long':
-        return <AlignLeft className="w-5 h-5 text-blue-600 dark:text-blue-400" />;
+        return <AlignLeft className="w-5 h-5 text-gray-900 dark:text-gray-300" />;
       default:
         return <HelpCircle className="w-5 h-5 text-gray-500" />;
     }
@@ -434,13 +445,13 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
   const getQuestionTypeBadge = (type) => {
     switch (type) {
       case 'mcq':
-        return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300 border-0";
+        return "bg-gray-100 text-blue-800 dark:bg-muted/20 dark:text-gray-400 border-0";
       case 'mcq_multiple':
         return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-0";
       case 'fill_blank':
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-0";
       case 'multi_part':
-        return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300 border-0";
+        return "bg-gray-100 text-purple-800 dark:bg-muted/20 dark:text-gray-400 border-0";
       case 'short':
         return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300 border-0";
       case 'long':
@@ -1034,6 +1045,28 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
         <SiteHeader />
         <div className="min-h-screen bg-background">
           <div className="max-w-7xl mx-auto px-6 py-12">
+
+            {/* Network / server error banner */}
+            {fetchError && !loadingQuestions && (
+              <div className="mb-6 flex items-start gap-3 p-4 rounded-xl border border-red-200 bg-red-50 dark:bg-red-950/20 dark:border-red-900">
+                <svg className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-red-800 dark:text-red-300">{fetchError}</p>
+                  <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
+                    {fetchError.includes('connect') ? 'Start the backend with `uvicorn main:app --reload` and refresh.' : 'Refresh the page or try again.'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => { setFetchError(null); fetchModuleAndQuestions(); }}
+                  className="flex-shrink-0 text-xs font-medium text-red-700 dark:text-red-300 hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+
             {/* Header */}
             <div className="mb-10">
               <div className="flex items-center justify-between">
@@ -1078,10 +1111,10 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                     <div className="flex flex-col items-center justify-center space-y-8">
                       {/* Spinner — always purple for testbank */}
                       <div className="relative">
-                        <div className="w-32 h-32 border-8 border-purple-200/30 rounded-full"></div>
+                        <div className="w-32 h-32 border-8 border-gray-200/30 rounded-full"></div>
                         <div className="w-32 h-32 border-8 border-purple-600 border-t-transparent rounded-full animate-spin absolute top-0"></div>
                         <div className="w-24 h-24 border-4 border-pink-500/40 border-b-transparent rounded-full animate-spin absolute top-4 left-4" style={{ animationDuration: '3s', animationDirection: 'reverse' }}></div>
-                        <Sparkles className="w-12 h-12 text-purple-600 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                        <Sparkles className="w-12 h-12 text-gray-700 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                       </div>
                       <div className="text-center space-y-3">
                         <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 bg-clip-text text-transparent">
@@ -1097,15 +1130,15 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           {uploadStage === 3 && 'Saving questions to your question bank...'}
                         </p>
                         {uploadForm.file && (
-                          <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl inline-block">
+                          <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-purple-950/30 border border-gray-200 dark:border-border rounded-xl inline-block">
                             <div className="flex items-center gap-3 mb-3">
-                              <FileCheck className="w-6 h-6 text-purple-600" />
+                              <FileCheck className="w-6 h-6 text-gray-700" />
                               <p className="text-base font-semibold">{uploadForm.file.name}</p>
                             </div>
                             <p className="text-sm text-muted-foreground">{formatFileSize(uploadForm.file.size)}</p>
-                            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-purple-200/50 dark:bg-purple-900/50 rounded-full">
-                              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
-                              <span className="text-sm font-semibold text-purple-700 dark:text-purple-300">Testbank File</span>
+                            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-purple-200/50 dark:bg-muted/20 rounded-full">
+                              <Sparkles className="w-4 h-4 text-gray-700 dark:text-gray-400" />
+                              <span className="text-sm font-semibold text-gray-800 dark:text-gray-400">Testbank File</span>
                             </div>
                           </div>
                         )}
@@ -1115,12 +1148,12 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         {[{ icon: Upload, label: 'Upload' }, { icon: FileText, label: 'Extract' }, { icon: Cpu, label: 'Parse' }, { icon: CheckCircle, label: 'Save' }].map((step, i) => (
                           <div key={i} className="flex items-center">
                             <div className="flex flex-col items-center gap-2">
-                              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${uploadStage >= i ? 'bg-purple-600 text-white scale-110' : 'bg-muted text-muted-foreground'}`}>
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${uploadStage >= i ? 'bg-gray-900 text-white scale-110' : 'bg-muted text-muted-foreground'}`}>
                                 <step.icon className="w-6 h-6" />
                               </div>
-                              <span className={`text-xs font-medium ${uploadStage >= i ? 'text-purple-600' : 'text-muted-foreground'}`}>{step.label}</span>
+                              <span className={`text-xs font-medium ${uploadStage >= i ? 'text-gray-700' : 'text-muted-foreground'}`}>{step.label}</span>
                             </div>
-                            {i < 3 && <div className={`w-12 h-1 rounded-full mx-2 transition-all ${uploadStage > i ? 'bg-purple-600' : 'bg-muted'}`}></div>}
+                            {i < 3 && <div className={`w-12 h-1 rounded-full mx-2 transition-all ${uploadStage > i ? 'bg-gray-900' : 'bg-muted'}`}></div>}
                           </div>
                         ))}
                       </div>
@@ -1130,7 +1163,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   <>
                     <DialogHeader>
                       <DialogTitle className="text-2xl flex items-center gap-2">
-                        <Sparkles className="w-6 h-6 text-purple-600" />
+                        <Sparkles className="w-6 h-6 text-gray-700" />
                         Import Testbank
                       </DialogTitle>
                       <DialogDescription>
@@ -1154,15 +1187,15 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           required
                         />
                         {uploadForm.file && (
-                          <div className={`mt-2 p-3 rounded-lg border ${isTestbank ? 'bg-purple-50 dark:bg-purple-950/20 border-purple-200 dark:border-purple-800' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'}`}>
+                          <div className={`mt-2 p-3 rounded-lg border ${isTestbank ? 'bg-gray-50 dark:bg-muted/20/20 border-gray-200 dark:border-border' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'}`}>
                             <div className="flex items-center gap-2 text-sm">
-                              <FileCheck className={`w-4 h-4 ${isTestbank ? 'text-purple-500' : 'text-red-500'}`} />
+                              <FileCheck className={`w-4 h-4 ${isTestbank ? 'text-gray-600' : 'text-red-500'}`} />
                               <span className="font-medium">{uploadForm.file.name}</span>
                               <span className="text-muted-foreground ml-auto">{formatFileSize(uploadForm.file.size)}</span>
                             </div>
                             {isTestbank ? (
                               <div className="mt-2 flex items-center gap-2">
-                                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400 border-purple-200 dark:border-purple-800">
+                                <Badge className="bg-gray-100 text-gray-800 dark:bg-muted/20 dark:text-gray-400 border-gray-200 dark:border-border">
                                   <Sparkles className="w-3 h-3 mr-1" />
                                   Testbank Detected
                                 </Badge>
@@ -1195,7 +1228,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         <Button
                           type="submit"
                           disabled={!uploadForm.file || !isTestbank}
-                          className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50"
+                          className="bg-gray-900 hover:bg-gray-800 disabled:opacity-50"
                         >
                           <Sparkles className="w-4 h-4 mr-2" />
                           Import Testbank
@@ -1209,11 +1242,11 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
             {/* Unreviewed Questions Alert */}
             {unreviewedCount > 0 && (
-              <Card className="mb-6 border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/20">
+              <Card className="mb-6 border-gray-200 dark:border-border bg-gray-50 dark:bg-muted/20/20">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-purple-500 rounded-full flex items-center justify-center">
+                      <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center">
                         <Sparkles className="w-5 h-5 text-white" />
                       </div>
                       <div>
@@ -1221,18 +1254,18 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           <h3 className="font-semibold text-purple-900 dark:text-purple-100">
                             {unreviewedCount} AI-Generated Question{unreviewedCount > 1 ? 's' : ''} Pending Review
                           </h3>
-                          <Badge className="bg-purple-600 text-white">
+                          <Badge className="bg-gray-900 text-white">
                             {unreviewedCount}
                           </Badge>
                         </div>
-                        <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                        <p className="text-sm text-gray-800 dark:text-gray-400 mt-1">
                           Review and approve AI-generated questions before they become available to students
                         </p>
                       </div>
                     </div>
                     <Button
                       asChild
-                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                      className="bg-gray-900 hover:bg-gray-800 text-white"
                     >
                       <Link href={`/dashboard/questions/review?module_id=${currentModule?.id}&module_name=${encodeURIComponent(moduleName)}&status=unreviewed`}>
                         <AlertCircle className="w-4 h-4 mr-2" />
@@ -1251,7 +1284,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
               <div className="lg:col-span-4">
                 <Card className={`sticky top-6 max-h-[calc(100vh-8rem)] overflow-hidden flex flex-col ${isEditOpen ? 'opacity-50 pointer-events-none' : ''}`}>
                   <CardHeader className="flex-shrink-0">
-                    <CardTitle className="text-lg text-blue-600 dark:text-blue-400 flex items-center gap-2">
+                    <CardTitle className="text-lg text-gray-900 dark:text-gray-300 flex items-center gap-2">
                       <Plus className="w-5 h-5" />
                       Create New Question
                     </CardTitle>
@@ -1259,8 +1292,8 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   </CardHeader>
                   <CardContent className="overflow-y-auto flex-1">
                     <form onSubmit={handleCreate} className="space-y-4">
-                      <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                        <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                      <div className="p-3 bg-gray-50 dark:bg-muted/20/20 rounded-lg border border-gray-200 dark:border-border">
+                        <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-400">
                           <BookOpen className="w-4 h-4" />
                           <span>Module: <strong>{moduleName}</strong></span>
                         </div>
@@ -1372,7 +1405,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           <div className="space-y-2 mt-2">
                             {questionForm.options.map((option, index) => (
                               <div key={index} className="flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-blue-600 dark:text-blue-400">
+                                <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-gray-900 dark:text-gray-300">
                                   {String.fromCharCode(65 + index)}
                                 </span>
                                 <Input
@@ -1493,7 +1526,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       {/* Multi-Part Questions */}
                       {questionForm.type === "multi_part" && (
                         <div className="space-y-4">
-                          <div className="p-3 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                          <div className="p-3 bg-gray-50 dark:bg-muted/20/20 border border-gray-200 dark:border-border rounded-lg">
                             <p className="text-sm text-purple-800 dark:text-purple-200">
                               Create sub-questions (e.g., 1a, 1b, 1c) with different types (MCQ, Short, Long)
                             </p>
@@ -1564,7 +1597,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                               const optionValue = subQ.options?.[letter] || '';
                                               return (
                                                 <div key={letter} className="flex items-center gap-2">
-                                                  <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-xs font-medium text-purple-600 dark:text-purple-400">
+                                                  <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-purple-900 flex items-center justify-center text-xs font-medium text-gray-700 dark:text-gray-400">
                                                     {letter}
                                                   </span>
                                                   <Input
@@ -1767,7 +1800,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       </div>
 
                       <div className="pt-4 space-y-2">
-                        <Button type="submit" className="w-full bg-blue-600 hover:bg-blue-700">
+                        <Button type="submit" className="w-full bg-gray-900 hover:bg-gray-800">
                           <Plus className="w-4 h-4 mr-2" />
                           Create Question
                         </Button>
@@ -1814,14 +1847,14 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 {/* Module Statistics */}
                 {filteredQuestions.length > 0 && (
                   <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50 border-blue-200 dark:border-blue-800">
+                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50 border-gray-200 dark:border-border">
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm text-blue-700 dark:text-blue-300 font-medium">Total Questions</p>
+                            <p className="text-sm text-gray-800 dark:text-gray-400 font-medium">Total Questions</p>
                             <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{filteredQuestions.length}</p>
                           </div>
-                          <HelpCircle className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                          <HelpCircle className="w-8 h-8 text-gray-900 dark:text-gray-300" />
                         </div>
                       </CardContent>
                     </Card>
@@ -1840,16 +1873,16 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50 border-purple-200 dark:border-purple-800">
+                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50 border-gray-200 dark:border-border">
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm text-purple-700 dark:text-purple-300 font-medium">Question Types</p>
+                            <p className="text-sm text-gray-800 dark:text-gray-400 font-medium">Question Types</p>
                             <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
                               {[...new Set(filteredQuestions.map(q => q.type))].length}
                             </p>
                           </div>
-                          <Sparkles className="w-8 h-8 text-purple-600 dark:text-purple-400" />
+                          <Sparkles className="w-8 h-8 text-gray-700 dark:text-gray-400" />
                         </div>
                       </CardContent>
                     </Card>
@@ -1898,7 +1931,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                           <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                         <div className="flex flex-col items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 dark:bg-blue-500 flex items-center justify-center text-white font-bold text-xs sm:text-sm">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-900 dark:bg-gray-800 flex items-center justify-center text-white font-bold text-xs sm:text-sm">
                             {index + 1}
                           </div>
                           {getQuestionIcon(question.type)}
@@ -2048,14 +2081,14 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           {/* Multi-Part Questions Display */}
                           {question.type === "multi_part" && question.extended_config && question.extended_config.sub_questions && (
                             <div className="mt-3 space-y-3">
-                              <div className="text-xs font-bold text-purple-700 dark:text-purple-400 mb-2 flex items-center gap-2">
+                              <div className="text-xs font-bold text-gray-800 dark:text-gray-400 mb-2 flex items-center gap-2">
                                 <CheckCircle className="w-4 h-4" />
                                 <span>Sub-Questions:</span>
                               </div>
                               {question.extended_config.sub_questions.map((subQ, index) => (
-                                <div key={index} className="p-3 bg-purple-50 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-lg">
+                                <div key={index} className="p-3 bg-gray-50 dark:bg-muted/20/30 border border-gray-200 dark:border-border rounded-lg">
                                   <div className="flex items-start gap-2">
-                                    <span className="px-2 py-1 rounded bg-purple-500 dark:bg-purple-600 text-white text-xs font-bold flex-shrink-0">
+                                    <span className="px-2 py-1 rounded bg-gray-800 dark:bg-gray-900 text-white text-xs font-bold flex-shrink-0">
                                       {subQ.id}
                                     </span>
                                     <div className="flex-1 min-w-0">
@@ -2170,9 +2203,9 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
       {/* Edit Drawer */}
         <Drawer open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DrawerContent className="max-h-[85vh] flex flex-col">
-            <DrawerHeader className="border-b bg-blue-50 dark:bg-blue-950/30 flex-shrink-0">
+            <DrawerHeader className="border-b bg-gray-50 dark:bg-muted/20/30 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+                <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
                   <Edit3 className="w-5 h-5 text-white" />
                 </div>
                 <div>
@@ -2186,8 +2219,8 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
             <form onSubmit={handleEdit} className="flex flex-col flex-1 min-h-0">
               <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
-                <div className="p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg border border-blue-200 dark:border-blue-800">
-                  <div className="flex items-center gap-2 text-sm text-blue-700 dark:text-blue-300">
+                <div className="p-3 bg-gray-50 dark:bg-muted/20/20 rounded-lg border border-gray-200 dark:border-border">
+                  <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-400">
                     <BookOpen className="w-4 h-4" />
                     <span>Module: <strong>{moduleName}</strong></span>
                   </div>
@@ -2311,7 +2344,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                     <div className="space-y-2 mt-2">
                       {questionForm.options.map((option, index) => (
                         <div key={index} className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-blue-600 dark:text-blue-400">
+                          <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-gray-900 dark:text-gray-300">
                             {String.fromCharCode(65 + index)}
                           </span>
                           <Input
@@ -2432,7 +2465,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 {/* Multi-Part Questions */}
                 {questionForm.type === "multi_part" && (
                   <div className="space-y-4">
-                    <div className="p-3 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                    <div className="p-3 bg-gray-50 dark:bg-muted/20/20 border border-gray-200 dark:border-border rounded-lg">
                       <p className="text-sm text-purple-800 dark:text-purple-200">
                         Create sub-questions (e.g., 1a, 1b, 1c) with different types (MCQ, Short, Long)
                       </p>
@@ -2503,7 +2536,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                         const optionValue = subQ.options?.[letter] || '';
                                         return (
                                           <div key={letter} className="flex items-center gap-2">
-                                            <span className="w-6 h-6 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center text-xs font-medium text-purple-600 dark:text-purple-400">
+                                            <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-purple-900 flex items-center justify-center text-xs font-medium text-gray-700 dark:text-gray-400">
                                               {letter}
                                             </span>
                                             <Input
@@ -2712,7 +2745,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-blue-600 hover:bg-blue-700">
+                  <Button type="submit" className="bg-gray-900 hover:bg-gray-800">
                     Update Question
                   </Button>
                 </div>

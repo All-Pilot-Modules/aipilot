@@ -14,7 +14,6 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, LogOut, Settings } from 'lucide-react';
 import Link from 'next/link';
-
 export default function AuthHeader() {
   const { user, logout, loading, isAuthenticated } = useAuth();
 

@@ -4,12 +4,14 @@ Provides context-aware responses using RAG (Retrieval-Augmented Generation)
 """
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-import openai
-import os
 
 from app.models.module import Module
 from app.models.chat_message import ChatMessage
 from app.services.rag_retriever import get_context_for_feedback
+from app.core.config import OPENAI_API_KEYS, LLM_MODEL
+from app.services.openai_client import OpenAIClientWithRetry
+
+_chatbot_client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS, default_model=LLM_MODEL)
 
 
 def get_chatbot_response(
@@ -138,11 +140,9 @@ Guidelines:
 
     # Call OpenAI API
     try:
-        openai.api_key = os.getenv("OPENAI_API_KEY")
-
-        response = openai.chat.completions.create(
-            model=ai_model,
+        response = _chatbot_client.create_chat_completion(
             messages=messages,
+            model=ai_model,
             temperature=0.7,
             max_tokens=1000
         )

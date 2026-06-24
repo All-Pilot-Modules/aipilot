@@ -8,19 +8,14 @@ const isRetryableError = (error) => {
   if (!error) return false;
   const msg = error.message || '';
   return (
-    error.name === 'AbortError' ||
     error.name === 'TimeoutError' ||
     error.isTimeout === true ||
-    error.name === 'TypeError' ||
-    msg.includes('Failed to fetch') ||
-    msg.includes('fetch') ||
-    msg.includes('aborted') ||
-    msg.includes('network') ||
     msg.includes('ECONNREFUSED') ||
     msg.includes('ECONNRESET') ||
-    msg.includes('timed out') ||
-    msg.includes('timeout') ||
-    msg.includes('NetworkError')
+    msg.includes('NetworkError') ||
+    // Only match fetch-level network failures, not CORS or auth errors
+    (error.name === 'TypeError' && msg === 'Failed to fetch') ||
+    (error.name === 'AbortError' && !msg.includes('user'))
   );
 };
 
@@ -69,6 +64,7 @@ const fetchWithTimeout = async (url, options = {}, timeout = 30000, maxRetries =
 
       // Don't retry SSR errors or non-retryable errors
       if (error.message?.includes('SSR:') || !isRetryableError(error)) {
+        console.error(`[fetch] Non-retryable error (${error.name}): ${error.message} — ${url.replace(API_BASE_URL, '')}`);
         throw error;
       }
 
@@ -77,9 +73,8 @@ const fetchWithTimeout = async (url, options = {}, timeout = 30000, maxRetries =
 
       // Exponential backoff: 800ms, 2000ms
       const delay = Math.min(800 * Math.pow(2.5, attempt), 5000);
-      if (process.env.NODE_ENV === 'development') {
-        console.log(`[fetch] Retry ${attempt + 1}/${maxRetries} in ${delay}ms — ${url.replace(API_BASE_URL, '')}`);
-      }
+      console.warn(`[fetch] Retry ${attempt + 1}/${maxRetries} in ${delay}ms — ${error.name}: ${error.message} — ${url.replace(API_BASE_URL, '')}`);
+
       await new Promise(r => setTimeout(r, delay));
     }
   }
@@ -153,9 +148,11 @@ export const auth = {
 
       return data;
     } catch (error) {
-      if (error.message.includes('fetch') || error.message.includes('timeout')) {
+      if (isRetryableError(error)) {
+        console.error(`[auth.login] Connection error after retries: ${error.name}: ${error.message}`);
         throw new Error('Unable to connect to server. Please check your connection.');
       }
+      console.error(`[auth.login] ${error.name}: ${error.message}`);
       throw error;
     }
   },
@@ -183,6 +180,7 @@ export const auth = {
       const data = await response.json();
       return data;
     } catch (error) {
+      console.error(`[auth.register] ${error.name}: ${error.message}`);
       throw error;
     }
   },
@@ -247,6 +245,13 @@ export const auth = {
 
       return userData;
     } catch (error) {
+      if (isRetryableError(error)) {
+        // Transient network error — don't wipe the session, just fail silently
+        console.warn(`[auth.getCurrentUser] Transient error, session preserved: ${error.name}: ${error.message}`);
+        return null;
+      }
+      // Unexpected non-network error (e.g. JSON parse failure)
+      console.error(`[auth.getCurrentUser] Unexpected error, logging out: ${error.name}: ${error.message}`);
       this.logout();
       return null;
     }
@@ -322,6 +327,7 @@ export const auth = {
       );
 
       if (!response.ok) {
+        console.error(`[auth.refreshAccessToken] Refresh failed with HTTP ${response.status} — logging out`);
         this.logout();
         return null;
       }
@@ -335,6 +341,11 @@ export const auth = {
 
       return data.access_token;
     } catch (error) {
+      if (isRetryableError(error)) {
+        console.warn(`[auth.refreshAccessToken] Transient error, session preserved: ${error.name}: ${error.message}`);
+        return null;
+      }
+      console.error(`[auth.refreshAccessToken] Unexpected error, logging out: ${error.name}: ${error.message}`);
       this.logout();
       return null;
     }
@@ -362,6 +373,7 @@ export const auth = {
 
       return await response.json();
     } catch (error) {
+      console.error(`[auth.requestPasswordReset] ${error.name}: ${error.message}`);
       throw error;
     }
   },
@@ -388,6 +400,7 @@ export const auth = {
 
       return await response.json();
     } catch (error) {
+      console.error(`[auth.verifyResetCode] ${error.name}: ${error.message}`);
       throw error;
     }
   },
@@ -408,6 +421,7 @@ export const auth = {
 
       return await response.json();
     } catch (error) {
+      console.error(`[auth.verifyResetToken] ${error.name}: ${error.message}`);
       throw error;
     }
   },
@@ -438,6 +452,7 @@ export const auth = {
 
       return await response.json();
     } catch (error) {
+      console.error(`[auth.resetPassword] ${error.name}: ${error.message}`);
       throw error;
     }
   }
@@ -447,6 +462,7 @@ export const auth = {
 export const apiClient = {
   async request(endpoint, options = {}) {
     let token = auth.getToken();
+    
 
     // Check if token is about to expire (within 5 minutes)
     if (token) {
@@ -467,12 +483,12 @@ export const apiClient = {
     }
 
     const config = {
+      ...options,
       headers: {
         'Content-Type': 'application/json',
         ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers,
       },
-      ...options,
     };
 
     // Dynamic timeout and retries based on endpoint type
@@ -507,16 +523,14 @@ export const apiClient = {
         // Server errors that indicate a restarting/overloaded backend — retry
         if (response.status >= 502 && response.status <= 504 && attempt < retries) {
           const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-          if (process.env.NODE_ENV === 'development') {
-            console.log(`[apiClient] HTTP ${response.status} — retry ${attempt + 1}/${retries} in ${delay}ms`);
-          }
+          console.warn(`[apiClient] HTTP ${response.status} from ${endpoint} — retry ${attempt + 1}/${retries} in ${delay}ms`);
           await new Promise(r => setTimeout(r, delay));
           continue;
         }
 
         if (!response.ok) {
           if (response.status === 401) {
-            // Try to refresh token once on 401
+            console.warn(`[apiClient] 401 on ${endpoint} — attempting token refresh`);
             const newToken = await auth.refreshAccessToken();
             if (newToken) {
               config.headers['Authorization'] = `Bearer ${newToken}`;
@@ -524,6 +538,7 @@ export const apiClient = {
               if (retryResponse.ok) {
                 return retryResponse.json();
               }
+              console.error(`[apiClient] Retry after token refresh still failed on ${endpoint}: HTTP ${retryResponse.status}`);
             }
             auth.logout();
             throw new Error('Authentication required');
@@ -544,6 +559,7 @@ export const apiClient = {
             }
           }
 
+          console.error(`[apiClient] ${endpoint} → ${errorMessage}`);
           throw new Error(errorMessage);
         }
 
@@ -554,13 +570,16 @@ export const apiClient = {
 
         // Only retry on transient network errors, not on auth/validation errors
         if (!isRetryableError(error) || attempt >= retries) {
+          if (!isRetryableError(error)) {
+            console.error(`[apiClient] Non-retryable error on ${endpoint}: ${error.name}: ${error.message}`);
+          } else {
+            console.error(`[apiClient] Exhausted retries on ${endpoint}: ${error.name}: ${error.message}`);
+          }
           throw error;
         }
 
         const delay = Math.min(1000 * Math.pow(2, attempt), 5000);
-        if (process.env.NODE_ENV === 'development') {
-          console.log(`[apiClient] ${error.message} — retry ${attempt + 1}/${retries} in ${delay}ms — ${endpoint}`);
-        }
+        console.warn(`[apiClient] ${error.name}: ${error.message} on ${endpoint} — retry ${attempt + 1}/${retries} in ${delay}ms`);
         await new Promise(r => setTimeout(r, delay));
       }
     }

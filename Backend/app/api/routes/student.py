@@ -3,6 +3,9 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List, Optional
 import logging
+import uuid as uuid_lib
+
+from app.core.auth import get_current_active_user
 
 from app.schemas.student_answer import StudentAnswerCreate, StudentAnswerOut, StudentAnswerUpdate
 from app.schemas.module import ModuleOut
@@ -26,6 +29,39 @@ from app.services.feedback_worker import create_feedback_job, create_feedback_jo
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# In-process question cache
+# Questions for a module don't change during an exam. Caching for 60 s turns
+# 1000 simultaneous exam-start requests into 1 DB query + 999 cache hits.
+# ---------------------------------------------------------------------------
+import time
+from threading import Lock
+
+_question_cache: dict = {}
+_question_cache_lock = Lock()
+_QUESTION_TTL = 60  # seconds
+
+
+def _get_cached_questions(key: str):
+    with _question_cache_lock:
+        entry = _question_cache.get(key)
+        if entry and time.monotonic() - entry["ts"] < _QUESTION_TTL:
+            return entry["data"]
+    return None
+
+
+def _set_cached_questions(key: str, data):
+    with _question_cache_lock:
+        _question_cache[key] = {"data": data, "ts": time.monotonic()}
+
+
+def _invalidate_question_cache(module_id: str):
+    """Call whenever questions are approved/deactivated so students see changes."""
+    with _question_cache_lock:
+        to_delete = [k for k in _question_cache if k.startswith(f"module:{module_id}")]
+        for k in to_delete:
+            del _question_cache[k]
 
 
 # 🔍 Join module with access code
@@ -122,15 +158,22 @@ def get_module_questions(
         raise HTTPException(status_code=404, detail="Module not found")
 
     if include_all:
-        # Return all questions (for teachers viewing feedback critiques)
+        # Return all questions (for teachers — don't cache, teacher may just approved new ones)
         questions = db.query(Question).filter(Question.module_id == module_id).all()
         logger.debug(f"Returning {len(questions)} total questions for module {module_id}")
         return questions
-    else:
-        # SECURITY: Only return active questions to students
-        questions = get_questions_by_status(db, module_id, QuestionStatus.ACTIVE)
-        logger.debug(f"Returning {len(questions)} active questions for module {module_id}")
-        return questions
+
+    # Cache student view — same data for every student, safe to cache for 60 s.
+    cache_key = f"module:{module_id}:active"
+    cached = _get_cached_questions(cache_key)
+    if cached is not None:
+        logger.debug(f"Cache hit: {len(cached)} questions for module {module_id}")
+        return cached
+
+    questions = get_questions_by_status(db, module_id, QuestionStatus.ACTIVE)
+    _set_cached_questions(cache_key, questions)
+    logger.debug(f"Cache miss: loaded {len(questions)} questions for module {module_id}")
+    return questions
 
 # ❓ Get all questions for a document (assignment)
 @router.get("/documents/{document_id}/questions", response_model=List[QuestionOut])
@@ -149,12 +192,17 @@ def get_assignment_questions(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    # SECURITY: Only return active questions to students
+    cache_key = f"doc:{document_id}:active"
+    cached = _get_cached_questions(cache_key)
+    if cached is not None:
+        return cached
+
     questions = db.query(Question).filter(
         Question.document_id == document_id,
         Question.status == QuestionStatus.ACTIVE
     ).order_by(Question.question_order.nulls_last(), Question.id).all()
 
+    _set_cached_questions(cache_key, questions)
     logger.debug(f"Returning {len(questions)} active questions for document {document_id}")
     return questions
 
@@ -165,9 +213,8 @@ def submit_student_answer(
     db: Session = Depends(get_db)
 ):
     """
-    Submit student answer for a question with instant AI feedback on first attempt
+    Submit student answer for a question. AI feedback is enqueued and delivered async.
     """
-    from app.services.ai_feedback import AIFeedbackService
     from app.crud.question import get_question_by_id
     
     # Check if answer already exists for this attempt
@@ -214,74 +261,68 @@ def submit_student_answer(
     # Generate feedback for all attempts EXCEPT the final/last attempt
     # Example: max_attempts=2 → feedback on attempt 1, no feedback on attempt 2
     # Example: max_attempts=3 → feedback on attempts 1 and 2, no feedback on attempt 3
-    should_generate_feedback = answer_data.attempt < max_attempts
+    ai_grading_mode = getattr(module, "ai_grading_mode", "visible") or "visible"
+    should_generate_feedback = answer_data.attempt < max_attempts and ai_grading_mode != "disabled"
 
     if should_generate_feedback:
-        try:
-            # Build progressive feedback context from previous attempts
-            previous_feedback_context = None
-            if answer_data.attempt > 1:
-                from app.models.student_answer import StudentAnswer
-                from app.crud.ai_feedback import get_feedback_by_answer
+        # Build progressive feedback context from previous attempts (fast DB read only)
+        previous_feedback_context = None
+        if answer_data.attempt > 1:
+            from app.models.student_answer import StudentAnswer
+            from app.crud.ai_feedback import get_feedback_by_answer
 
-                prev_answers = db.query(StudentAnswer).filter(
-                    StudentAnswer.student_id == answer_data.student_id,
-                    StudentAnswer.question_id == answer_data.question_id,
-                    StudentAnswer.attempt < answer_data.attempt
-                ).order_by(StudentAnswer.attempt).all()
+            prev_answers = db.query(StudentAnswer).filter(
+                StudentAnswer.student_id == answer_data.student_id,
+                StudentAnswer.question_id == answer_data.question_id,
+                StudentAnswer.attempt < answer_data.attempt
+            ).order_by(StudentAnswer.attempt).all()
 
-                if prev_answers:
-                    previous_feedback_context = []
-                    for prev in prev_answers:
-                        fb = get_feedback_by_answer(db, prev.id)
-                        if fb and fb.generation_status == 'completed' and fb.feedback_data:
-                            previous_feedback_context.append({
-                                "attempt": prev.attempt,
-                                "ai_feedback": fb.feedback_data.get("explanation", ""),
-                                "score": fb.score,
-                                "student_answer": str(prev.answer)
-                            })
-                    if previous_feedback_context:
-                        logger.info(f"📚 Built progressive context from {len(previous_feedback_context)} previous attempt(s) for question {answer_data.question_id}")
-                    else:
-                        previous_feedback_context = None
+            if prev_answers:
+                previous_feedback_context = []
+                for prev in prev_answers:
+                    fb = get_feedback_by_answer(db, prev.id)
+                    if fb and fb.generation_status == 'completed' and fb.feedback_data:
+                        previous_feedback_context.append({
+                            "attempt": prev.attempt,
+                            "ai_feedback": fb.feedback_data.get("explanation", ""),
+                            "score": fb.score,
+                            "student_answer": str(prev.answer)
+                        })
+                if not previous_feedback_context:
+                    previous_feedback_context = None
 
-            # Generate AI feedback
-            feedback_service = AIFeedbackService()
-            feedback = feedback_service.generate_instant_feedback(
-                db=db,
-                student_answer=created_answer,
-                question_id=str(answer_data.question_id),
-                module_id=module_id,
-                previous_feedback_context=previous_feedback_context
-            )
-
-            # Return enhanced response with feedback
-            return {
-                "success": True,
-                "answer": {
-                    "id": str(created_answer.id),
-                    "student_id": created_answer.student_id,
-                    "question_id": str(created_answer.question_id),
-                    "document_id": str(created_answer.document_id),
-                    "answer": created_answer.answer,
-                    "attempt": created_answer.attempt,
-                    "submitted_at": created_answer.submitted_at.isoformat()
-                },
-                "feedback": feedback,
-                "attempt_number": answer_data.attempt,
-                "can_retry": not feedback.get("is_correct", False) and answer_data.attempt < max_attempts,
-                "max_attempts": max_attempts
-            }
-
-        except Exception as e:
-            # If feedback generation fails, still return successful answer submission
-            return {
-                "success": True,
-                "answer": created_answer,
-                "feedback": None,
-                "error": f"Answer submitted but feedback failed: {str(e)}"
-            }
+        # Enqueue AI grading — returns in <10 ms instead of blocking 2-8 s per request.
+        # The feedback_worker (10 threads) picks this up and writes back to AIFeedback.
+        # Frontend already polls /feedback-status to show results as they arrive.
+        create_feedback_job(
+            db=db,
+            answer_id=created_answer.id,
+            student_id=str(answer_data.student_id),
+            module_id=module_id,
+            attempt=answer_data.attempt,
+            priority=2,  # higher priority than batch jobs
+            previous_feedback_context=previous_feedback_context,
+            is_final_attempt=False,
+        )
+        logger.info(f"[submit-answer] Queued feedback job for answer {created_answer.id}")
+        return {
+            "success": True,
+            "answer": {
+                "id": str(created_answer.id),
+                "student_id": created_answer.student_id,
+                "question_id": str(created_answer.question_id),
+                "document_id": str(created_answer.document_id),
+                "answer": created_answer.answer,
+                "attempt": created_answer.attempt,
+                "submitted_at": created_answer.submitted_at.isoformat()
+            },
+            "feedback": None,
+            "feedback_status": "pending",
+            "attempt_number": answer_data.attempt,
+            "can_retry": answer_data.attempt < max_attempts,
+            "max_attempts": max_attempts,
+            "message": "Answer submitted. AI feedback is being generated."
+        }
 
     else:
         # For final attempt, return result without feedback
@@ -439,12 +480,14 @@ def get_module_feedback(
     # Single JOIN query: feedback + answer in one shot
     # Exclude mastery practice answers (is_mastery=True) — those are ephemeral and
     # should never appear in the test feedback tab.
+    # Only return feedback marked as released (released=False means teacher_only mode).
     feedback_rows = db.query(AIFeedback, StudentAnswer).join(
         StudentAnswer, AIFeedback.answer_id == StudentAnswer.id
     ).filter(
         StudentAnswer.student_id == student_id,
         StudentAnswer.module_id == module_id,
-        StudentAnswer.is_mastery == False
+        StudentAnswer.is_mastery == False,
+        AIFeedback.released == True
     ).order_by(AIFeedback.generated_at.desc()).all()
 
     # Collect all answer_ids to batch-fetch teacher grades
@@ -572,10 +615,13 @@ def get_question_feedback(
     if not answer:
         raise HTTPException(status_code=404, detail="Answer not found")
 
-    # Then get feedback for that answer
+    # Then get feedback for that answer — only if released to this student
     feedback = get_feedback_by_answer(db, answer.id)
     if not feedback:
         raise HTTPException(status_code=404, detail="Feedback not found")
+
+    if not feedback.released:
+        raise HTTPException(status_code=403, detail="Feedback not yet released by teacher")
 
     return feedback
 
@@ -768,11 +814,23 @@ async def submit_test(
 
     is_final = attempt >= max_attempts
     answer_ids = [str(answer.id) for answer in answers]
+    ai_grading_mode = getattr(module, "ai_grading_mode", "visible") or "visible"
 
-    logger.info(f"Enqueuing {len(answer_ids)} feedback jobs (final_attempt={is_final})")
+    if ai_grading_mode == "disabled":
+        return {
+            "success": True,
+            "submission_id": str(submission.id),
+            "attempt": attempt,
+            "questions_submitted": len(answers),
+            "answer_ids": answer_ids,
+            "can_retry": not is_final,
+            "max_attempts": max_attempts,
+            "feedback_status": "disabled",
+            "message": "Test submitted successfully."
+        }
 
-    # Always generate feedback.  For the final attempt, the worker will set
-    # released=False so the student cannot see it until the teacher approves.
+    logger.info(f"Enqueuing {len(answer_ids)} feedback jobs (final_attempt={is_final}, mode={ai_grading_mode})")
+
     create_feedback_jobs_batch(
         db=db,
         answer_ids=[answer.id for answer in answers],
@@ -783,6 +841,19 @@ async def submit_test(
         previous_feedback_context=previous_feedback_context,
         is_final_attempt=is_final,
     )
+
+    if ai_grading_mode == "teacher_only":
+        return {
+            "success": True,
+            "submission_id": str(submission.id),
+            "attempt": attempt,
+            "questions_submitted": len(answers),
+            "answer_ids": answer_ids,
+            "can_retry": not is_final,
+            "max_attempts": max_attempts,
+            "feedback_status": "teacher_review",
+            "message": "Test submitted! Your teacher will review and share results with you."
+        }
 
     if not is_final:
         return {
@@ -1606,3 +1677,85 @@ def reset_mastery_queue(
     reset_queue(db, student_id=student_id, module_id=module_id)
     progress = get_mastery_progress(db, student_id, module_id)
     return {"reset": True, "progress": progress}
+
+
+
+def _is_uuid_str(val: str) -> bool:
+    try:
+        uuid_lib.UUID(val)
+        return True
+    except (ValueError, AttributeError):
+        return False
+
+
+@router.post("/join-public/{module_id}")
+def join_public_module(
+    module_id: str,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    """Join a public module without needing an access code."""
+    from app.models.student_enrollment import StudentEnrollment
+    from datetime import datetime, timezone
+
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    if module.visibility != "public":
+        raise HTTPException(status_code=403, detail="This module is not public")
+    if not module.is_active:
+        raise HTTPException(status_code=400, detail="Module is not active")
+
+    existing = db.query(StudentEnrollment).filter(
+        StudentEnrollment.student_id == current_user.id,
+        StudentEnrollment.module_id == module.id,
+    ).first()
+    if existing:
+        return {"message": "Already enrolled", "module_id": str(module.id)}
+
+    db.add(StudentEnrollment(
+        student_id=current_user.id,
+        module_id=module.id,
+        access_code_used="PUBLIC",
+        enrolled_at=datetime.now(timezone.utc),
+    ))
+    db.commit()
+    return {"message": "Joined successfully", "module_id": str(module.id), "name": module.name}
+
+
+@router.get("/my-modules")
+def get_my_modules(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_active_user),
+):
+    """Return all modules the logged-in student is enrolled in (UUID and banner_id)."""
+    from app.models.student_enrollment import StudentEnrollment
+    from app.models.module import Module as ModuleModel
+
+    student_ids = [current_user.id]
+    if current_user.banner_id:
+        student_ids.append(current_user.banner_id)
+
+    enrollments = db.query(StudentEnrollment).filter(
+        StudentEnrollment.student_id.in_(student_ids)
+    ).all()
+
+    module_ids = list({e.module_id for e in enrollments})
+    modules = db.query(ModuleModel).filter(ModuleModel.id.in_(module_ids)).all()
+    enrollment_map = {e.module_id: e for e in enrollments}
+
+    return [
+        {
+            "id": str(m.id),
+            "name": m.name,
+            "description": m.description,
+            "teacher_id": m.teacher_id,
+            "is_active": m.is_active,
+            "visibility": m.visibility,
+            "access_code": m.access_code,
+            "due_date": m.due_date.isoformat() if m.due_date else None,
+            "enrolled_at": enrollment_map[m.id].enrolled_at.isoformat() if m.id in enrollment_map else None,
+            "is_claimed": _is_uuid_str(enrollment_map[m.id].student_id) if m.id in enrollment_map else False,
+        }
+        for m in modules
+    ]

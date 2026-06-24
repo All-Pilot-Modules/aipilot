@@ -1,0 +1,75 @@
+name: Backend Deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Backend/**'
+      - '.github/workflows/backend.yml'
+
+jobs:
+  deploy:
+    name: Build & Deploy to Cloud Run
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for GCR
+        run: gcloud auth configure-docker --quiet
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/ai-pilot-backend:${{ github.sha }} \
+            -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/ai-pilot-backend:latest \
+            -f Backend/Dockerfile \
+            Backe
+            nd
+
+      - name: Push Docker image
+        run: |
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/ai-pilot-backend:${{ github.sha }}
+          docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/ai-pilot-backend:latest
+
+      - name: Deploy to Cloud Run
+        run: |
+          gcloud run deploy ai-pilot-backend \
+            --image=gcr.io/${{ secrets.GCP_PROJECT_ID }}/ai-pilot-backend:${{ github.sha }} \
+            --region=us-central1 \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
+            --timeout=300 \
+            --memory=4Gi \
+            --cpu=4 \
+            --cpu-boost \
+            --min-instances=1 \
+            --max-instances=10 \
+            --concurrency=200 \
+            --set-env-vars=ENV=production \
+            --set-secrets=OPENAI_API_KEY=openai-api-key:latest \
+            --set-secrets=DATABASE_URL=database-url:latest \
+            --set-secrets=JWT_SECRET=jwt-secret:latest \
+            --set-secrets=SUPABASE_URL=supabase-url:latest \
+            --set-secrets=SUPABASE_SERVICE_KEY=supabase-service-key:latest \
+            --set-secrets=CLERK_SECRET_KEY=clerk-secret-key:latest \
+            --set-secrets=FRONTEND_URL=frontend-url:latest \
+            --set-secrets=EMAIL_USERNAME=email-username:latest \
+            --set-secrets=EMAIL_PASSWORD=email-password:latest
+
+      - name: Show deployed URL
+        run: |
+          URL=$(gcloud run services describe ai-pilot-backend \
+            --region=us-central1 \
+            --format='value(status.url)')
+          echo "Deployed to: $URL"

@@ -6,7 +6,7 @@ from sqlalchemy import Column, String, Integer, ForeignKey, TIMESTAMP, Text, Ind
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
-from datetime import datetime
+from datetime import datetime, timezone
 import uuid
 
 from app.database import Base
@@ -22,16 +22,17 @@ class DocumentEmbedding(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     chunk_id = Column(UUID(as_uuid=True), ForeignKey("document_chunks.id", ondelete="CASCADE"), nullable=False)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=False)
+    module_id = Column(UUID(as_uuid=True), ForeignKey("modules.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    # Vector embedding using pgvector — OpenAI text-embedding-ada-002 produces 1536 dimensions
+    # Vector embedding — stored at 1536 dimensions (text-embedding-3-large with dimensions=1536)
     embedding_vector = Column(Vector(1536), nullable=False)
 
     # Metadata
-    embedding_model = Column(String, nullable=False, default="text-embedding-ada-002")
+    embedding_model = Column(String, nullable=False, default="text-embedding-3-large")
     embedding_dimensions = Column(Integer, nullable=False, default=1536)
     token_count = Column(Integer)  # Tokens used for this embedding
 
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         # HNSW index for fast approximate nearest neighbour cosine search

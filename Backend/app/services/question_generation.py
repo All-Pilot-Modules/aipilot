@@ -2,7 +2,6 @@
 AI Question Generation Service
 Generates questions from document content using OpenAI GPT models
 """
-import openai
 import json
 import logging
 from typing import Dict, Any, List
@@ -10,7 +9,8 @@ from sqlalchemy.orm import Session
 from uuid import UUID
 from datetime import datetime, timezone
 
-from app.core.config import OPENAI_API_KEY, LLM_MODEL
+from app.core.config import OPENAI_API_KEYS, LLM_MODEL
+from app.services.openai_client import OpenAIClientWithRetry
 from app.models.document import Document
 from app.models.document_chunk import DocumentChunk
 from app.models.question import QuestionStatus
@@ -22,15 +22,13 @@ class QuestionGenerationService:
     """Service for generating questions from documents using AI"""
 
     def __init__(self):
-        self.client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        # Use models that support JSON mode: gpt-4o, gpt-4o-mini, gpt-4-turbo
-        # Fallback to gpt-4o-mini if LLM_MODEL is not JSON-compatible
         json_compatible_models = ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo-1106"]
         if LLM_MODEL in json_compatible_models:
             self.default_model = LLM_MODEL
         else:
-            self.default_model = "gpt-4o-mini"  # Best balance of cost and quality
+            self.default_model = "gpt-4o-mini"
             logger.info(f"Using gpt-4o-mini for question generation (LLM_MODEL={LLM_MODEL} doesn't support JSON mode)")
+        self.client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS, default_model=self.default_model)
 
     def generate_questions_from_document(
         self,
@@ -115,8 +113,7 @@ class QuestionGenerationService:
         # Call OpenAI API
         try:
             logger.info(f"Calling OpenAI API with model: {self.default_model}")
-            response = self.client.chat.completions.create(
-                model=self.default_model,
+            response = self.client.create_chat_completion(
                 messages=[
                     {
                         "role": "system",
@@ -130,7 +127,8 @@ class QuestionGenerationService:
                         "content": prompt
                     }
                 ],
-                temperature=0.7,  # Some creativity but mostly focused
+                temperature=0.7,
+                max_tokens=4096,
                 response_format={"type": "json_object"}
             )
 
@@ -176,11 +174,8 @@ class QuestionGenerationService:
             logger.info(f"Successfully generated {len(generated_questions)} questions")
             return generated_questions
 
-        except openai.OpenAIError as e:
-            logger.error(f"OpenAI API error during question generation: {str(e)}")
-            raise Exception(f"Failed to generate questions: {str(e)}")
         except Exception as e:
-            logger.error(f"Unexpected error during question generation: {str(e)}")
+            logger.error(f"Error during question generation: {str(e)}")
             raise
 
     def _format_chunks_for_prompt(self, chunks: List[DocumentChunk], document_title: str) -> str:

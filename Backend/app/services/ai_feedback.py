@@ -1,9 +1,40 @@
 import openai
 import json
+import hashlib
+import time
 import logging
+from threading import Lock
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
-from app.core.config import OPENAI_API_KEY, LLM_MODEL
+
+# ---------------------------------------------------------------------------
+# MCQ response cache
+# MCQ answers are deterministic: same question + same selected option always
+# produces the same feedback. Cache per (question_id, answer_key, is_correct)
+# so 1000 students on 10 questions only fires ≤50 OpenAI calls instead of 10,000.
+# ---------------------------------------------------------------------------
+_mcq_cache: dict = {}
+_mcq_cache_lock = Lock()
+_MCQ_CACHE_TTL = 7200  # 2 hours — covers a full exam session
+
+
+def _mcq_cache_key(question_id: str, student_answer: str, is_correct) -> str:
+    raw = f"{question_id}:{student_answer}:{is_correct}"
+    return hashlib.md5(raw.encode()).hexdigest()
+
+
+def _get_mcq_cached(key: str) -> dict | None:
+    with _mcq_cache_lock:
+        entry = _mcq_cache.get(key)
+        if entry and time.monotonic() - entry["ts"] < _MCQ_CACHE_TTL:
+            return entry["data"]
+    return None
+
+
+def _set_mcq_cached(key: str, data: dict):
+    with _mcq_cache_lock:
+        _mcq_cache[key] = {"data": data, "ts": time.monotonic()}
+from app.core.config import OPENAI_API_KEY, OPENAI_API_KEYS, LLM_MODEL
 from app.models.question import Question
 from app.models.student_answer import StudentAnswer
 from app.models.module import Module
@@ -35,7 +66,7 @@ class AIFeedbackService:
 
     def __init__(self):
         # Use the new OpenAI client with retry logic
-        self.client = OpenAIClientWithRetry(api_key=OPENAI_API_KEY, default_model=LLM_MODEL)
+        self.client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS, default_model=LLM_MODEL)
         self.default_model = LLM_MODEL
 
     def generate_instant_feedback(
@@ -428,6 +459,15 @@ class AIFeedbackService:
                         is_correct = True
                         break
 
+        # MCQ cache: same question + same selected option always produces the same feedback.
+        # Skip cache only when there's progressive previous_feedback (retry attempts).
+        cache_key = _mcq_cache_key(str(question.id), student_answer, is_correct)
+        if not previous_feedback:
+            cached = _get_mcq_cached(cache_key)
+            if cached is not None:
+                logger.info(f"[MCQ cache hit] q={question.id} answer={student_answer}")
+                return cached
+
         # Build dynamic prompt using rubric and RAG context
         prompt = build_mcq_feedback_prompt(
             question_text=question.text,
@@ -440,29 +480,15 @@ class AIFeedbackService:
             previous_feedback=previous_feedback
         )
 
-        # 🎯 LOG: OpenAI API call details
-        logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        logger.info("🎯 OPENAI API CALL - MCQ FEEDBACK")
-        logger.info(f"📤 Model: {ai_model}")
-        logger.info(f"📤 Temperature: 0.3")
-        logger.info(f"📤 Max Tokens: 800")
-        logger.info(f"📤 Question ID: {question.id}")
-        logger.info(f"📤 Student Answer: {student_answer}")
-        logger.info(f"📤 Correct Answer: {correct_answer}")
-        logger.info(f"📤 Is Correct: {is_correct}")
-        logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        logger.info("📤 FULL PROMPT SENT TO OPENAI:")
-        logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        logger.info(prompt)
-        logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        logger.info(f"[MCQ] OpenAI call: model={ai_model} q={question.id} answer={student_answer} correct={is_correct}")
 
         try:
             # Use the new retry-enabled client
             response = self.client.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
                 model=ai_model,
-                temperature=0.3,
-                max_tokens=800  # Increased for RAG-enhanced feedback
+                temperature=0.1,
+                max_tokens=400  # JSON response fits in ~300 tokens; 400 gives a safe margin
             )
 
             # Parse JSON response
@@ -511,16 +537,11 @@ class AIFeedbackService:
                 "correctness_score": correctness_score
             })
 
-            # 🎯 LOG: Parsed feedback
-            logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-            logger.info("💾 PARSED FEEDBACK DATA:")
-            logger.info(f"   ✓ is_correct: {feedback.get('is_correct')}")
-            logger.info(f"   ✓ correctness_score: {correctness_score}%")
-            logger.info(f"   ✓ points_earned: {(points_earned or 0):.2f} / {question.points}")
-            logger.info(f"   ✓ confidence: {confidence}")
-            logger.info(f"   ✓ explanation: {feedback.get('explanation', '')[:100]}...")
-            logger.info(f"   ✓ improvement_hint: {feedback.get('improvement_hint', '')[:100]}...")
-            logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+            logger.info(f"[MCQ] Done: correct={is_correct} score={correctness_score}%")
+
+            # Cache so subsequent students selecting the same option skip the API call
+            if not previous_feedback:
+                _set_mcq_cached(cache_key, feedback)
 
             return feedback
 
@@ -604,8 +625,8 @@ class AIFeedbackService:
             response = self.client.create_chat_completion(
                 messages=[{"role": "user", "content": prompt}],
                 model=ai_model,
-                temperature=0.3,
-                max_tokens=1200  # Increased for detailed RAG-enhanced feedback
+                temperature=0.1,
+                max_tokens=500  # JSON response fits in ~350-400 tokens for text answers
             )
 
             # Parse JSON response

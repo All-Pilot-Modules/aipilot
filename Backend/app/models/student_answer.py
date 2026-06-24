@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, Integer, Boolean, ForeignKey, TIMESTAMP, 
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 class StudentAnswer(Base):
     __tablename__ = "student_answers"
@@ -12,15 +12,18 @@ class StudentAnswer(Base):
     question_id = Column(UUID(as_uuid=True), ForeignKey("questions.id", ondelete="CASCADE"), nullable=False)
     module_id = Column(UUID(as_uuid=True), ForeignKey("modules.id", ondelete="CASCADE"), nullable=False)
     document_id = Column(UUID(as_uuid=True), ForeignKey("documents.id", ondelete="CASCADE"), nullable=True)
+    batch_id = Column(UUID(as_uuid=True), ForeignKey("module_batches.id", ondelete="SET NULL"), nullable=True)
 
     answer = Column(JSONB, nullable=False)  # Supports MCQ + text answers
     attempt = Column(Integer, nullable=False)  # 1 or 2
-    submitted_at = Column(TIMESTAMP, default=datetime.utcnow)
+    submitted_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc))
     is_mastery = Column(Boolean, default=False, nullable=False, server_default='false')  # True = mastery practice answer (never shown in test feedback tab)
 
     __table_args__ = (
         UniqueConstraint('student_id', 'question_id', 'attempt', name='uix_student_question_attempt'),
         Index('ix_student_answers_module_id', 'module_id'),
+        Index('ix_student_answers_batch_id', 'batch_id'),
         Index('ix_student_answers_student_module', 'student_id', 'module_id'),
         Index('ix_student_answers_student_module_attempt', 'student_id', 'module_id', 'attempt'),
+        Index('ix_student_answers_student_batch', 'student_id', 'batch_id'),
     )

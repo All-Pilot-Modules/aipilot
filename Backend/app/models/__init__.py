@@ -1,27 +1,25 @@
-from app.models.user import User
-from app.database import Base
-# app/models/__init__.py
-
-
-from app.models.user import User
-from app.models.document import Document
-from app.models.question import Question
-from app.models.document_chunk import DocumentChunk  # ✅ NEW: Uncommented for RAG
-from app.models.document_embedding import DocumentEmbedding  # ✅ NEW: For vector embeddings
-from app.models.student_answer import StudentAnswer
-from app.models.ai_feedback import AIFeedback  # ✅ NEW: AI feedback storage
-from app.models.test_submission import TestSubmission  # ✅ NEW: Track test submissions
-from app.models.module import Module
-from app.models.student_enrollment import StudentEnrollment  # ✅ NEW: Student enrollments with consent
-from app.models.survey_response import SurveyResponse  # ✅ NEW: Student survey responses
-from app.models.chat_conversation import ChatConversation  # ✅ NEW: Chat conversations
-from app.models.chat_message import ChatMessage  # ✅ NEW: Chat messages
-from app.models.teacher_grade import TeacherGrade  # ✅ NEW: Teacher manual grades
-from app.models.feedback_critique import FeedbackCritique  # ✅ NEW: Student feedback critiques
-from app.models.feedback_job import FeedbackJob  # ✅ NEW: Persistent feedback job queue
-# from app.models.autosave import Autosave
-# from app.models.attempt_summary import AttemptSummary
-# from app.models.audio_explanation import AudioExplanation
-# from app.models.assignment import Assignment
-# from app.models.class_model import Class, ClassMember
-# from app.models.rubric import Rubric, RubricScore
+# noqa: F401 — all imports here are side-effect registrations with SQLAlchemy Base.
+# They must be imported so Base.metadata.create_all() knows about every table.
+from app.database import Base  # noqa: F401
+from app.models.user import User  # noqa: F401
+from app.models.module import Module  # noqa: F401
+from app.models.document import Document  # noqa: F401
+from app.models.document_chunk import DocumentChunk  # noqa: F401
+from app.models.document_embedding import DocumentEmbedding  # noqa: F401
+from app.models.question import Question  # noqa: F401
+from app.models.student_enrollment import StudentEnrollment  # noqa: F401
+from app.models.student_answer import StudentAnswer  # noqa: F401
+from app.models.feedback_job import FeedbackJob  # noqa: F401
+from app.models.ai_feedback import AIFeedback  # noqa: F401
+from app.models.teacher_grade import TeacherGrade  # noqa: F401
+from app.models.answer_grade import AnswerGrade  # noqa: F401
+from app.models.test_submission import TestSubmission  # noqa: F401
+from app.models.student_module_grade import StudentModuleGrade  # noqa: F401
+from app.models.survey_response import SurveyResponse  # noqa: F401
+from app.models.feedback_critique import FeedbackCritique  # noqa: F401
+from app.models.question_queue import QuestionQueue  # noqa: F401
+from app.models.chat_conversation import ChatConversation  # noqa: F401
+from app.models.chat_message import ChatMessage  # noqa: F401
+from app.models.enrollment_claim import EnrollmentClaim  # noqa: F401
+from app.models.module_batch import ModuleBatch  # noqa: F401
+from app.models.module_collaborator import ModuleCollaborator  # noqa: F401

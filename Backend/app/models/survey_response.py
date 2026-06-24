@@ -2,7 +2,7 @@ from sqlalchemy import Column, String, ForeignKey, TIMESTAMP, UniqueConstraint
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 class SurveyResponse(Base):
@@ -15,8 +15,8 @@ class SurveyResponse(Base):
     # Survey responses stored as JSONB: {"q1": "answer text", "q2": "answer text", ...}
     responses = Column(JSONB, nullable=False, default={})
 
-    submitted_at = Column(TIMESTAMP, default=datetime.utcnow)
-    updated_at = Column(TIMESTAMP, default=datetime.utcnow, onupdate=datetime.utcnow)
+    submitted_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Ensure a student can only submit one survey response per module
     __table_args__ = (

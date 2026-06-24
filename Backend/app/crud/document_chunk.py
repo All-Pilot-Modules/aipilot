@@ -12,7 +12,8 @@ def create_chunk(
     document_id: str,
     chunk_index: int,
     chunk_text: str,
-    chunk_metadata: Optional[Dict[str, Any]] = None
+    chunk_metadata: Optional[Dict[str, Any]] = None,
+    module_id: Optional[str] = None
 ) -> DocumentChunk:
     """
     Create a new document chunk
@@ -23,12 +24,14 @@ def create_chunk(
         chunk_index: Order of this chunk in the document
         chunk_text: The text content
         chunk_metadata: Additional metadata (page_num, section, etc.)
+        module_id: UUID of parent module
 
     Returns:
         Created DocumentChunk object
     """
     chunk = DocumentChunk(
         document_id=document_id,
+        module_id=module_id,
         chunk_index=chunk_index,
         chunk_text=chunk_text,
         chunk_size=len(chunk_text),
@@ -43,7 +46,8 @@ def create_chunk(
 def bulk_create_chunks(
     db: Session,
     document_id: str,
-    chunks: List[Dict[str, Any]]
+    chunks: List[Dict[str, Any]],
+    module_id: Optional[str] = None
 ) -> List[DocumentChunk]:
     """
     Create multiple chunks at once (more efficient)
@@ -52,6 +56,7 @@ def bulk_create_chunks(
         db: Database session
         document_id: UUID of parent document
         chunks: List of dicts with 'text', 'index', 'chunk_metadata'
+        module_id: UUID of parent module
 
     Returns:
         List of created DocumentChunk objects
@@ -60,6 +65,7 @@ def bulk_create_chunks(
     for chunk_data in chunks:
         chunk = DocumentChunk(
             document_id=document_id,
+            module_id=module_id,
             chunk_index=chunk_data['index'],
             chunk_text=chunk_data['text'],
             chunk_size=len(chunk_data['text']),

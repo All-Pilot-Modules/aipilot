@@ -2,85 +2,171 @@ from sqlalchemy import Column, String, TIMESTAMP, ForeignKey, Boolean, Text, Uni
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from app.database import Base
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 
-# Default consent form template
-DEFAULT_CONSENT_FORM = """
-# Research Consent Form
-
-## Purpose of the Study
-This study aims to improve educational outcomes using AI-assisted learning tools. Your participation will help advance educational research and improve this platform for future students.
-
-## What to Expect
-- Your responses and interactions will be collected for research purposes
-- All data will be anonymized and kept confidential
-- Participation will not affect your grades or academic standing
-- You may withdraw from the study at any time without penalty
-
-## Your Rights
-- Your participation is completely voluntary
-- You can choose not to participate without any consequences
-- All data collected will remain confidential and anonymous
-- The research has been approved by the institutional review board
-
-## Questions?
-If you have any questions about this research, please contact your instructor.
-"""
-
-# Default survey questions template
-DEFAULT_SURVEY_QUESTIONS = [
-    {
-        "id": "q1",
-        "question": "What did you find most helpful in this module?",
-        "type": "long",
-        "required": True,
-        "placeholder": "Please share what aspects helped you learn effectively..."
+DEFAULT_AI_CONFIG = {
+    "grading": {
+        # "auto"           – AI grades and result is shown to student
+        # "teacher_assist" – AI suggests a grade to teacher only; teacher approves before student sees
+        # "teacher_only"   – AI grades automatically; result visible to teacher only
+        # "disabled"       – no AI grading
+        "mode": "auto",
+        "show_score_to_student": True,
+        "show_explanation_to_student": True,
+        "show_hints_to_student": True,
+        "teacher_sees_ai_suggestions": True,
+        "require_teacher_approval": False,
+        "model": "gpt-4"
     },
-    {
-        "id": "q2",
-        "question": "What aspects of the module were challenging?",
-        "type": "long",
-        "required": False,
-        "placeholder": "Describe any difficulties or areas for improvement..."
+    "chatbot": {
+        "enabled": True,
+        "mode": "guided",
+        "model": "gpt-4",
+        "instructions": None
     },
-    {
-        "id": "q3",
-        "question": "How would you rate your overall learning experience? (Please explain)",
-        "type": "short",
-        "required": True,
-        "placeholder": "Your rating and brief explanation..."
-    },
-    {
-        "id": "q4",
-        "question": "Any suggestions for improvement?",
-        "type": "long",
-        "required": False,
-        "placeholder": "Share your ideas..."
-    },
-    {
-        "id": "q5",
-        "question": "Additional comments:",
-        "type": "long",
-        "required": False,
-        "placeholder": "Any other feedback you'd like to share..."
+    "feedback": {
+        "immediate": True,
+        "show_after_final_attempt": False
     }
-]
-DEAFULT_CHATBOT_INSTRUCTIONS="""You are a helpful and encouraging AI tutor for this course.
+}
 
-Response Style:
-- Be clear, concise, and patient
-- Use simple language appropriate for students
-- Provide examples when explaining concepts
-- Encourage critical thinking by asking guiding questions
-- Be supportive and positive in your tone
+DEFAULT_AI_SAFETY_CONFIG = {
+    "content_filter_level": "moderate",
+    "block_harmful_content": True,
+    "block_off_topic": False,
+    "allowed_topics": [],
+    "blocked_topics": [],
+    "blocked_keywords": []
+}
 
-Guidelines:
-- Always base your answers on the course materials provided
-- If you don't know something or it's not in the materials, say so honestly
-- Break down complex topics into simpler parts
-- Help students learn, don't just give direct answers
-- Reference specific pages or sections from course materials when relevant"""
+DEFAULT_ENROLLMENT_CONFIG = {
+    "max_students": None,
+    "requires_approval": False,
+    "allowed_email_domains": [],
+    "allow_self_unenroll": True
+}
+
+DEFAULT_ASSIGNMENT_CONFIG = {
+    "features": {
+        "multiple_attempts": {
+            "enabled": True,
+            "max_attempts": 2,
+            "show_feedback_after_each": True
+        },
+        "mastery_learning": {
+            "enabled": False,
+            "streak_required": 3,
+            "queue_randomization": True,
+            "reset_on_wrong": False
+        },
+        "chatbot_feedback": {
+            "enabled": True,
+            "conversation_mode": "guided",
+            "ai_model": "gpt-4"
+        },
+        "display": {
+            "show_progress_bar": True,
+            "show_streak_counter": True,
+            "show_attempt_counter": True
+        }
+    }
+}
+
+
+# ── Default settings template ─────────────────────────────────────────────────
+
+DEFAULT_MODULE_SETTINGS = {
+    # ── AI ────────────────────────────────────────────────────────────────────
+    "ai": {
+        "grading": {
+            # mirrors flat column ai_grading_mode — keep in sync
+            # "auto" | "teacher_assist" | "teacher_only" | "disabled"
+            "mode": "auto",
+            "show_score_to_student": True,
+            "show_explanation_to_student": True,
+            "show_hints_to_student": True,
+            "teacher_sees_ai_suggestions": True,
+            "require_teacher_approval": False,
+            "model": "gpt-4"
+        },
+        "chatbot": {
+            "enabled": True,
+            "mode": "guided",           # "guided" | "free_form"
+            "model": "gpt-4",
+            "instructions": None        # null → use platform default prompt
+        },
+        "feedback": {
+            "immediate": True,
+            "show_after_final_attempt": False
+        },
+        "safety": {
+            "content_filter_level": "moderate",  # "strict" | "moderate" | "permissive"
+            "block_harmful_content": True,
+            "block_off_topic": False,
+            "allowed_topics": [],       # [] = no restriction
+            "blocked_topics": [],
+            "blocked_keywords": []
+        },
+        "rubric": None                  # rubric config object when enabled
+    },
+
+    # ── Attempts ──────────────────────────────────────────────────────────────
+    "attempts": {
+        "max_attempts": 2,
+        "show_feedback_after_each": True
+    },
+
+    # ── Mastery learning ──────────────────────────────────────────────────────
+    "mastery": {
+        "enabled": False,
+        "streak_required": 3,
+        "queue_randomization": True,
+        "reset_on_wrong": False
+    },
+
+    # ── Display ───────────────────────────────────────────────────────────────
+    "display": {
+        "show_progress_bar": True,
+        "show_streak_counter": True,
+        "show_attempt_counter": True
+    },
+
+    # ── Enrollment ────────────────────────────────────────────────────────────
+    # enrollment_type flat column drives the gate; this holds the detail rules
+    "enrollment": {
+        "max_students": None,           # null = unlimited
+        "requires_approval": False,
+        "allowed_email_domains": [],    # [] = any domain
+        "allow_self_unenroll": True
+    },
+
+    # ── Research consent ──────────────────────────────────────────────────────
+    "consent": {
+        "required": True,
+        "form_text": None               # null → use platform default consent text
+    },
+
+    # ── Student survey ────────────────────────────────────────────────────────
+    "survey": {
+        "required": False,
+        "questions": []                 # [] → use platform default survey questions
+    }
+}
+
+
+# ── Batch settings template ───────────────────────────────────────────────────
+# Null values inherit from parent module settings.
+
+DEFAULT_BATCH_SETTINGS = {
+    "time_limit_minutes": None,         # null = no limit
+    "show_timer": True,
+    "randomize_question_order": False,
+    "random_question_count": None,      # null = all questions in batch
+    "allow_back_navigation": True,
+    "password": None                    # optional batch-level password
+}
+
 
 class Module(Base):
     __tablename__ = "modules"
@@ -88,60 +174,52 @@ class Module(Base):
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     teacher_id = Column(String, ForeignKey("users.id"), nullable=False)
 
+    # ── Core identity ──────────────────────────────────────────────────────────
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
-    access_code = Column(String, unique=True, nullable=False)
-    is_active = Column(Boolean, default=True)
-    due_date = Column(TIMESTAMP, nullable=True)
-    visibility = Column(String, default="class-only")  # e.g., 'class-only', 'public'
-    # class_id = Column(UUID(as_uuid=True), ForeignKey("classes.id"), nullable=True)
     slug = Column(String, unique=True, nullable=True)
-    instructions = Column(String, nullable=True)
+    thumbnail_url = Column(String, nullable=True)
+    instructions = Column(Text, nullable=True)
 
-    # Consent form for research participation (customizable per module)
-    consent_form_text = Column(Text, nullable=True, default=DEFAULT_CONSENT_FORM)
-    consent_required = Column(Boolean, default=True)  # Whether students must fill consent before accessing
+    # ── Type & lifecycle ───────────────────────────────────────────────────────
+    # "learn" | "quiz" | "reflection" | "tech"
+    module_type = Column(String, nullable=False, default="learn", server_default="learn")
+    # "draft" | "published" | "archived"
+    status = Column(String, nullable=False, default="draft", server_default="draft")
+    is_active = Column(Boolean, default=True)    # mirrors status == "published"; kept for compat
+    is_template = Column(Boolean, default=False, server_default="false")
+    due_date = Column(TIMESTAMP(timezone=True), nullable=True)
 
-    # Survey questions for student feedback (customizable per module)
-    survey_questions = Column(JSONB, nullable=True, default=DEFAULT_SURVEY_QUESTIONS)
-    survey_required = Column(Boolean, default=False)  # Whether students must complete survey
+    # ── Visibility & access ────────────────────────────────────────────────────
+    # "class-only" | "public"
+    visibility = Column(String, default="class-only")
+    access_code = Column(String, unique=True, nullable=False)
+    # "open" | "invite_only" | "code_required"
+    enrollment_type = Column(String, nullable=False, default="code_required", server_default="code_required")
 
-    # Chatbot custom instructions (teacher-defined response style and behavior)
-    chatbot_instructions = Column(Text, nullable=True, default=DEAFULT_CHATBOT_INSTRUCTIONS)
+    # ── AI grading mode (flat — read in hot paths throughout the app) ──────────
+    # "auto" | "teacher_assist" | "teacher_only" | "disabled"
+    # auto           – AI grades, result shown to student
+    # teacher_assist – AI suggests grade to teacher; teacher approves before student sees
+    # teacher_only   – AI grades; result visible to teacher only, never student
+    # disabled       – no AI grading
+    ai_grading_mode = Column(String, nullable=False, default="auto", server_default="auto")
 
-    # Dedicated column for feedback rubric configuration (easier to query and manage)
+    # ── Per-feature config columns ─────────────────────────────────────────────
+    ai_config = Column(JSONB, nullable=True, default=DEFAULT_AI_CONFIG)
+    ai_safety_config = Column(JSONB, nullable=True, default=DEFAULT_AI_SAFETY_CONFIG)
+    enrollment_config = Column(JSONB, nullable=True, default=DEFAULT_ENROLLMENT_CONFIG)
+    assignment_config = Column(JSONB, nullable=True, default=DEFAULT_ASSIGNMENT_CONFIG)
     feedback_rubric = Column(JSONB, nullable=True)
+    chatbot_instructions = Column(Text, nullable=True)
+    consent_form_text = Column(Text, nullable=True)
+    consent_required = Column(Boolean, default=True)
 
-    assignment_config = Column(JSONB, default={
-        "features": {
-            "multiple_attempts": {
-                "enabled": True,
-                "max_attempts": 2,
-                "show_feedback_after_each": True
-            },
-            "chatbot_feedback": {
-                "enabled": True,
-                "conversation_mode": "guided",
-                "ai_model": "gpt-4"
-            },
-            "mastery_learning": {
-                "enabled": False,
-                "streak_required": 3,
-                "queue_randomization": True,
-                "reset_on_wrong": False
-            }
-        },
-        "display_settings": {
-            "show_progress_bar": True,
-            "show_streak_counter": True,
-            "show_attempt_counter": True
-        }
-        # Note: feedback_rubric moved to dedicated column for better management
-    })
+    # ── Unified settings (future use) ─────────────────────────────────────────
+    settings = Column(JSONB, nullable=True, default=DEFAULT_MODULE_SETTINGS)
 
-    created_at = Column(TIMESTAMP, default=datetime.utcnow)
+    created_at = Column(TIMESTAMP(timezone=True), default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
-        # A teacher cannot have two modules with the same name; different teachers can reuse names
         UniqueConstraint('teacher_id', 'name', name='uix_module_teacher_name'),
     )

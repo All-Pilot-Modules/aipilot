@@ -1,10 +1,10 @@
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
 from typing import Union
 import logging
-from starlette.middleware.trustedhost import TrustedHostMiddleware
+import traceback
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.requests import Request
 
 # Configure logging
 logging.basicConfig(
@@ -25,10 +25,10 @@ from app.api.routes.chat import router as chat_router
 from app.api.routes.survey import router as survey_router
 from app.api.routes.export import router as export_router
 from app.api.routes.feedback import router as feedback_router
+from app.api.routes.claims import router as claims_router
+from app.api.routes.batch import router as batch_router
 
 from app.core.config import add_cors
-from app.database import engine
-from app.models import Base
 
 
 # Middleware to handle X-Forwarded-Proto from Google Cloud Run
@@ -44,6 +44,13 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app = FastAPI()
+
+# Global handler: catch unhandled exceptions and return JSON so CORS headers
+# are written correctly (BaseHTTPMiddleware swallows crashes otherwise).
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logging.error("Unhandled exception: %s", traceback.format_exc())
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 # 🔒 Add proxy headers middleware FIRST (before CORS)
 app.add_middleware(ProxyHeadersMiddleware)
@@ -64,6 +71,8 @@ app.include_router(chat_router, prefix="/api", tags=["Chat"])
 app.include_router(survey_router, prefix="/api", tags=["Survey"])
 app.include_router(export_router, prefix="/api", tags=["Export"])
 app.include_router(feedback_router, prefix="/api/ai-feedback", tags=["AI Feedback"])
+app.include_router(claims_router,   prefix="/api",              tags=["Claims"])
+app.include_router(batch_router,    prefix="/api",              tags=["Batches"])
 
 # 🚀 Startup event to create all tables and import all models
 @app.on_event("startup")
@@ -83,13 +92,6 @@ def on_startup():
         print(f"{'='*80}\n")
         # Re-raise to prevent app from starting with missing config
         raise
-
-    # ✅ Ensure all models are imported for table creation
-    from app.models import user, document, question, module, student_answer, student_enrollment, survey_response, question_queue, document_chunk, document_embedding, ai_feedback, chat_conversation, chat_message
-    from app.models import feedback_job  # noqa: F401 — register FeedbackJob table
-    print("📊 Creating database tables...")
-    Base.metadata.create_all(bind=engine)
-    print("✅ All tables created successfully")
 
     # ✅ Recover any jobs that were in-flight when the server last stopped
     from app.services.feedback_worker import recover_stale_jobs, start_worker
@@ -117,7 +119,7 @@ def run_diagnostics():
     """Quick health check of OpenAI API, database, and feedback stats."""
     import time
     from app.database import SessionLocal
-    from app.core.config import OPENAI_API_KEY, LLM_MODEL
+    from app.core.config import OPENAI_API_KEYS, LLM_MODEL
 
     results = {"openai": {}, "database": {}, "feedback_stats": {}, "job_queue": {}}
 
@@ -125,7 +127,7 @@ def run_diagnostics():
     try:
         import json as _json
         from app.services.openai_client import OpenAIClientWithRetry
-        client = OpenAIClientWithRetry(api_key=OPENAI_API_KEY, default_model=LLM_MODEL)
+        client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS, default_model=LLM_MODEL)
 
         # Test gpt-4o-mini (used for MCQ grading)
         start = time.time()

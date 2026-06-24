@@ -1,39 +1,34 @@
 #!/usr/bin/env python3
 """
-Script to drop and recreate database tables with new schema.
+Script to drop and recreate all database tables with the current schema.
 This will DELETE all existing data!
 """
 
-from app.database import engine, Base
-from app.models.user import User
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import all other models to ensure they're registered
-try:
-    from app.models.module import Module
-except:
-    pass
-try:
-    from app.models.test_submission import TestSubmission
-except:
-    pass
+from app.database import engine, Base
+
+# Import every model so SQLAlchemy registers them in Base.metadata  # noqa: F401
+from app.models import (  # noqa: F401
+    user, document, question, module, student_answer, student_enrollment,
+    survey_response, question_queue, document_chunk, document_embedding,
+    ai_feedback, chat_conversation, chat_message, enrollment_claim,
+    feedback_job, teacher_grade, feedback_critique,
+    answer_grade, student_module_grade,
+    module_batch,
+    module_collaborator,
+)
 
 print("⚠️  WARNING: This will DELETE all data in the database!")
 print("Dropping all tables...")
 
-# Drop all tables
 Base.metadata.drop_all(engine)
 print("✅ All tables dropped")
 
 print("\nCreating tables with new schema...")
 
-# Create all tables with new schema
 Base.metadata.create_all(engine)
 print("✅ All tables created with new schema")
 
 print("\n🎉 Database recreation complete!")
-print("\nNew User table now includes:")
-print("  - is_email_verified (BOOLEAN)")
-print("  - verification_code (VARCHAR)")
-print("  - verification_code_expires (TIMESTAMP)")
-print("  - verification_token (VARCHAR)")
-print("  - verification_token_expires (TIMESTAMP)")

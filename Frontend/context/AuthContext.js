@@ -20,14 +20,20 @@ export const AuthProvider = ({ children }) => {
 
         if (authenticated) {
           // First, try to get user from sessionStorage immediately (synchronous)
-          const cachedUser = typeof window !== 'undefined' ? sessionStorage.getItem('user') : null;
+          let cachedUser = typeof window !== 'undefined' ? sessionStorage.getItem('user') : null;
+          let needsApiFetch = true;
+
           if (cachedUser) {
             try {
               const parsedUser = JSON.parse(cachedUser);
               setUser(parsedUser);
-              console.log('✅ User loaded from sessionStorage:', parsedUser);
+              // If can_create_modules is already present, skip API fetch for speed
+              if (parsedUser.can_create_modules != null) {
+                needsApiFetch = false;
+              }
             } catch (e) {
-              console.error('Failed to parse cached user:', e);
+              sessionStorage.removeItem('user');
+              cachedUser = null;
             }
           }
 
@@ -35,19 +41,33 @@ export const AuthProvider = ({ children }) => {
           if (!cachedUser) {
             const tokenUser = auth.getUserFromToken();
             if (tokenUser) {
-              console.log('✅ User loaded from token:', tokenUser);
               setUser(tokenUser);
-              // Cache it for next time
               if (typeof window !== 'undefined') {
                 sessionStorage.setItem('user', JSON.stringify(tokenUser));
               }
             }
           }
 
-          // Then fetch fresh user data (this might update state if data changed)
-          const userData = await auth.getCurrentUser();
-          if (userData) {
-            setUser(userData);
+          // Fetch fresh user data from API to get all fields (e.g. can_create_modules)
+          if (needsApiFetch) {
+            const token = auth.getToken();
+            if (token) {
+              try {
+                const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
+                const resp = await fetch(`${API_BASE}/api/auth/me`, {
+                  headers: { Authorization: `Bearer ${token}` },
+                });
+                if (resp.ok) {
+                  const userData = await resp.json();
+                  setUser(userData);
+                  if (typeof window !== 'undefined') {
+                    sessionStorage.setItem('user', JSON.stringify(userData));
+                  }
+                }
+              } catch {
+                // Silently fall back to cached user
+              }
+            }
           }
         }
       } catch (error) {

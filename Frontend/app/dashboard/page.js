@@ -58,6 +58,10 @@ import { apiClient } from "@/lib/auth";
 import { useAPI } from "@/lib/useSWR";
 import { FullPageLoader } from "@/components/LoadingSpinner";
 import { StatCardSkeleton, ModuleCardSkeleton } from "@/components/SkeletonLoader";
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js';
+import { Line, Doughnut } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler);
 
 const DashboardContent = memo(function DashboardContent() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -322,7 +326,7 @@ const DashboardContent = memo(function DashboardContent() {
             { range: '0-20%', min: 0, max: 20, count: 0, color: 'bg-red-500 dark:bg-red-600' },
             { range: '21-40%', min: 21, max: 40, count: 0, color: 'bg-orange-500 dark:bg-orange-600' },
             { range: '41-60%', min: 41, max: 60, count: 0, color: 'bg-yellow-500 dark:bg-yellow-600' },
-            { range: '61-80%', min: 61, max: 80, count: 0, color: 'bg-blue-500 dark:bg-blue-600' },
+            { range: '61-80%', min: 61, max: 80, count: 0, color: 'bg-gray-800 dark:bg-gray-900' },
             { range: '81-100%', min: 81, max: 100, count: 0, color: 'bg-emerald-500 dark:bg-emerald-600' }
           ];
 
@@ -398,7 +402,7 @@ const DashboardContent = memo(function DashboardContent() {
             'bg-red-500 dark:bg-red-600',
             'bg-orange-500 dark:bg-orange-600',
             'bg-yellow-500 dark:bg-yellow-600',
-            'bg-blue-500 dark:bg-blue-600',
+            'bg-gray-800 dark:bg-gray-900',
             'bg-emerald-500 dark:bg-emerald-600'
           ];
           setScoreDistribution(
@@ -645,8 +649,8 @@ const DashboardContent = memo(function DashboardContent() {
               <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                      <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <div className="p-2 bg-gray-100 dark:bg-muted/20 rounded-lg">
+                      <FileText className="w-5 h-5 text-gray-900 dark:text-gray-300" />
                     </div>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wide font-semibold">Questions</p>
@@ -662,8 +666,8 @@ const DashboardContent = memo(function DashboardContent() {
               <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
-                    <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                      <Award className="w-5 h-5 text-purple-600 dark:text-purple-400" />
+                    <div className="p-2 bg-gray-100 dark:bg-muted/20 rounded-lg">
+                      <Award className="w-5 h-5 text-gray-700 dark:text-gray-400" />
                     </div>
                   </div>
                   <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wide font-semibold">Avg Score</p>
@@ -828,8 +832,8 @@ const DashboardContent = memo(function DashboardContent() {
                     <Link href={`/dashboard/questions?module=${moduleName}`}>
                       <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-600 cursor-pointer transition-all">
                         <div className="flex items-center gap-3">
-                          <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                            <Target className="w-4 h-4 text-blue-600 dark:text-blue-400" />
+                          <div className="p-2 bg-gray-100 dark:bg-muted/20 rounded-lg">
+                            <Target className="w-4 h-4 text-gray-900 dark:text-gray-300" />
                           </div>
                           <div className="flex-1">
                             <p className="text-sm font-semibold text-slate-900 dark:text-white">{actionItems.lowPerformanceQuestions} Low Scores</p>
@@ -855,28 +859,55 @@ const DashboardContent = memo(function DashboardContent() {
                   </div>
                 </CardHeader>
                 <CardContent className="pt-6">
-                  <div className="space-y-4">
-                    {scoreDistribution.map((range, index) => {
-                      const maxCount = Math.max(...scoreDistribution.map(r => r.count), 1);
-                      const percentage = (range.count / maxCount) * 100;
-                      return (
-                        <div key={range.range} className="space-y-2">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className={`w-4 h-4 rounded ${range.color}`}></div>
-                              <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">{range.range}</span>
-                            </div>
-                            <span className="text-sm font-bold text-slate-900 dark:text-white">{range.count} submission{range.count !== 1 ? 's' : ''}</span>
+                  <div className="flex flex-col md:flex-row items-center gap-6">
+                    <div className="relative w-48 h-48 flex-shrink-0">
+                      <Doughnut
+                        data={{
+                          labels: scoreDistribution.map(r => r.range),
+                          datasets: [{
+                            data: scoreDistribution.map(r => r.count),
+                            backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6', '#10b981'],
+                            borderColor: ['#dc2626', '#ea580c', '#ca8a04', '#2563eb', '#059669'],
+                            borderWidth: 2,
+                            hoverOffset: 8,
+                          }]
+                        }}
+                        options={{
+                          responsive: true,
+                          maintainAspectRatio: true,
+                          cutout: '65%',
+                          plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                              backgroundColor: '#1e293b',
+                              titleColor: '#f8fafc',
+                              bodyColor: '#94a3b8',
+                              padding: 10,
+                              callbacks: {
+                                label: (ctx) => ` ${ctx.parsed} submission${ctx.parsed !== 1 ? 's' : ''}`
+                              }
+                            }
+                          }
+                        }}
+                      />
+                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <p className="text-2xl font-bold text-slate-900 dark:text-white">
+                          {scoreDistribution.reduce((s, r) => s + r.count, 0)}
+                        </p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400">total</p>
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-3 w-full">
+                      {scoreDistribution.map((range) => (
+                        <div key={range.range} className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${range.color}`}></div>
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{range.range}</span>
                           </div>
-                          <div className="relative w-full h-3 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <div
-                              className={`absolute top-0 left-0 h-full ${range.color} rounded-full transition-all duration-500`}
-                              style={{ width: `${percentage}%` }}
-                            ></div>
-                          </div>
+                          <span className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">{range.count}</span>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
                   <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
                     <div className="grid grid-cols-3 gap-4 text-center">
@@ -888,13 +919,13 @@ const DashboardContent = memo(function DashboardContent() {
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Avg Score</p>
-                        <p className="text-lg font-bold text-blue-600 dark:text-blue-400">
+                        <p className="text-lg font-bold text-gray-900 dark:text-gray-300">
                           {performanceMetrics.averageScore}%
                         </p>
                       </div>
                       <div>
                         <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Total Graded</p>
-                        <p className="text-lg font-bold text-purple-600 dark:text-purple-400">
+                        <p className="text-lg font-bold text-gray-700 dark:text-gray-400">
                           {scoreDistribution.reduce((sum, r) => sum + r.count, 0)}
                         </p>
                       </div>
@@ -951,11 +982,11 @@ const DashboardContent = memo(function DashboardContent() {
                         </div>
                         <div>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">AI Feedback</p>
-                          <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">{performanceMetrics.aiFeedbackCount}</p>
+                          <p className="text-2xl font-bold text-gray-700 dark:text-gray-400">{performanceMetrics.aiFeedbackCount}</p>
                         </div>
                         <div>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Documents</p>
-                          <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{moduleData.totalDocuments}</p>
+                          <p className="text-2xl font-bold text-gray-900 dark:text-gray-300">{moduleData.totalDocuments}</p>
                         </div>
                         <div>
                           <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Avg Score</p>
@@ -965,37 +996,58 @@ const DashboardContent = memo(function DashboardContent() {
 
                       {/* Chart */}
                       {progressData.length > 0 ? (
-                    <div>
-                      <p className="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Submission Activity</p>
-                      <div className="flex items-end justify-between gap-2 h-40">
-                        {progressData.map((day, index) => {
-                          const maxCount = Math.max(...progressData.map(d => d.count), 1);
-                          const height = (day.count / maxCount) * 100;
-                          // Get day name safely
-                          const dayLabel = day.dayName ||
-                                          (day.date ? new Date(day.date).toLocaleDateString('en-US', { weekday: 'short' }) : '') ||
-                                          `Day ${index + 1}`;
-                          return (
-                            <div key={day.dateKey || index} className="flex-1 flex flex-col items-center gap-2">
-                              <div
-                                className="w-full bg-gradient-to-t from-emerald-500 to-emerald-400 dark:from-emerald-600 dark:to-emerald-500 rounded-t-lg hover:from-emerald-600 hover:to-emerald-500 dark:hover:from-emerald-500 dark:hover:to-emerald-400 transition-all relative group shadow-sm"
-                                style={{ height: `${height}%`, minHeight: day.count > 0 ? '12px' : '4px' }}
-                              >
-                                {day.count > 0 && (
-                                  <div className="absolute -top-10 left-1/2 transform -translate-x-1/2 bg-gray-900 dark:bg-gray-700 text-white text-xs px-2 py-1 rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-10 shadow-lg">
-                                    {day.count} submission{day.count !== 1 ? 's' : ''}
-                                  </div>
-                                )}
-                              </div>
-                              <p className="text-xs text-gray-500 dark:text-gray-400 font-medium">
-                                {dayLabel}
-                              </p>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  ) : (
+                        <div className="h-44">
+                          <Line
+                            data={{
+                              labels: progressData.map(d =>
+                                d.dayName || (d.date ? new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }) : '')
+                              ),
+                              datasets: [{
+                                label: 'Submissions',
+                                data: progressData.map(d => d.count),
+                                borderColor: '#10b981',
+                                backgroundColor: 'rgba(16,185,129,0.12)',
+                                fill: true,
+                                tension: 0.4,
+                                pointBackgroundColor: '#10b981',
+                                pointBorderColor: '#fff',
+                                pointBorderWidth: 2,
+                                pointRadius: 5,
+                                pointHoverRadius: 7,
+                              }]
+                            }}
+                            options={{
+                              responsive: true,
+                              maintainAspectRatio: false,
+                              plugins: {
+                                legend: { display: false },
+                                tooltip: {
+                                  backgroundColor: '#1e293b',
+                                  titleColor: '#f8fafc',
+                                  bodyColor: '#94a3b8',
+                                  padding: 10,
+                                  callbacks: {
+                                    label: (ctx) => ` ${ctx.parsed.y} submission${ctx.parsed.y !== 1 ? 's' : ''}`
+                                  }
+                                }
+                              },
+                              scales: {
+                                x: {
+                                  grid: { display: false },
+                                  ticks: { color: '#94a3b8', font: { size: 11 } },
+                                  border: { display: false }
+                                },
+                                y: {
+                                  beginAtZero: true,
+                                  grid: { color: 'rgba(148,163,184,0.1)' },
+                                  ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 },
+                                  border: { display: false }
+                                }
+                              }
+                            }}
+                          />
+                        </div>
+                      ) : (
                         <div className="text-center py-8">
                           <BarChart3 className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
                           <p className="text-sm text-slate-500 dark:text-slate-400">No activity data yet</p>
@@ -1037,7 +1089,7 @@ const DashboardContent = memo(function DashboardContent() {
                       {recentActivities.map((activity) => {
                         const timeAgo = getTimeAgo(activity.timestamp);
                         const scoreColor = activity.score >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
-                                          activity.score >= 60 ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300' :
+                                          activity.score >= 60 ? 'bg-gray-100 dark:bg-muted/20 text-gray-800 dark:text-gray-400' :
                                           'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300';
 
                         return (
@@ -1109,8 +1161,8 @@ const DashboardContent = memo(function DashboardContent() {
                   <Link href={`/dashboard/students?module=${moduleName}${moduleId ? `&moduleId=${moduleId}` : ''}`} className="group">
                     <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:shadow-lg hover:border-emerald-400 dark:hover:border-emerald-600 transition-all cursor-pointer">
                       <div className="flex flex-col items-center text-center gap-3">
-                        <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
-                          <Users className="w-6 h-6 text-blue-600 dark:text-blue-400" />
+                        <div className="p-3 bg-gray-100 dark:bg-muted/20 rounded-lg">
+                          <Users className="w-6 h-6 text-gray-900 dark:text-gray-300" />
                         </div>
                         <div>
                           <p className="text-sm font-bold text-slate-900 dark:text-white">Students</p>
@@ -1137,8 +1189,8 @@ const DashboardContent = memo(function DashboardContent() {
                   <Link href={`/dashboard/analytics?module=${moduleName}`} className="group">
                     <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:shadow-lg hover:border-purple-400 dark:hover:border-purple-600 transition-all cursor-pointer">
                       <div className="flex flex-col items-center text-center gap-3">
-                        <div className="p-3 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
-                          <BarChart3 className="w-6 h-6 text-purple-600 dark:text-purple-400" />
+                        <div className="p-3 bg-gray-100 dark:bg-muted/20 rounded-lg">
+                          <BarChart3 className="w-6 h-6 text-gray-700 dark:text-gray-400" />
                         </div>
                         <div>
                           <p className="text-sm font-bold text-slate-900 dark:text-white">Analytics</p>
