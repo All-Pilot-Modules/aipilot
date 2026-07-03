@@ -163,23 +163,38 @@ const StudentTestPage = memo(function StudentTestPage() {
           const answersData = answersResponse?.data || answersResponse || [];
 
           answersData.forEach(answerRecord => {
-            if (answerRecord && answerRecord.answer && answerRecord.question_id) {
-              let answerValue;
+            if (!answerRecord?.answer || !answerRecord.question_id) return;
 
-              // Handle different answer formats (old and new)
-              if (typeof answerRecord.answer === 'object') {
-                // New format: selected_option_id, or old format: selected_option, or text_response
-                answerValue = answerRecord.answer.text_response ||
-                             answerRecord.answer.selected_option_id ||
-                             answerRecord.answer.selected_option;
-              } else if (typeof answerRecord.answer === 'string') {
-                answerValue = answerRecord.answer;
-              }
+            let answerValue;
+            const ans = answerRecord.answer;
 
-              // Only include answers with actual content (not empty or whitespace-only)
-              if (answerValue && typeof answerValue === 'string' && answerValue.trim()) {
-                existingAnswers[answerRecord.question_id] = answerValue;
+            if (typeof ans === 'object' && ans !== null) {
+              if (ans.text_response) {
+                answerValue = ans.text_response;
+              } else if (ans.selected_option_id) {
+                answerValue = ans.selected_option_id;
+              } else if (ans.selected_option) {
+                answerValue = ans.selected_option;
+              } else if (ans.selected_options !== undefined) {
+                answerValue = ans.selected_options; // mcq_multiple
+              } else if (ans.blanks !== undefined) {
+                answerValue = ans.blanks; // fill_blank
+              } else if (ans.sub_answers !== undefined) {
+                answerValue = ans.sub_answers; // multi_part
               }
+            } else if (typeof ans === 'string') {
+              answerValue = ans;
+            }
+
+            const hasContent =
+              answerValue !== null && answerValue !== undefined &&
+              (typeof answerValue === 'string' ? answerValue.trim().length > 0 :
+               Array.isArray(answerValue) ? answerValue.length > 0 :
+               typeof answerValue === 'object' ? Object.keys(answerValue).length > 0 :
+               false);
+
+            if (hasContent) {
+              existingAnswers[answerRecord.question_id] = answerValue;
             }
           });
 
@@ -231,23 +246,41 @@ const StudentTestPage = memo(function StudentTestPage() {
               });
 
               prevAnswers.forEach(answerRecord => {
-                if (answerRecord && answerRecord.question_id) {
-                  let answerValue;
-                  if (typeof answerRecord.answer === 'object') {
-                    answerValue = answerRecord.answer.text_response ||
-                                 answerRecord.answer.selected_option_id ||
-                                 answerRecord.answer.selected_option;
-                  } else if (typeof answerRecord.answer === 'string') {
-                    answerValue = answerRecord.answer;
-                  }
+                if (!answerRecord?.question_id) return;
 
-                  // Only include answers with actual content (not empty or whitespace-only)
-                  if (answerValue && typeof answerValue === 'string' && answerValue.trim()) {
-                    answersMap[answerRecord.question_id] = {
-                      value: answerValue,
-                      answerId: answerRecord.id
-                    };
+                let answerValue;
+                const ans = answerRecord.answer;
+
+                if (typeof ans === 'object' && ans !== null) {
+                  if (ans.text_response) {
+                    answerValue = ans.text_response;
+                  } else if (ans.selected_option_id) {
+                    answerValue = ans.selected_option_id;
+                  } else if (ans.selected_option) {
+                    answerValue = ans.selected_option;
+                  } else if (ans.selected_options !== undefined) {
+                    answerValue = ans.selected_options; // mcq_multiple
+                  } else if (ans.blanks !== undefined) {
+                    answerValue = ans.blanks; // fill_blank
+                  } else if (ans.sub_answers !== undefined) {
+                    answerValue = ans.sub_answers; // multi_part
                   }
+                } else if (typeof ans === 'string') {
+                  answerValue = ans;
+                }
+
+                const hasContent =
+                  answerValue !== null && answerValue !== undefined &&
+                  (typeof answerValue === 'string' ? answerValue.trim().length > 0 :
+                   Array.isArray(answerValue) ? answerValue.length > 0 :
+                   typeof answerValue === 'object' ? Object.keys(answerValue).length > 0 :
+                   false);
+
+                if (hasContent) {
+                  answersMap[answerRecord.question_id] = {
+                    value: answerValue,
+                    answerId: answerRecord.id
+                  };
                 }
               });
 
@@ -493,7 +526,7 @@ const StudentTestPage = memo(function StudentTestPage() {
             question_id: questionId,
             module_id: moduleId,
             answer: formattedAnswer,
-            attempt_number: currentAttempt
+            attempt: currentAttempt
           });
 
           setSaveStatus('saved');
@@ -740,7 +773,7 @@ const StudentTestPage = memo(function StudentTestPage() {
             attempt: pa.attemptNumber,
             feedback: Object.entries(pa.feedback).map(([questionId, fb]) => ({
               question_id: questionId,
-              ai_feedback: fb.ai_feedback || fb.feedback_text || null,
+              ai_feedback: fb.explanation || null,
               score: fb.score ?? null,
               student_answer: pa.answers[questionId]?.value ?? null,
             })),
@@ -1150,7 +1183,7 @@ const StudentTestPage = memo(function StudentTestPage() {
           <CardContent className="p-6 text-center">
             <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Test Available</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">This module doesn&quot;t have any questions yet.</p>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">This module doesn&apos;t have any questions yet.</p>
             <Button onClick={() => router.push(`/student/module/${moduleId}`)}>
               Back to Module
             </Button>

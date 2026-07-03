@@ -501,12 +501,18 @@ export const apiClient = {
     } else if (endpoint.includes('/feedback') || endpoint.includes('/cleanup-feedback') || endpoint.includes('/feedback-status')) {
       timeout = 10000; // Feedback endpoints: 10 seconds
       retries = 1;     // 1 retry (fail fast, SSE/polling picks up)
+    } else if (endpoint.includes('/mastery/submit-answer')) {
+      timeout = 45000; // Mastery: synchronous AI grading for open-ended questions can take 15-30s
+      retries = 0;     // No retries — retrying would re-count the streak
     } else if (endpoint.includes('/submit-test')) {
       timeout = 30000; // Test submission: 30 seconds
       retries = 3;     // 3 retries (critical path)
     } else if (endpoint.includes('/consent')) {
       timeout = 15000;
       retries = 3;     // Consent is important, retry more
+    } else if (/^\/api\/users\/[^/]+$/.test(endpoint) && (!options.method || options.method === 'GET')) {
+      timeout = 5000;  // User lookups are display-only — fail fast
+      retries = 0;     // No retries; callers (module page) already have graceful fallback
     }
 
     // Retry loop for network-level failures and 502/503/504
@@ -572,8 +578,10 @@ export const apiClient = {
         if (!isRetryableError(error) || attempt >= retries) {
           if (!isRetryableError(error)) {
             console.error(`[apiClient] Non-retryable error on ${endpoint}: ${error.name}: ${error.message}`);
-          } else {
+          } else if (retries > 0) {
             console.error(`[apiClient] Exhausted retries on ${endpoint}: ${error.name}: ${error.message}`);
+          } else {
+            console.warn(`[apiClient] Failed on ${endpoint}: ${error.name}: ${error.message}`);
           }
           throw error;
         }

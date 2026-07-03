@@ -212,8 +212,12 @@ const MasteryPage = memo(function MasteryPage() {
         setShowFeedback(true);
       }
     } catch (err) {
-      console.error("Submit failed:", err);
-      setError(err?.response?.data?.detail || "Failed to submit answer. Please try again.");
+      const isTimeout = err?.name === 'TimeoutError' || err?.message?.includes('timed out');
+      setError(
+        isTimeout
+          ? "AI grading is taking longer than usual. Please try again."
+          : err?.message || "Failed to submit answer. Please try again."
+      );
     } finally {
       setSubmitting(false);
     }

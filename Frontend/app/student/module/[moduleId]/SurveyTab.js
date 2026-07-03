@@ -21,6 +21,7 @@ export default function SurveyTab({ moduleId, studentId, feedbackData = {}, feed
   const [hasSubmitted, setHasSubmitted] = useState(false);
 
   const loadSurvey = useCallback(async () => {
+    if (!moduleId || !studentId) return;
     try {
       setLoading(true);
       setError(null);
@@ -28,8 +29,6 @@ export default function SurveyTab({ moduleId, studentId, feedbackData = {}, feed
       const data = await apiClient.get(
         `/api/student/modules/${moduleId}/survey?student_id=${studentId}`
       );
-
-      console.log('📋 Survey data loaded:', data);
       setSurveyData(data);
       setHasSubmitted(data.has_submitted);
 
@@ -108,7 +107,6 @@ export default function SurveyTab({ moduleId, studentId, feedbackData = {}, feed
         { responses: backendResponses }
       );
 
-      console.log('✅ Survey submitted successfully');
       setSuccess(true);
       setHasSubmitted(true);
 

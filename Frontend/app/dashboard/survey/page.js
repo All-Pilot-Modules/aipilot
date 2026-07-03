@@ -96,8 +96,6 @@ function SurveyEditorContent() {
       // Load survey config
       const surveyConfig = await apiClient.get(`/api/modules/${moduleId}/survey`);
       setSurveyQuestions(surveyConfig.survey_questions || []);
-
-      console.log('📋 Survey config loaded:', surveyConfig);
     } catch (err) {
       console.error('Failed to load survey config:', err);
       setError('Failed to load survey configuration. Please try again.');
@@ -114,7 +112,7 @@ function SurveyEditorContent() {
 
   const handleAddQuestion = () => {
     const newQuestion = {
-      id: `q${surveyQuestions.length + 1}`,
+      id: `q_${Date.now()}`,
       question: '',
       type: 'long',
       required: false,
@@ -154,7 +152,6 @@ function SurveyEditorContent() {
         survey_questions: surveyQuestions
       });
 
-      console.log('✅ Survey config saved');
       setSuccess(true);
 
       // Hide success message after 3 seconds

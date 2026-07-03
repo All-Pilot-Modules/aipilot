@@ -82,10 +82,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   // Only sync when URL changes, not when activeTab changes (to prevent race condition)
   useEffect(() => {
     const tabParam = searchParams.get('tab') || 'assignments';
-    console.log(`🔄 Tab from URL: ${tabParam}`);
     setActiveTab(tabParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams]); // Only depend on searchParams to fix tab switching bug
+  }, [searchParams]);
 
   // State declarations - MUST come before useEffect hooks
   const [moduleAccess, setModuleAccess] = useState(null);
@@ -469,12 +468,12 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       setHasTeacherGrades(hasGrades);
 
       // Log when feedback count changes
-      const previousCount = window._lastFeedbackCount || 0;
+      const previousCount = lastFeedbackCountRef.current;
       if (previousCount !== totalFeedback) {
         const diff = totalFeedback - previousCount;
         console.log(`✅ 🎯 FEEDBACK UPDATED: ${previousCount} → ${totalFeedback} items (+${diff} new)`);
         console.log(`   📍 UI will re-render now with updated feedback!`);
-        window._lastFeedbackCount = totalFeedback;
+        lastFeedbackCountRef.current = totalFeedback;
       } else if (totalFeedback > 0) {
         console.log(`   ℹ️ Feedback count unchanged: ${totalFeedback} items`);
       }
@@ -487,52 +486,49 @@ const StudentModuleContent = memo(function StudentModuleContent() {
     }
   }, [moduleId]);
 
-  // Effect to start polling when tab changes to feedback
+  // Effect to start polling when tab changes to feedback.
+  // Guard: only run once per submission attempt — not on every tab visit.
   useEffect(() => {
     const startPollingIfNeeded = async () => {
-      if (activeTab === 'feedback' && moduleAccess && submissionStatus) {
-        const currentAttempt = submissionStatus.current_attempt || 1;
+      if (activeTab !== 'feedback' || !moduleAccess || !submissionStatus) return;
 
-        // Only poll if we have a submission (current_attempt > 1 means attempt 1 is done)
-        if (currentAttempt > 1) {
-          console.log('🔍 Checking if feedback is complete...');
+      const currentAttempt = submissionStatus.current_attempt || 1;
+      if (currentAttempt <= 1) return; // no submission yet
 
-          // FIRST: Run cleanup to catch any stale feedback from previous sessions
-          console.log('🧹 Running cleanup for stale feedback...');
-          try {
-            await apiClient.post(
-              `/api/student/modules/${moduleId}/cleanup-feedback?student_id=${moduleAccess.studentId}`
-            );
-            console.log('✅ Cleanup completed');
-          } catch (error) {
-            console.error('Cleanup failed:', error);
-          }
+      // Already ran setup for this attempt — skip all API calls
+      if (feedbackSetupAttemptRef.current === currentAttempt) return;
+      feedbackSetupAttemptRef.current = currentAttempt;
 
-          // Reload feedback to get latest status
-          await loadFeedbackForAnswers(moduleAccess);
+      console.log(`🔍 Feedback tab setup for attempt ${currentAttempt} (runs once per attempt)`);
 
-          // THEN: Check current feedback status
-          try {
-            const response = await apiClient.get(
-              `/api/student/modules/${moduleId}/feedback-status?student_id=${moduleAccess.studentId}&attempt=${currentAttempt - 1}`
-            );
-            const status = response?.data || response || {};
+      // Cleanup stale jobs from previous sessions
+      try {
+        await apiClient.post(
+          `/api/student/modules/${moduleId}/cleanup-feedback?student_id=${moduleAccess.studentId}`
+        );
+      } catch (error) {
+        console.warn('Cleanup failed (non-fatal):', error.message);
+      }
 
-            setFeedbackStatus(status);
+      // Reload feedback to get latest state
+      await loadFeedbackForAnswers(moduleAccess);
 
-            if (!status.all_complete) {
-              console.log('🚀 Feedback incomplete - starting polling NOW');
-              setIsPolling(true);
-            } else {
-              console.log('✅ All feedback already complete');
-            }
-          } catch (error) {
-            console.error('Failed to check feedback status:', error);
-            // If status check fails, start polling anyway to be safe
-            console.log('⚠️ Status check failed, starting polling to be safe');
-            setIsPolling(true);
-          }
+      // Check whether generation is still in progress
+      try {
+        const response = await apiClient.get(
+          `/api/student/modules/${moduleId}/feedback-status?student_id=${moduleAccess.studentId}&attempt=${currentAttempt - 1}`
+        );
+        const status = response?.data || response || {};
+        setFeedbackStatus(status);
+        if (!status.all_complete) {
+          console.log('🚀 Feedback incomplete - starting polling');
+          setIsPolling(true);
+        } else {
+          console.log('✅ All feedback already complete');
         }
+      } catch (error) {
+        console.warn('Feedback status check failed — starting polling to be safe:', error.message);
+        setIsPolling(true);
       }
     };
 
@@ -814,6 +810,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   // Store latest callback refs to avoid stale closures
   const checkFeedbackStatusRef = useRef(checkFeedbackStatus);
   const loadFeedbackForAnswersRef = useRef(loadFeedbackForAnswers);
+  const lastFeedbackCountRef = useRef(0);
+  // Track which attempt we've already done the feedback-tab setup for so we
+  // don't fire 3 API calls every time the student clicks the Feedback tab.
+  const feedbackSetupAttemptRef = useRef(null);
 
   // Update refs when callbacks change
   useEffect(() => {
@@ -1288,7 +1288,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                   </div>
                 </div>
                 <Button
-                  onClick={() => setActiveTab('feedback')}
+                  onClick={() => {
+                    setActiveTab('feedback');
+                    router.replace(`/student/module/${moduleId}?tab=feedback`, { scroll: false });
+                  }}
                   size="lg"
                   className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold shadow-lg flex-shrink-0 w-full sm:w-auto ring-2 ring-emerald-600/20"
                 >
@@ -1306,56 +1309,56 @@ const StudentModuleContent = memo(function StudentModuleContent() {
             <TabsList className="w-full flex md:grid md:grid-cols-6 overflow-x-auto scrollbar-hide bg-transparent gap-1">
               <TabsTrigger
                 value="assignments"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-4 py-2.5 rounded-lg font-medium"
+                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
               >
-                <HelpCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Test</span>
+                <HelpCircle className="w-4 h-4 flex-shrink-0" />
+                <span>Test</span>
               </TabsTrigger>
               <TabsTrigger
                 value="feedback"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-4 py-2.5 rounded-lg font-medium"
+                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
               >
-                <Brain className="w-4 h-4" />
-                <span className="hidden sm:inline">Feedback</span>
+                <Brain className="w-4 h-4 flex-shrink-0" />
+                <span>Feedback</span>
                 {Object.keys(feedbackData).length > 0 && (
-                  <Badge variant="secondary" className="ml-1 text-xs bg-white/20 text-inherit border-0">
+                  <Badge variant="secondary" className="ml-0.5 text-xs bg-white/20 text-inherit border-0 px-1.5 py-0">
                     {Object.keys(feedbackData).length}
                   </Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger
                 value="chat"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-teal-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-4 py-2.5 rounded-lg font-medium"
+                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-teal-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
               >
-                <MessageSquare className="w-4 h-4" />
-                <span className="hidden sm:inline">Chat</span>
+                <MessageSquare className="w-4 h-4 flex-shrink-0" />
+                <span>Chat</span>
               </TabsTrigger>
               <TabsTrigger
                 value="materials"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-4 py-2.5 rounded-lg font-medium"
+                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
               >
-                <FileText className="w-4 h-4" />
-                <span className="hidden sm:inline">Materials</span>
+                <FileText className="w-4 h-4 flex-shrink-0" />
+                <span>Materials</span>
               </TabsTrigger>
               <TabsTrigger
                 value="progress"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-600 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-4 py-2.5 rounded-lg font-medium"
+                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-600 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
               >
-                <CheckCircle className="w-4 h-4" />
-                <span className="hidden sm:inline">Progress</span>
+                <CheckCircle className="w-4 h-4 flex-shrink-0" />
+                <span>Progress</span>
               </TabsTrigger>
               <TabsTrigger
                 value="survey"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-4 py-2.5 rounded-lg font-medium"
+                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
               >
-                <ClipboardList className="w-4 h-4" />
-                <span className="hidden sm:inline">Survey</span>
+                <ClipboardList className="w-4 h-4 flex-shrink-0" />
+                <span>Survey</span>
               </TabsTrigger>
             </TabsList>
           </div>
 
           {/* Test Tab */}
-          <TabsContent value="assignments" className="space-y-6">
+          <TabsContent value="assignments" className="space-y-6 data-[state=inactive]:hidden" forceMount>
             {questions.length > 0 ? (
               <>
                 {/* Survey Completion Prompt - Show if student hasn't submitted survey */}
@@ -1380,7 +1383,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                           </p>
                         </div>
                         <Button
-                          onClick={() => setActiveTab('survey')}
+                          onClick={() => {
+                            setActiveTab('survey');
+                            router.replace(`/student/module/${moduleId}?tab=survey`, { scroll: false });
+                          }}
                           className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex-shrink-0 w-full sm:w-auto shadow-lg ring-2 ring-blue-600/20"
                         >
                           <ClipboardList className="w-4 h-4 mr-2" />
@@ -1440,7 +1446,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                             </div>
                           </div>
                           <Button
-                            onClick={() => setActiveTab('feedback')}
+                            onClick={() => {
+                              setActiveTab('feedback');
+                              router.replace(`/student/module/${moduleId}?tab=feedback`, { scroll: false });
+                            }}
                             className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg ring-2 ring-blue-600/20 flex-shrink-0 w-full sm:w-auto"
                             size="lg"
                           >
@@ -1606,7 +1615,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
           </TabsContent>
 
           {/* Feedback Tab */}
-          <TabsContent value="feedback" className="space-y-6">
+          <TabsContent value="feedback" className="space-y-6 data-[state=inactive]:hidden" forceMount>
 
             {/* ── Mastery Learning Progress Card ── */}
             {isMasteryEnabled && (
@@ -2719,24 +2728,26 @@ const StudentModuleContent = memo(function StudentModuleContent() {
           </TabsContent>
 
           {/* Chat Tab */}
-          <TabsContent value="chat" className="space-y-6">
+          <TabsContent value="chat" className="space-y-6 data-[state=inactive]:hidden" forceMount>
             {isChatbotEnabled ? (
               <ChatTab moduleId={moduleId} moduleAccess={moduleAccess} />
             ) : (
-              <Card className="border-2 border-amber-200 bg-amber-50 dark:bg-amber-950/20">
-                <CardContent className="pt-6">
-                  <div className="text-center py-12">
-                    <div className="w-16 h-16 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                      <MessageSquare className="w-8 h-8 text-amber-600 dark:text-amber-400" />
+              <Card className="relative overflow-hidden border-2 border-amber-200 dark:border-amber-800 shadow-lg">
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-50/60 to-yellow-50/40 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10"></div>
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500"></div>
+                <CardContent className="relative py-16 px-6">
+                  <div className="text-center max-w-sm mx-auto">
+                    <div className="w-20 h-20 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg ring-4 ring-amber-500/20">
+                      <MessageSquare className="w-10 h-10 text-white" />
                     </div>
-                    <h3 className="text-xl font-semibold text-amber-900 dark:text-amber-100 mb-2">
+                    <h3 className="text-2xl font-bold text-amber-900 dark:text-amber-100 mb-3">
                       AI Chatbot Not Available
                     </h3>
-                    <p className="text-amber-700 dark:text-amber-300 mb-4">
+                    <p className="text-amber-700 dark:text-amber-300 mb-2 text-base leading-relaxed">
                       Your instructor has not enabled the AI chatbot for this module.
                     </p>
-                    <p className="text-sm text-amber-600 dark:text-amber-400">
-                      Please use the other tabs to access your assignments, feedback, and materials.
+                    <p className="text-sm text-amber-600/80 dark:text-amber-400/80">
+                      Use the other tabs to access your test, feedback, and materials.
                     </p>
                   </div>
                 </CardContent>
@@ -2745,66 +2756,109 @@ const StudentModuleContent = memo(function StudentModuleContent() {
           </TabsContent>
 
           {/* Materials Tab */}
-          <TabsContent value="materials" className="space-y-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {documents
-                .filter((doc) => !doc.file_name.toLowerCase().includes('testbank'))
-                .map((doc) => (
-                <Card key={doc.id} className="hover:shadow-md transition-shadow">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <FileText className="w-5 h-5 text-green-600" />
-                      {doc.title}
-                    </CardTitle>
-                    <CardDescription>
-                      <div className="flex items-center gap-4 text-xs">
-                        <span>{doc.file_type.toUpperCase()}</span>
-                        <span>{new Date(doc.uploaded_at).toLocaleDateString()}</span>
-                        {doc.slide_count && <span>{doc.slide_count} slides</span>}
+          <TabsContent value="materials" className="space-y-6 data-[state=inactive]:hidden" forceMount>
+            {(() => {
+              const visibleDocs = documents.filter((doc) => !doc.file_name.toLowerCase().includes('testbank'));
+              const getFileTypeStyle = (fileType) => {
+                const ft = (fileType || '').toLowerCase();
+                if (ft === 'pdf') return { badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800', accent: 'from-red-500 to-rose-500' };
+                if (ft === 'pptx' || ft === 'ppt') return { badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-800', accent: 'from-orange-500 to-amber-500' };
+                if (ft === 'docx' || ft === 'doc') return { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800', accent: 'from-blue-500 to-indigo-500' };
+                return { badge: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700', accent: 'from-gray-500 to-slate-500' };
+              };
+              return (
+                <>
+                  {/* Section header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
+                        <FileText className="w-5 h-5 text-white" />
                       </div>
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={() => handleViewDocument(doc)}
-                        className="flex-1"
-                        variant="outline"
-                      >
-                        <Eye className="w-4 h-4 mr-2" />
-                        View
-                      </Button>
-                      <Button
-                        onClick={() => handleDownloadDocument(doc)}
-                        className="flex-1"
-                        variant="outline"
-                      >
-                        <Download className="w-4 h-4 mr-2" />
-                        Download
-                      </Button>
+                      <div>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Course Materials</h2>
+                        <p className="text-sm text-slate-500 dark:text-slate-400">{visibleDocs.length} file{visibleDocs.length !== 1 ? 's' : ''} available</p>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+                  </div>
 
-            {documents.filter((doc) => !doc.file_name.toLowerCase().includes('testbank')).length === 0 && (
-              <Card className="text-center py-12">
-                <CardContent>
-                  <FileText className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
-                    No Materials Available
-                  </h3>
-                  <p className="text-gray-600 dark:text-gray-400">
-                    Your instructor has not uploaded any course materials yet.
-                  </p>
-                </CardContent>
-              </Card>
-            )}
+                  {visibleDocs.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                      {visibleDocs.map((doc) => {
+                        const { badge, accent } = getFileTypeStyle(doc.file_type);
+                        return (
+                          <Card key={doc.id} className="relative overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 border border-slate-200 dark:border-slate-700">
+                            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${accent}`}></div>
+                            <CardHeader className="pb-3 pt-5">
+                              <div className="flex items-start justify-between gap-2">
+                                <CardTitle className="text-base font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2">
+                                  {doc.title}
+                                </CardTitle>
+                                <Badge className={`text-xs font-bold uppercase px-2 py-0.5 border flex-shrink-0 ${badge}`}>
+                                  {doc.file_type}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {new Date(doc.uploaded_at).toLocaleDateString()}
+                                </span>
+                                {doc.slide_count && (
+                                  <span className="flex items-center gap-1">
+                                    <BookOpen className="w-3 h-3" />
+                                    {doc.slide_count} slides
+                                  </span>
+                                )}
+                              </div>
+                            </CardHeader>
+                            <CardContent className="pt-0 pb-4">
+                              <div className="flex gap-2">
+                                <Button
+                                  onClick={() => handleViewDocument(doc)}
+                                  className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white shadow-sm"
+                                  size="sm"
+                                >
+                                  <Eye className="w-3.5 h-3.5 mr-1.5" />
+                                  View
+                                </Button>
+                                <Button
+                                  onClick={() => handleDownloadDocument(doc)}
+                                  variant="outline"
+                                  className="flex-1 border-slate-200 dark:border-slate-700"
+                                  size="sm"
+                                >
+                                  <Download className="w-3.5 h-3.5 mr-1.5" />
+                                  Download
+                                </Button>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <Card className="relative overflow-hidden border-2 border-amber-200 dark:border-amber-800">
+                      <div className="absolute inset-0 bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10"></div>
+                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-500"></div>
+                      <CardContent className="relative py-16 px-6 text-center">
+                        <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg ring-4 ring-amber-500/20">
+                          <FileText className="w-8 h-8 text-white" />
+                        </div>
+                        <h3 className="text-xl font-bold text-amber-900 dark:text-amber-100 mb-2">
+                          No Materials Available
+                        </h3>
+                        <p className="text-amber-700 dark:text-amber-300 text-sm">
+                          Your instructor has not uploaded any course materials yet.
+                        </p>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              );
+            })()}
           </TabsContent>
 
           {/* Progress Tab */}
-          <TabsContent value="progress" className="space-y-6">
+          <TabsContent value="progress" className="space-y-6 data-[state=inactive]:hidden" forceMount>
             {/* Teacher Grades Card - Show if any teacher grades exist */}
             {(() => {
               const teacherGradedQuestions = Object.values(feedbackData).filter(f => f.teacher_grade);
@@ -2869,22 +2923,29 @@ const StudentModuleContent = memo(function StudentModuleContent() {
             })()}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Test Progress</CardTitle>
+              {/* Test Progress Card */}
+              <Card className="relative overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+                <CardHeader className="pb-3 pt-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
+                      <Target className="w-4 h-4 text-white" />
+                    </div>
+                    <CardTitle className="text-base font-bold text-slate-900 dark:text-white">Test Progress</CardTitle>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div>
-                      <div className="flex justify-between text-sm mb-2">
-                        <span>Attempts Completed</span>
-                        <span>
+                      <div className="flex justify-between text-sm mb-2 font-medium">
+                        <span className="text-slate-600 dark:text-slate-400">Attempts Completed</span>
+                        <span className="text-slate-900 dark:text-white">
                           {submissionStatus?.submission_count || 0} / {submissionStatus?.max_attempts || 2}
                         </span>
                       </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5">
                         <div
-                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2.5 rounded-full transition-all duration-500"
                           style={{
                             width: `${submissionStatus ? ((submissionStatus.submission_count || 0) / (submissionStatus.max_attempts || 2)) * 100 : 0}%`
                           }}
@@ -2893,18 +2954,20 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                     </div>
 
                     {submissionStatus?.submissions && submissionStatus.submissions.length > 0 && (
-                      <div className="mt-4 pt-4 border-t">
-                        <h4 className="text-sm font-medium mb-2">Submission History</h4>
+                      <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Submission History</h4>
                         <div className="space-y-2">
                           {submissionStatus.submissions.map((submission, idx) => (
-                            <div key={idx} className="flex items-center justify-between text-sm">
-                              <span className="flex items-center gap-2">
-                                <CheckCircle className="w-4 h-4 text-green-500" />
+                            <div key={idx} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-lg px-3 py-2">
+                              <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                                <div className="w-5 h-5 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+                                  <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
+                                </div>
                                 Attempt {submission.attempt}
                               </span>
-                              <span className="text-gray-600 dark:text-gray-400">
+                              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs">
                                 {submission.questions_submitted} questions
-                              </span>
+                              </Badge>
                             </div>
                           ))}
                         </div>
@@ -2914,94 +2977,101 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                 </CardContent>
               </Card>
 
-              <Card>
-                <CardHeader>
-                  <CardTitle>Feedback Summary</CardTitle>
+              {/* Feedback Summary Card */}
+              <Card className="relative overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+                <CardHeader className="pb-3 pt-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-sm">
+                      <Brain className="w-4 h-4 text-white" />
+                    </div>
+                    <CardTitle className="text-base font-bold text-slate-900 dark:text-white">Feedback Summary</CardTitle>
+                  </div>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {Object.keys(feedbackData).length > 0 ? (
-                      <>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">Questions with feedback:</span>
-                          <Badge>{Object.keys(feedbackData).length}</Badge>
+                  {Object.keys(feedbackData).length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Total</p>
+                          <p className="text-xl font-bold text-slate-900 dark:text-white">{Object.keys(feedbackData).length}</p>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">Correct answers:</span>
-                          <Badge variant="default" className="bg-green-100 text-green-800">
+                        <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
+                          <p className="text-xs text-green-600 dark:text-green-400 font-medium mb-1">Correct</p>
+                          <p className="text-xl font-bold text-green-700 dark:text-green-400">
+                            {Object.values(feedbackData).filter(f => f.teacher_grade ? f.teacher_grade.points_awarded >= f.points_possible : f.is_correct).length}
+                          </p>
+                        </div>
+                        <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-3 text-center">
+                          <p className="text-xs text-orange-600 dark:text-orange-400 font-medium mb-1">Review</p>
+                          <p className="text-xl font-bold text-orange-700 dark:text-orange-400">
+                            {Object.values(feedbackData).filter(f => f.teacher_grade ? f.teacher_grade.points_awarded < f.points_possible : !f.is_correct).length}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Overall Score</span>
+                          <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                             {(() => {
-                              // Count correct answers (full points only)
-                              return Object.values(feedbackData).filter(f => {
+                              let totalPointsEarned = 0;
+                              let totalPointsPossible = 0;
+                              Object.values(feedbackData).forEach(f => {
                                 if (f.teacher_grade) {
-                                  return f.teacher_grade.points_awarded >= f.points_possible;
+                                  totalPointsEarned += f.teacher_grade.points_awarded || 0;
+                                  totalPointsPossible += f.points_possible || 0;
+                                } else if (f.correctness_score !== null && f.correctness_score !== undefined) {
+                                  const pointsPossible = f.points_possible || 1;
+                                  const score = f.correctness_score > 1 ? f.correctness_score / 100 : f.correctness_score;
+                                  totalPointsEarned += score * pointsPossible;
+                                  totalPointsPossible += pointsPossible;
+                                } else if (f.score !== null && f.score !== undefined) {
+                                  const pointsPossible = f.points_possible || 1;
+                                  const score = f.score > 1 ? f.score / 100 : f.score;
+                                  totalPointsEarned += score * pointsPossible;
+                                  totalPointsPossible += pointsPossible;
                                 }
-                                return f.is_correct;
-                              }).length;
-                            })()}
-                          </Badge>
+                              });
+                              if (totalPointsPossible === 0) return 0;
+                              return Math.round((totalPointsEarned / totalPointsPossible) * 100);
+                            })()}%
+                          </span>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm">To review:</span>
-                          <Badge variant="secondary" className="bg-orange-100 text-orange-800">
-                            {(() => {
-                              // Count incorrect answers (less than full points)
-                              return Object.values(feedbackData).filter(f => {
-                                if (f.teacher_grade) {
-                                  return f.teacher_grade.points_awarded < f.points_possible;
-                                }
-                                return !f.is_correct;
-                              }).length;
-                            })()}
-                          </Badge>
-                        </div>
-                        <div className="mt-4 pt-4 border-t">
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm font-medium">Overall Progress:</span>
-                            <span className="text-2xl font-bold text-blue-600">
-                              {(() => {
-                                // Calculate percentage based on points
-                                let totalPointsEarned = 0;
-                                let totalPointsPossible = 0;
-
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                          <div
+                            className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full transition-all duration-500"
+                            style={{
+                              width: `${(() => {
+                                let e = 0, t = 0;
                                 Object.values(feedbackData).forEach(f => {
-                                  if (f.teacher_grade) {
-                                    totalPointsEarned += f.teacher_grade.points_awarded || 0;
-                                    totalPointsPossible += f.points_possible || 0;
-                                  } else if (f.correctness_score !== null && f.correctness_score !== undefined) {
-                                    // Use AI's score - convert percentage to points
-                                    const pointsPossible = f.points_possible || 1;
-                                    const score = f.correctness_score > 1 ? f.correctness_score / 100 : f.correctness_score;
-                                    totalPointsEarned += score * pointsPossible;
-                                    totalPointsPossible += pointsPossible;
-                                  } else if (f.score !== null && f.score !== undefined) {
-                                    // Fallback to score field
-                                    const pointsPossible = f.points_possible || 1;
-                                    const score = f.score > 1 ? f.score / 100 : f.score;
-                                    totalPointsEarned += score * pointsPossible;
-                                    totalPointsPossible += pointsPossible;
-                                  }
+                                  if (f.teacher_grade) { e += f.teacher_grade.points_awarded || 0; t += f.points_possible || 0; }
+                                  else if (f.correctness_score != null) { const p = f.points_possible || 1; const s = f.correctness_score > 1 ? f.correctness_score / 100 : f.correctness_score; e += s * p; t += p; }
+                                  else if (f.score != null) { const p = f.points_possible || 1; const s = f.score > 1 ? f.score / 100 : f.score; e += s * p; t += p; }
                                 });
-
-                                if (totalPointsPossible === 0) return 0;
-                                return Math.round((totalPointsEarned / totalPointsPossible) * 100);
-                              })()}%
-                            </span>
-                          </div>
+                                return t > 0 ? Math.round((e / t) * 100) : 0;
+                              })()}%`
+                            }}
+                          ></div>
                         </div>
-                      </>
-                    ) : (
-                      <p className="text-sm text-gray-600 dark:text-gray-400">
-                        No feedback available yet. Complete the test to receive feedback.
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-6">
+                      <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center mx-auto mb-3">
+                        <Brain className="w-6 h-6 text-slate-400" />
+                      </div>
+                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                        No feedback yet. Complete the test to receive AI feedback.
                       </p>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
 
           {/* Survey Tab */}
-          <TabsContent value="survey">
+          <TabsContent value="survey" className="data-[state=inactive]:hidden" forceMount>
             <SurveyTab
               moduleId={moduleId}
               studentId={moduleAccess?.studentId}

@@ -30,39 +30,6 @@ from app.services.feedback_worker import create_feedback_job, create_feedback_jo
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
-# ---------------------------------------------------------------------------
-# In-process question cache
-# Questions for a module don't change during an exam. Caching for 60 s turns
-# 1000 simultaneous exam-start requests into 1 DB query + 999 cache hits.
-# ---------------------------------------------------------------------------
-import time
-from threading import Lock
-
-_question_cache: dict = {}
-_question_cache_lock = Lock()
-_QUESTION_TTL = 60  # seconds
-
-
-def _get_cached_questions(key: str):
-    with _question_cache_lock:
-        entry = _question_cache.get(key)
-        if entry and time.monotonic() - entry["ts"] < _QUESTION_TTL:
-            return entry["data"]
-    return None
-
-
-def _set_cached_questions(key: str, data):
-    with _question_cache_lock:
-        _question_cache[key] = {"data": data, "ts": time.monotonic()}
-
-
-def _invalidate_question_cache(module_id: str):
-    """Call whenever questions are approved/deactivated so students see changes."""
-    with _question_cache_lock:
-        to_delete = [k for k in _question_cache if k.startswith(f"module:{module_id}")]
-        for k in to_delete:
-            del _question_cache[k]
-
 
 # 🔍 Join module with access code
 @router.post("/join-module", response_model=ModuleOut)
@@ -158,21 +125,10 @@ def get_module_questions(
         raise HTTPException(status_code=404, detail="Module not found")
 
     if include_all:
-        # Return all questions (for teachers — don't cache, teacher may just approved new ones)
         questions = db.query(Question).filter(Question.module_id == module_id).all()
-        logger.debug(f"Returning {len(questions)} total questions for module {module_id}")
         return questions
 
-    # Cache student view — same data for every student, safe to cache for 60 s.
-    cache_key = f"module:{module_id}:active"
-    cached = _get_cached_questions(cache_key)
-    if cached is not None:
-        logger.debug(f"Cache hit: {len(cached)} questions for module {module_id}")
-        return cached
-
     questions = get_questions_by_status(db, module_id, QuestionStatus.ACTIVE)
-    _set_cached_questions(cache_key, questions)
-    logger.debug(f"Cache miss: loaded {len(questions)} questions for module {module_id}")
     return questions
 
 # ❓ Get all questions for a document (assignment)
@@ -192,18 +148,11 @@ def get_assignment_questions(
     if not document:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    cache_key = f"doc:{document_id}:active"
-    cached = _get_cached_questions(cache_key)
-    if cached is not None:
-        return cached
-
     questions = db.query(Question).filter(
         Question.document_id == document_id,
         Question.status == QuestionStatus.ACTIVE
     ).order_by(Question.question_order.nulls_last(), Question.id).all()
 
-    _set_cached_questions(cache_key, questions)
-    logger.debug(f"Returning {len(questions)} active questions for document {document_id}")
     return questions
 
 # ✅ Submit answer for a question with instant AI feedback

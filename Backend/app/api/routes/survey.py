@@ -109,8 +109,7 @@ def get_student_survey_view(
     my_response = get_survey_response(db, student_id, module_id)
     has_submitted = my_response is not None
 
-    # Convert SQLAlchemy model to Pydantic model if response exists
-    my_response_pydantic = SurveyResponseOut.from_orm(my_response) if my_response else None
+    my_response_pydantic = SurveyResponseOut.model_validate(my_response) if my_response else None
 
     return StudentSurveyView(
         survey_questions=module.survey_questions or [],

@@ -6,15 +6,17 @@ Detects fallback results and retries instead of silently marking them as done.
 Jobs survive server restarts because they live in the database.
 """
 
-import json
 import logging
 import threading
 import time
 import traceback
+import uuid as _uuid_mod
 from concurrent.futures import ThreadPoolExecutor, Future
 from datetime import datetime, timezone, timedelta
 from typing import List
 from uuid import UUID
+
+from sqlalchemy import text
 
 from app.database import SessionLocal
 from app.models.feedback_job import FeedbackJob
@@ -36,13 +38,24 @@ POLL_INTERVAL_EMPTY = 1.0
 # Sleep between processing consecutive batches
 POLL_INTERVAL_BUSY = 0.1
 
-# Concurrent worker threads — 10 parallel OpenAI calls
-# At ~2s per call, this processes ~300 questions/minute
+# Concurrent worker threads — 10 parallel OpenAI calls.
+# Leader election keeps only ONE instance running the worker, so total
+# concurrent OpenAI calls = MAX_WORKERS (not MAX_WORKERS × instance_count).
 MAX_WORKERS = 10
+
+# How often the leader refreshes its heartbeat (seconds)
+HEARTBEAT_INTERVAL = 30
+
+# How stale a heartbeat must be before another instance can steal leadership
+LEADER_TAKEOVER_SECONDS = 90
+
+# Unique ID for this process/instance — generated once at import time
+INSTANCE_ID = str(_uuid_mod.uuid4())
 
 # Global flag to stop the worker thread gracefully
 _stop_event = threading.Event()
 _worker_thread: threading.Thread | None = None
+_heartbeat_thread: threading.Thread | None = None
 
 
 # ─── public API ───────────────────────────────────────────────
@@ -143,23 +156,100 @@ def recover_stale_jobs():
         db.close()
 
 
+def _try_claim_leadership(db) -> bool:
+    """
+    Atomically try to become the feedback worker leader.
+    Uses a singleton row in worker_lock (id=1).
+    Returns True if this instance is now the leader.
+    """
+    try:
+        stale_interval = f"{LEADER_TAKEOVER_SECONDS} seconds"
+        db.execute(text(f"""
+            INSERT INTO worker_lock (id, instance_id, heartbeat, acquired_at)
+            VALUES (1, :iid, NOW(), NOW())
+            ON CONFLICT (id) DO UPDATE
+                SET instance_id = :iid,
+                    heartbeat   = NOW(),
+                    acquired_at = NOW()
+                WHERE worker_lock.heartbeat < NOW() - INTERVAL '{stale_interval}'
+                   OR worker_lock.instance_id = :iid
+        """), {"iid": INSTANCE_ID})
+        db.commit()
+
+        row = db.execute(
+            text("SELECT instance_id FROM worker_lock WHERE id = 1")
+        ).fetchone()
+        return row is not None and row[0] == INSTANCE_ID
+    except Exception as e:
+        logger.error(f"[worker] Leader election query failed: {e}")
+        db.rollback()
+        return False
+
+
+def _update_heartbeat():
+    """Background thread: keep the leader heartbeat alive every 30s."""
+    while not _stop_event.is_set():
+        _stop_event.wait(timeout=HEARTBEAT_INTERVAL)
+        if _stop_event.is_set():
+            break
+        db = SessionLocal()
+        try:
+            db.execute(
+                text("UPDATE worker_lock SET heartbeat = NOW() WHERE id = 1 AND instance_id = :iid"),
+                {"iid": INSTANCE_ID}
+            )
+            db.commit()
+        except Exception as e:
+            logger.warning(f"[worker] Heartbeat update failed: {e}")
+            db.rollback()
+        finally:
+            db.close()
+
+
 def start_worker():
-    """Start the background worker thread (idempotent)."""
-    global _worker_thread
+    """
+    Try to become the feedback worker leader, then start the worker loop.
+    Only one instance across all Cloud Run replicas will win the election.
+    Idempotent — safe to call multiple times.
+    """
+    global _worker_thread, _heartbeat_thread
+
     if _worker_thread is not None and _worker_thread.is_alive():
-        logger.info("[worker] Worker already running")
+        logger.info("[worker] Worker already running on this instance")
         return
+
+    db = SessionLocal()
+    try:
+        i_am_leader = _try_claim_leadership(db)
+    finally:
+        db.close()
+
+    if not i_am_leader:
+        logger.info(f"[worker] Instance {INSTANCE_ID[:8]} lost leader election — skipping worker start")
+        return
+
+    logger.info(f"[worker] Instance {INSTANCE_ID[:8]} is the leader — starting feedback worker")
     _stop_event.clear()
-    _worker_thread = threading.Thread(target=_worker_loop, daemon=True, name="feedback-worker")
+
+    _heartbeat_thread = threading.Thread(
+        target=_update_heartbeat, daemon=True, name="worker-heartbeat"
+    )
+    _heartbeat_thread.start()
+
+    _worker_thread = threading.Thread(
+        target=_worker_loop, daemon=True, name="feedback-worker"
+    )
     _worker_thread.start()
     logger.info(f"[worker] Feedback worker started (max_workers={MAX_WORKERS})")
 
 
 def stop_worker():
-    """Signal the worker to stop (used in tests / shutdown)."""
+    """Signal the worker and heartbeat threads to stop."""
     _stop_event.set()
     if _worker_thread is not None:
         _worker_thread.join(timeout=15)
+    if _heartbeat_thread is not None:
+        _heartbeat_thread.join(timeout=5)
     logger.info("[worker] Feedback worker stopped")
 
 
@@ -191,6 +281,7 @@ def _worker_loop():
     executor = ThreadPoolExecutor(max_workers=MAX_WORKERS, thread_name_prefix="fb-worker")
     active_futures: dict[Future, UUID] = {}  # future -> job_id
     _stale_check_counter = 0
+    _consecutive_db_failures = 0  # track repeated connection errors to apply backoff
 
     try:
         while not _stop_event.is_set():
@@ -216,12 +307,20 @@ def _worker_loop():
                 if available_slots > 0:
                     jobs = _claim_next_jobs(limit=available_slots)
 
-                    if jobs:
+                    if jobs is None:
+                        # None signals a DB connection error (distinct from empty queue)
+                        _consecutive_db_failures += 1
+                        backoff = min(2 ** _consecutive_db_failures, 60)
+                        logger.warning(f"[worker] DB unreachable — backing off {backoff}s (failure #{_consecutive_db_failures})")
+                        _stop_event.wait(timeout=backoff)
+                    elif jobs:
+                        _consecutive_db_failures = 0
                         for job_id in jobs:
                             future = executor.submit(_process_single_job, job_id)
                             active_futures[future] = job_id
                         time.sleep(POLL_INTERVAL_BUSY)
                     else:
+                        _consecutive_db_failures = 0
                         # No jobs available — sleep longer
                         _stop_event.wait(timeout=POLL_INTERVAL_EMPTY)
                 else:
@@ -238,11 +337,12 @@ def _worker_loop():
         logger.info("[worker] Worker loop exited")
 
 
-def _claim_next_jobs(limit: int) -> List[UUID]:
+def _claim_next_jobs(limit: int):
     """
     Atomically claim up to `limit` queued jobs by setting them to 'processing'.
     Uses FOR UPDATE SKIP LOCKED for safe concurrency.
-    Returns list of job IDs that were claimed.
+    Returns list of job IDs claimed, empty list if queue is empty,
+    or None if a DB connection error occurred (caller applies backoff).
     """
     db = SessionLocal()
     claimed_ids = []
@@ -274,7 +374,7 @@ def _claim_next_jobs(limit: int) -> List[UUID]:
     except Exception as e:
         logger.error(f"[worker] Error claiming jobs: {e}")
         db.rollback()
-        return []
+        return None  # signals connection error, not empty queue
     finally:
         db.close()
 
