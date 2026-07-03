@@ -352,8 +352,6 @@ const DashboardContent = memo(function DashboardContent() {
   }, []);
 
   const loadModuleData = useCallback(async () => {
-    if (!user) return;
-
     const userId = user?.id || user?.sub;
     if (!userId) {
       console.warn('User ID not available yet');

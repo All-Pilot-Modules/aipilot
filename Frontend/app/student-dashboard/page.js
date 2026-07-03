@@ -10,7 +10,7 @@ import {
 } from '@/components/ui/dialog';
 import {
   BookOpen, Clock, CheckCircle, XCircle, AlertCircle,
-  Plus, LogOut, ClipboardList, Settings,
+  Plus, LogOut, ClipboardList, Settings, User,
   Sparkles, CalendarDays, ArrowRight, RefreshCw,
   BookMarked, Link as LinkIcon, Globe, Lock,
   Layers, Compass, FlaskConical, Copy, Share2, Brain,

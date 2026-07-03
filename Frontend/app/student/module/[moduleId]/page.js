@@ -83,7 +83,6 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   useEffect(() => {
     const tabParam = searchParams.get('tab') || 'assignments';
     setActiveTab(tabParam);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
   // State declarations - MUST come before useEffect hooks
@@ -484,7 +483,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       // Don't fail the whole page if feedback loading fails
       return {};
     }
-  }, [moduleId]);
+  }, [moduleId, submissionStatus?.current_attempt]);
 
   // Effect to start polling when tab changes to feedback.
   // Guard: only run once per submission attempt — not on every tab visit.

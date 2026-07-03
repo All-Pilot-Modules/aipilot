@@ -293,7 +293,7 @@ export default function StudentModuleManage() {
 
   // ── poll doc processing ───────────────────────────────────────────────────
   useEffect(() => {
-    if (!document) return;
+    if (!document?.id) return;
     if (DONE_STATUSES.includes(document.processing_status))  return;
     if (ERROR_STATUSES.includes(document.processing_status)) return;
     setPolling(true);
