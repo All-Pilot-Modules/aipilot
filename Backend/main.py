@@ -95,12 +95,19 @@ def on_startup():
 
     # ✅ Recover any jobs that were in-flight when the server last stopped
     from app.services.feedback_worker import recover_stale_jobs, start_worker
-    recover_stale_jobs()
-    print("✅ Stale feedback jobs recovered")
+    try:
+        recover_stale_jobs()
+        print("✅ Stale feedback jobs recovered")
+    except Exception as e:
+        print(f"⚠️  recover_stale_jobs failed (non-fatal): {e}")
 
-    # ✅ Start the feedback worker thread
-    start_worker()
-    print("✅ Feedback worker started")
+    # ✅ Start the feedback worker thread (non-blocking, non-fatal)
+    try:
+        start_worker()
+        print("✅ Feedback worker started")
+    except Exception as e:
+        print(f"⚠️  start_worker failed (non-fatal): {e}")
+
     print("🎉 Application startup complete!")
 
 # 📎 Test route

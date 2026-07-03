@@ -40,5 +40,4 @@ CMD ["gunicorn", "main:app", \
      "--worker-class", "uvicorn.workers.UvicornWorker", \
      "--bind", "0.0.0.0:8080", \
      "--timeout", "300", \
-     "--proxy-headers", \
      "--forwarded-allow-ips", "*"]
