@@ -47,6 +47,12 @@ class AIFeedback(Base):
 
     generation_progress = Column(Integer, nullable=False, default=100, server_default='100')  # 0-100%
 
+    # sha256 fingerprint of the answer content this feedback was generated for.
+    # Compared against the current answer's hash at submit time — a match means
+    # the student never touched this answer since it was (possibly speculatively)
+    # graded, so the result can be reused instead of re-grading.
+    content_hash = Column(String(64), nullable=True)
+
     # Error tracking
     error_message = Column(String, nullable=True)  # Error description if generation failed
     error_type = Column(String(50), nullable=True)  # 'timeout', 'api_error', 'parse_error', 'network_error'

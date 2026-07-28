@@ -611,7 +611,7 @@ class AIFeedbackService:
         logger.info(f"🎯 OPENAI API CALL - {question_type.upper()} FEEDBACK")
         logger.info(f"📤 Model: {ai_model}")
         logger.info(f"📤 Temperature: 0.3")
-        logger.info(f"📤 Max Tokens: 1200")
+        logger.info(f"📤 Max Tokens: 900")
         logger.info(f"📤 Question ID: {question.id}")
         logger.info(f"📤 Student Answer Length: {len(student_answer)} chars")
         logger.info("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
@@ -626,7 +626,8 @@ class AIFeedbackService:
                 messages=[{"role": "user", "content": prompt}],
                 model=ai_model,
                 temperature=0.1,
-                max_tokens=500  # JSON response fits in ~350-400 tokens for text answers
+                max_tokens=900  # Per-criterion scores + explanation + hints regularly need 600-700+ tokens;
+                                 # 500 was too tight and caused truncated JSON -> retry storms (observed live)
             )
 
             # Parse JSON response

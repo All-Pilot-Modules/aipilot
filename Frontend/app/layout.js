@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono, Lora } from "next/font/google";
 import "./globals.css";
-import { Analytics } from "@vercel/analytics/next";
+
+import { Analytics } from "@vercel/analytics/next"
 import { ClientProviders } from "@/components/ClientProviders";
 import Script from 'next/script';
 

@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle2, XCircle, AlertCircle, Shield } from 'lucide-react';
 import { apiClient } from '@/lib/auth';
+import { DEFAULT_CONSENT_FORM } from '@/lib/consentForm';
 
 export default function ModuleConsentModal({
   isOpen,
@@ -93,7 +94,7 @@ export default function ModuleConsentModal({
         <div className="space-y-6 py-4 px-6 overflow-y-auto max-h-[calc(95vh-180px)]">
           {/* Consent Form Text */}
           <div className="prose prose-sm max-w-none dark:prose-invert">
-            {renderConsentText(consentFormText)}
+            {renderConsentText(consentFormText || DEFAULT_CONSENT_FORM)}
           </div>
 
           {/* Consent Options */}

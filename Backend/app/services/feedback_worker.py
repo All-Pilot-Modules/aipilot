@@ -70,9 +70,11 @@ def create_feedback_job(
     priority: int = 1,
     previous_feedback_context=None,
     is_final_attempt: bool = False,
+    content_hash: str | None = None,
 ):
     """
-    Insert a FeedbackJob row.  Called from the submit-test endpoint.
+    Insert a FeedbackJob row.  Called from the submit-test endpoint
+    (and, for speculative background grading, from the save-answer endpoint).
     """
     job = FeedbackJob(
         answer_id=answer_id if isinstance(answer_id, UUID) else UUID(str(answer_id)),
@@ -82,6 +84,7 @@ def create_feedback_job(
         priority=priority,
         previous_feedback_json=previous_feedback_context,  # JSONB — no json.dumps needed
         is_final_attempt=is_final_attempt,
+        content_hash=content_hash,
     )
     db.add(job)
     db.commit()
@@ -99,12 +102,17 @@ def create_feedback_jobs_batch(
     priority: int = 1,
     previous_feedback_context=None,
     is_final_attempt: bool = False,
+    content_hashes: dict | None = None,
 ):
     """
     Insert multiple FeedbackJob rows in a single commit.
     Much faster than calling create_feedback_job() in a loop (1 commit vs N commits).
+
+    content_hashes: optional {answer_id: content_hash} map, since each answer
+    in the batch has its own content and therefore its own fingerprint.
     """
     mid = module_id if isinstance(module_id, UUID) else UUID(str(module_id))
+    content_hashes = content_hashes or {}
     jobs = []
     for answer_id in answer_ids:
         job = FeedbackJob(
@@ -115,6 +123,7 @@ def create_feedback_jobs_batch(
             priority=priority,
             previous_feedback_json=previous_feedback_context,  # JSONB — no json.dumps needed
             is_final_attempt=is_final_attempt,
+            content_hash=content_hashes.get(answer_id) or content_hashes.get(str(answer_id)),
         )
         db.add(job)
         jobs.append(job)
@@ -542,6 +551,15 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
                 logger.info(f"[worker] Job {job.id} completed with fallback (no retryable error)")
             else:
                 logger.info(f"[worker] Job {job.id} completed with real AI feedback")
+
+        # Stamp the fingerprint of the answer content this result was generated for.
+        # submit-test compares this against the answer's current hash to decide
+        # whether the result can be reused or the answer changed since grading.
+        if job.content_hash:
+            fb_row = db.query(AIFeedback).filter(AIFeedback.answer_id == job.answer_id).first()
+            if fb_row:
+                fb_row.content_hash = job.content_hash
+                db.commit()
 
         # Lock feedback from students when the module uses teacher_only mode,
         # or when this is the final attempt (teacher reviews before releasing).

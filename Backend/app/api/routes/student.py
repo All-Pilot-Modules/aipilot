@@ -578,14 +578,23 @@ def get_question_feedback(
 @router.post("/save-answer")
 def save_student_answer(
     answer_data: StudentAnswerCreate,
+    speculative: bool = Query(
+        False,
+        description="If true, also queue a low-priority background grading job "
+                     "for this answer (used by the idle-debounce autosave)."
+    ),
     db: Session = Depends(get_db)
 ):
     """
     Save student answer as draft (auto-save functionality).
-    This does NOT generate feedback - it only saves the answer.
+    By default this does NOT generate feedback - it only saves the answer.
 
     VALIDATION: If answer is empty or whitespace-only, existing answer is deleted
     instead of saving empty data to the database.
+
+    speculative=true: additionally enqueues a priority=3 background FeedbackJob
+    so the answer is graded before the student submits. submit-test later
+    compares the answer's content hash to decide whether to reuse that result.
     """
     # SECURITY: Verify question is active before allowing save
     from app.crud.question import get_question_by_id
@@ -663,20 +672,73 @@ def save_student_answer(
     if existing_answer:
         # Update existing answer
         update_data = StudentAnswerUpdate(answer=answer_data.answer)
-        updated_answer = update_student_answer(db, existing_answer.id, update_data)
-        return {
-            "success": True,
-            "answer": updated_answer,
-            "message": "Answer saved as draft"
-        }
+        saved_answer = update_student_answer(db, existing_answer.id, update_data)
     else:
         # Create new answer
-        created_answer = create_student_answer(db, answer_data)
-        return {
-            "success": True,
-            "answer": created_answer,
-            "message": "Answer saved as draft"
-        }
+        saved_answer = create_student_answer(db, answer_data)
+
+    if speculative and saved_answer:
+        _maybe_queue_speculative_job(db, saved_answer.id, answer_data)
+
+    return {
+        "success": True,
+        "answer": saved_answer,
+        "message": "Answer saved as draft"
+    }
+
+
+def _maybe_queue_speculative_job(db: Session, answer_id, answer_data: StudentAnswerCreate):
+    """
+    Fire a low-priority (priority=3) background grading job for the answer
+    that was just autosaved, unless this exact content is already graded
+    or already in flight. Never raises — a speculative-grading hiccup must
+    never break the autosave request itself.
+    """
+    from app.utils.answer_hash import compute_answer_hash
+    from app.models.ai_feedback import AIFeedback
+    from app.models.feedback_job import FeedbackJob
+
+    try:
+        module = get_module_by_id(db, answer_data.module_id)
+        if not module:
+            return
+
+        ai_grading_mode = getattr(module, "ai_grading_mode", "visible") or "visible"
+        if ai_grading_mode == "disabled":
+            return
+
+        content_hash = compute_answer_hash(answer_data.answer)
+
+        # Already graded this exact content? Nothing to do.
+        existing_fb = db.query(AIFeedback).filter(
+            AIFeedback.answer_id == answer_id,
+            AIFeedback.content_hash == content_hash,
+            AIFeedback.generation_status == "completed",
+        ).first()
+        if existing_fb and not (existing_fb.feedback_data or {}).get("fallback", False):
+            return
+
+        # Already queued/processing for this exact content? Don't duplicate.
+        in_flight = db.query(FeedbackJob).filter(
+            FeedbackJob.answer_id == answer_id,
+            FeedbackJob.content_hash == content_hash,
+            FeedbackJob.status.in_(["queued", "processing"]),
+        ).first()
+        if in_flight:
+            return
+
+        create_feedback_job(
+            db=db,
+            answer_id=answer_id,
+            student_id=answer_data.student_id,
+            module_id=str(answer_data.module_id),
+            attempt=answer_data.attempt,
+            priority=3,
+            content_hash=content_hash,
+        )
+        logger.info(f"[speculative] Queued background grading for answer {answer_id}")
+    except Exception as e:
+        logger.warning(f"[speculative] Failed to queue background job for answer {answer_id}: {e}")
 
 # 🎯 Submit entire test with feedback generation
 @router.post("/modules/{module_id}/submit-test")
@@ -778,18 +840,81 @@ async def submit_test(
             "message": "Test submitted successfully."
         }
 
-    logger.info(f"Enqueuing {len(answer_ids)} feedback jobs (final_attempt={is_final}, mode={ai_grading_mode})")
+    # Reuse speculative results: for each answer, compare its current content
+    # hash against any already-completed AIFeedback. A match means the student
+    # never touched this answer since it was (possibly speculatively) graded,
+    # so we skip re-grading it entirely instead of paying for another AI call.
+    from app.utils.answer_hash import compute_answer_hash
+    from app.models.ai_feedback import AIFeedback
+    from app.models.feedback_job import FeedbackJob
+    from app.services.feedback_worker import calculate_test_score
 
-    create_feedback_jobs_batch(
-        db=db,
-        answer_ids=[answer.id for answer in answers],
-        student_id=student_id,
-        module_id=str(module_id),
-        attempt=attempt,
-        priority=1,
-        previous_feedback_context=previous_feedback_context,
-        is_final_attempt=is_final,
+    current_hashes = {answer.id: compute_answer_hash(answer.answer) for answer in answers}
+
+    existing_feedback = {
+        fb.answer_id: fb
+        for fb in db.query(AIFeedback).filter(AIFeedback.answer_id.in_(current_hashes.keys())).all()
+    }
+    in_flight_jobs = {
+        job.answer_id: job
+        for job in db.query(FeedbackJob).filter(
+            FeedbackJob.answer_id.in_(current_hashes.keys()),
+            FeedbackJob.status.in_(["queued", "processing"]),
+        ).all()
+    }
+
+    answers_needing_new_job = []
+    reused_count = 0
+    bumped_count = 0
+
+    for answer in answers:
+        current_hash = current_hashes[answer.id]
+        fb = existing_feedback.get(answer.id)
+        is_fallback = bool(fb and (fb.feedback_data or {}).get("fallback", False))
+
+        if fb and fb.generation_status == "completed" and not is_fallback and fb.content_hash == current_hash:
+            # Unchanged since it was graded (possibly in the background) — reuse instantly.
+            reused_count += 1
+            if ai_grading_mode == "teacher_only" or is_final:
+                fb.released = False
+                fb.requires_teacher_review = True
+            continue
+
+        in_flight = in_flight_jobs.get(answer.id)
+        if in_flight is not None and in_flight.content_hash == current_hash:
+            # Same content is already being graded in the background — jump the
+            # queue instead of duplicating the work with a second job.
+            in_flight.priority = 1
+            bumped_count += 1
+            continue
+
+        answers_needing_new_job.append(answer)
+
+    if reused_count or bumped_count:
+        db.commit()
+
+    logger.info(
+        f"submit-test: {len(answers)} answers — {reused_count} reused, "
+        f"{bumped_count} bumped to urgent, {len(answers_needing_new_job)} new jobs "
+        f"(final_attempt={is_final}, mode={ai_grading_mode})"
     )
+
+    if answers_needing_new_job:
+        create_feedback_jobs_batch(
+            db=db,
+            answer_ids=[answer.id for answer in answers_needing_new_job],
+            student_id=student_id,
+            module_id=str(module_id),
+            attempt=attempt,
+            priority=1,
+            previous_feedback_context=previous_feedback_context,
+            is_final_attempt=is_final,
+            content_hashes=current_hashes,
+        )
+    else:
+        # Nothing left in flight for this attempt (fully reused) — the worker
+        # will never complete a job to trigger scoring, so do it here.
+        calculate_test_score(student_id, str(module_id), attempt)
 
     if ai_grading_mode == "teacher_only":
         return {

@@ -13,7 +13,7 @@ async function getDb(moduleKey) {
 
   const client = new Client({
     connectionString: connString,
-    ssl: { rejectUnauthorized: false },
+    ssl: { rejectUnauthorized: true },
   });
 
   await client.connect(); // <-- This is critical

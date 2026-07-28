@@ -44,6 +44,12 @@ class FeedbackJob(Base):
     # Optional context for progressive feedback
     previous_feedback_json = Column(JSONB, nullable=True)
 
+    # sha256 fingerprint of the answer content this job was queued for.
+    # Used to detect whether the student edited their answer after a
+    # speculative (priority=3) job was created, so a stale result is
+    # never reused for content that has since changed.
+    content_hash = Column(String(64), nullable=True)
+
     # Timestamps
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
     completed_at = Column(TIMESTAMP(timezone=True), nullable=True)

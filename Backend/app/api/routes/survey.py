@@ -23,6 +23,28 @@ from app.models.module import Module
 router = APIRouter()
 
 
+def _get_survey_config(module: Module):
+    """Survey config lives in module.settings['survey'] (JSONB), not dedicated columns."""
+    survey = (module.settings or {}).get("survey") or {}
+    return survey.get("questions") or [], survey.get("required", False)
+
+
+def _set_survey_config(module: Module, questions=None, required=None):
+    """
+    Write survey config back into module.settings['survey'].
+    Reassigns the whole settings dict (not an in-place mutation) so SQLAlchemy
+    detects the change on this JSONB column.
+    """
+    settings = dict(module.settings or {})
+    survey = dict(settings.get("survey") or {})
+    if questions is not None:
+        survey["questions"] = questions
+    if required is not None:
+        survey["required"] = required
+    settings["survey"] = survey
+    module.settings = settings
+
+
 # ========================================
 # TEACHER ENDPOINTS
 # ========================================
@@ -37,9 +59,10 @@ def get_module_survey_config(
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
 
+    questions, required = _get_survey_config(module)
     return ModuleSurveyConfig(
-        survey_questions=module.survey_questions or [],
-        survey_required=module.survey_required
+        survey_questions=questions,
+        survey_required=required
     )
 
 
@@ -54,22 +77,22 @@ def update_module_survey_config(
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
 
-    # Update survey questions if provided
-    if survey_update.survey_questions is not None:
-        # Convert Pydantic models to dict for JSONB storage
-        module.survey_questions = [q.dict() for q in survey_update.survey_questions]
-
-    # Update survey required status if provided
-    if survey_update.survey_required is not None:
-        module.survey_required = survey_update.survey_required
+    # Convert Pydantic models to dict for JSONB storage where provided
+    new_questions = (
+        [q.dict() for q in survey_update.survey_questions]
+        if survey_update.survey_questions is not None
+        else None
+    )
+    _set_survey_config(module, questions=new_questions, required=survey_update.survey_required)
 
     db.commit()
     db.refresh(module)
 
     print(f"✅ Updated survey config for module {module_id}")
+    questions, required = _get_survey_config(module)
     return ModuleSurveyConfig(
-        survey_questions=module.survey_questions or [],
-        survey_required=module.survey_required
+        survey_questions=questions,
+        survey_required=required
     )
 
 
@@ -111,9 +134,10 @@ def get_student_survey_view(
 
     my_response_pydantic = SurveyResponseOut.model_validate(my_response) if my_response else None
 
+    questions, required = _get_survey_config(module)
     return StudentSurveyView(
-        survey_questions=module.survey_questions or [],
-        survey_required=module.survey_required,
+        survey_questions=questions,
+        survey_required=required,
         my_response=my_response_pydantic,
         has_submitted=has_submitted
     )
@@ -133,7 +157,7 @@ def submit_student_survey(
         raise HTTPException(status_code=404, detail="Module not found")
 
     # Validate that all required questions are answered
-    survey_questions = module.survey_questions or []
+    survey_questions, _ = _get_survey_config(module)
     for question in survey_questions:
         if question.get('required', False):
             question_id = question.get('id')

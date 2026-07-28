@@ -99,6 +99,10 @@ const StudentTestPage = memo(function StudentTestPage() {
   const answersRef = useRef({});
   // Ref for auto-save timeout to avoid triggering re-renders
   const autoSaveTimeoutRef = useRef(null);
+  // Per-question timers for speculative (background) grading.
+  // Keyed by questionId since several questions can each be "idle" independently,
+  // unlike the single draft-save timer above.
+  const speculativeTimeoutsRef = useRef({});
 
   // Prefill functionality states
   const [previousAttempts, setPreviousAttempts] = useState([]); // Array of {attemptNumber, answers, feedback}
@@ -361,8 +365,43 @@ const StudentTestPage = memo(function StudentTestPage() {
       if (autoSaveTimeoutRef.current) {
         clearTimeout(autoSaveTimeoutRef.current);
       }
+      // Cleanup any pending speculative-grading timers on unmount
+      Object.values(speculativeTimeoutsRef.current).forEach(clearTimeout);
+      speculativeTimeoutsRef.current = {};
     };
   }, [moduleId, router, loadTestData]);
+
+  // How long a question must sit untouched before we speculatively send it to
+  // the AI in the background (priority=3), ahead of the student hitting Submit.
+  const SPECULATIVE_DEBOUNCE_MS = 3000;
+
+  // Schedules (or reschedules, if the student keeps editing) a background
+  // grading request for one question. Debounced independently per question
+  // and separate from the draft-save timer above, since we want to wait
+  // until the student is truly done with THIS answer, not just done typing
+  // for a moment. Failures here are swallowed — this is a latency
+  // optimization, never something the student's save flow depends on.
+  const scheduleSpeculativeGrading = useCallback((questionId, formattedAnswer, attemptNumber, documentId) => {
+    if (speculativeTimeoutsRef.current[questionId]) {
+      clearTimeout(speculativeTimeoutsRef.current[questionId]);
+    }
+
+    speculativeTimeoutsRef.current[questionId] = setTimeout(async () => {
+      try {
+        await apiClient.post(`/api/student/save-answer?speculative=true`, {
+          student_id: moduleAccess.studentId,
+          question_id: questionId,
+          module_id: moduleId,
+          document_id: documentId || null,
+          answer: formattedAnswer,
+          attempt: attemptNumber
+        });
+        console.log(`🧠 Speculative grading queued for question ${questionId}`);
+      } catch (err) {
+        console.log(`Speculative grading trigger skipped for question ${questionId}:`, err.message);
+      }
+    }, SPECULATIVE_DEBOUNCE_MS);
+  }, [moduleAccess, moduleId]);
 
   const updateAnswer = (questionId, answer) => {
     // Check if answer is the same to prevent duplicate API calls
@@ -394,6 +433,12 @@ const StudentTestPage = memo(function StudentTestPage() {
     const isEmptyAnswer = !answer || (typeof answer === 'string' && !answer.trim());
     if (isEmptyAnswer || !moduleAccess) {
       setSaveStatus(null);
+
+      // Answer was cleared - no point grading it in the background anymore
+      if (speculativeTimeoutsRef.current[questionId]) {
+        clearTimeout(speculativeTimeoutsRef.current[questionId]);
+        delete speculativeTimeoutsRef.current[questionId];
+      }
 
       // RACE CONDITION FIX: Also tell backend to delete any existing answer for this question
       // This handles the case where user typed, auto-save started, then user deleted text
@@ -463,6 +508,8 @@ const StudentTestPage = memo(function StudentTestPage() {
           console.log(`✅ MCQ answer saved successfully`);
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus(null), 1000);
+
+          scheduleSpeculativeGrading(questionId, formattedAnswer, currentAttempt, question.document_id);
         } catch (error) {
           // Improved error handling for MCQ auto-save
           let errorMessage = 'Auto-save failed';
@@ -534,6 +581,8 @@ const StudentTestPage = memo(function StudentTestPage() {
             setSaveStatus(null);
           }, 2000);
 
+          scheduleSpeculativeGrading(questionId, formattedAnswer, currentAttempt, question.document_id);
+
         } catch (err) {
           const errorMessage = getErrorMessage(err);
           console.log(`${question.type} Auto-save error for question ${questionId}:`, errorMessage);
@@ -574,6 +623,8 @@ const StudentTestPage = memo(function StudentTestPage() {
 
           setSaveStatus('saved');
           setTimeout(() => setSaveStatus(null), 1000);
+
+          scheduleSpeculativeGrading(questionId, formattedAnswer, currentAttempt, question.document_id);
         } catch (error) {
           // Improved error handling for auto-save
           let errorMessage = 'Auto-save failed';
