@@ -103,6 +103,18 @@ export default function Footer() {
                 <Link href="/privacy" className="hover:text-[#1a212c] dark:hover:text-white">Privacy</Link>
               </div>
             </div>
+            <div className="text-[11px] text-[#1a212c]/40 dark:text-slate-500 mt-4 md:mt-0">
+              Managed by{" "}
+              <a
+                href="https://yubrajkhatri.com.np"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-[#1a212c] dark:hover:text-slate-300 hover:underline"
+              >
+                Yubraj Khatri
+              </a>
+              , under the mentorship of Dr. Yu, SUNY Brockport
+            </div>
           </div>
         </div>
       </div>
