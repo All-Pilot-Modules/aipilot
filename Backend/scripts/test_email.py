@@ -22,6 +22,8 @@ from app.core.email import (
     send_welcome_email,
     send_reset_password_email,
 )
+print(EMAIL_HOST)
+print(EMAIL_PORT)
 
 
 def main():
@@ -64,9 +66,13 @@ def main():
 
     print("-" * 40)
     for name, ok in results.items():
+        print(name)
+        print(ok)
+        print(results)
         print(f"{name}: {'sent' if ok else 'FAILED'}")
 
     if not all(results.values()):
+        print(results)
         sys.exit(1)
 
 

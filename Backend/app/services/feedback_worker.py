@@ -49,6 +49,12 @@ HEARTBEAT_INTERVAL = 30
 # How stale a heartbeat must be before another instance can steal leadership
 LEADER_TAKEOVER_SECONDS = 90
 
+# How often an instance that lost the leader election retries claiming it.
+# Without this, an instance that starts within LEADER_TAKEOVER_SECONDS of the
+# previous leader's last heartbeat (e.g. a quick local dev restart) would give
+# up on ever running the worker for its entire lifetime.
+LEADERSHIP_RETRY_SECONDS = 30
+
 # Unique ID for this process/instance — generated once at import time
 INSTANCE_ID = str(_uuid_mod.uuid4())
 
@@ -56,6 +62,7 @@ INSTANCE_ID = str(_uuid_mod.uuid4())
 _stop_event = threading.Event()
 _worker_thread: threading.Thread | None = None
 _heartbeat_thread: threading.Thread | None = None
+_election_thread: threading.Thread | None = None
 
 
 # ─── public API ───────────────────────────────────────────────
@@ -215,30 +222,11 @@ def _update_heartbeat():
             db.close()
 
 
-def start_worker():
-    """
-    Try to become the feedback worker leader, then start the worker loop.
-    Only one instance across all Cloud Run replicas will win the election.
-    Idempotent — safe to call multiple times.
-    """
+def _launch_worker_threads():
+    """Start the heartbeat and worker-loop threads. Caller must already hold leadership."""
     global _worker_thread, _heartbeat_thread
 
-    if _worker_thread is not None and _worker_thread.is_alive():
-        logger.info("[worker] Worker already running on this instance")
-        return
-
-    db = SessionLocal()
-    try:
-        i_am_leader = _try_claim_leadership(db)
-    finally:
-        db.close()
-
-    if not i_am_leader:
-        logger.info(f"[worker] Instance {INSTANCE_ID[:8]} lost leader election — skipping worker start")
-        return
-
     logger.info(f"[worker] Instance {INSTANCE_ID[:8]} is the leader — starting feedback worker")
-    _stop_event.clear()
 
     _heartbeat_thread = threading.Thread(
         target=_update_heartbeat, daemon=True, name="worker-heartbeat"
@@ -252,9 +240,63 @@ def start_worker():
     logger.info(f"[worker] Feedback worker started (max_workers={MAX_WORKERS})")
 
 
+def _leadership_election_loop():
+    """
+    Keep attempting to claim leadership until this instance wins, then start
+    the worker. Runs as its own daemon thread so a process that loses the
+    initial election (e.g. it started less than LEADER_TAKEOVER_SECONDS after
+    the previous leader's last heartbeat) doesn't give up forever — it just
+    keeps retrying every LEADERSHIP_RETRY_SECONDS, same as any other replica
+    would once the old leader's heartbeat actually goes stale.
+    """
+    while not _stop_event.is_set():
+        db = SessionLocal()
+        try:
+            i_am_leader = _try_claim_leadership(db)
+        finally:
+            db.close()
+
+        if i_am_leader:
+            _launch_worker_threads()
+            return
+
+        logger.info(
+            f"[worker] Instance {INSTANCE_ID[:8]} lost leader election — "
+            f"retrying in {LEADERSHIP_RETRY_SECONDS}s"
+        )
+        _stop_event.wait(timeout=LEADERSHIP_RETRY_SECONDS)
+
+
+def start_worker():
+    """
+    Try to become the feedback worker leader, then start the worker loop.
+    Only one instance across all Cloud Run replicas will win the election.
+    If this instance loses initially, it keeps retrying in the background
+    rather than giving up for its whole lifetime. Idempotent — safe to call
+    multiple times.
+    """
+    global _election_thread
+
+    if _worker_thread is not None and _worker_thread.is_alive():
+        logger.info("[worker] Worker already running on this instance")
+        return
+
+    if _election_thread is not None and _election_thread.is_alive():
+        logger.info("[worker] Leader election already in progress on this instance")
+        return
+
+    _stop_event.clear()
+    _election_thread = threading.Thread(
+        target=_leadership_election_loop, daemon=True, name="worker-leader-election"
+    )
+    _election_thread.start()
+
+
 def stop_worker():
-    """Signal the worker and heartbeat threads to stop."""
+    """Signal the election, worker, and heartbeat threads to stop."""
     _stop_event.set()
+    if _election_thread is not None:
+        _election_thread.join(timeout=LEADERSHIP_RETRY_SECONDS + 5)
     if _worker_thread is not None:
         _worker_thread.join(timeout=15)
     if _heartbeat_thread is not None:
