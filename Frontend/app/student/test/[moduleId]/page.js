@@ -386,6 +386,8 @@ const StudentTestPage = memo(function StudentTestPage() {
       clearTimeout(speculativeTimeoutsRef.current[questionId]);
     }
 
+    console.log(`⏳ Speculative grading scheduled for question ${questionId} — will fire in ${SPECULATIVE_DEBOUNCE_MS}ms unless the answer changes again`);
+
     speculativeTimeoutsRef.current[questionId] = setTimeout(async () => {
       try {
         await apiClient.post(`/api/student/save-answer?speculative=true`, {
