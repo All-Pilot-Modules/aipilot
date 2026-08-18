@@ -597,19 +597,37 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
         # Stamp the fingerprint of the answer content this result was generated for.
         # submit-test compares this against the answer's current hash to decide
         # whether the result can be reused or the answer changed since grading.
-        if job.content_hash:
-            fb_row = db.query(AIFeedback).filter(AIFeedback.answer_id == job.answer_id).first()
-            if fb_row:
-                fb_row.content_hash = job.content_hash
-                db.commit()
+        # Recomputed from the content actually graded above (not job.content_hash,
+        # which was captured at enqueue time and can be stale if the student edited
+        # the answer again while this job was queued/processing) so a race between
+        # two jobs for the same answer can never stamp the wrong hash.
+        from app.utils.answer_hash import compute_answer_hash
+        fb_row = db.query(AIFeedback).filter(AIFeedback.answer_id == job.answer_id).first()
+        if fb_row:
+            fb_row.content_hash = compute_answer_hash(answer.answer)
+            db.commit()
 
-        # Lock feedback from students when the module uses teacher_only mode,
-        # or when this is the final attempt (teacher reviews before releasing).
+        # Lock feedback from students according to the module's grading mode:
+        #   - "manual": AI still grades, but nothing reaches the student until a
+        #               teacher reviews and releases it — always gated (every attempt)
+        #   - "auto":   shown immediately, unless the module explicitly opted into
+        #               require_teacher_approval as a final-attempt safety net
         from app.models.module import Module
         module_obj = db.query(Module).filter(Module.id == job.module_id).first()
-        ai_grading_mode = getattr(module_obj, "ai_grading_mode", "visible") or "visible"
+        ai_grading_mode = getattr(module_obj, "ai_grading_mode", "auto") or "auto"
+        require_teacher_approval = bool(
+            ((module_obj.ai_config or {}).get("grading", {}) if module_obj else {}).get(
+                "require_teacher_approval", False
+            )
+        )
 
-        if ai_grading_mode == "teacher_only" or job.is_final_attempt:
+        gate_reason = None
+        if ai_grading_mode == "manual":
+            gate_reason = "manual grading mode (pending instructor review)"
+        elif ai_grading_mode == "auto" and job.is_final_attempt and require_teacher_approval:
+            gate_reason = "final attempt requires teacher approval"
+
+        if gate_reason:
             fb = db.query(AIFeedback).filter(
                 AIFeedback.answer_id == job.answer_id,
                 AIFeedback.generation_status == 'completed',
@@ -618,9 +636,8 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
                 fb.released = False
                 fb.requires_teacher_review = True
                 db.commit()
-                reason = "teacher_only mode" if ai_grading_mode == "teacher_only" else "final attempt"
                 logger.info(
-                    f"[worker] Feedback {fb.id} marked as unreleased ({reason})"
+                    f"[worker] Feedback {fb.id} marked as unreleased ({gate_reason})"
                 )
 
         # Check if all jobs for this attempt are done and calculate score

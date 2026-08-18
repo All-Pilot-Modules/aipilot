@@ -20,7 +20,7 @@ router = APIRouter()
 
 VALID_BATCH_TYPES = {"practice", "quiz", "exam", "review"}
 VALID_STATUSES = {"draft", "active", "locked"}
-VALID_GRADING_MODES = {"visible", "teacher_only", "disabled"}
+VALID_GRADING_MODES = {"auto", "manual"}
 
 
 # ── Teacher: manage batches ───────────────────────────────────────────────────
@@ -178,7 +178,7 @@ def get_effective_config(module_id: UUID, batch_id: UUID, db: Session = Depends(
     return {
         "batch_id": str(batch.id),
         "batch_type": batch.batch_type,
-        "ai_grading_mode": batch.ai_grading_mode or module.ai_grading_mode or "visible",
+        "ai_grading_mode": batch.ai_grading_mode or module.ai_grading_mode or "auto",
         "max_attempts": batch.max_attempts if batch.max_attempts is not None else module_max_attempts,
         "show_feedback_after_each": (
             batch.show_feedback_after_each

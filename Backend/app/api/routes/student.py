@@ -210,8 +210,7 @@ def submit_student_answer(
     # Generate feedback for all attempts EXCEPT the final/last attempt
     # Example: max_attempts=2 → feedback on attempt 1, no feedback on attempt 2
     # Example: max_attempts=3 → feedback on attempts 1 and 2, no feedback on attempt 3
-    ai_grading_mode = getattr(module, "ai_grading_mode", "visible") or "visible"
-    should_generate_feedback = answer_data.attempt < max_attempts and ai_grading_mode != "disabled"
+    should_generate_feedback = answer_data.attempt < max_attempts
 
     if should_generate_feedback:
         # Build progressive feedback context from previous attempts (fast DB read only)
@@ -424,12 +423,23 @@ def get_module_feedback(
     from app.models.student_answer import StudentAnswer
     from app.models.teacher_grade import TeacherGrade
     from app.models.question import Question
+    from app.models.module import Module
     from sqlalchemy.orm import aliased
+
+    module = db.query(Module).filter(Module.id == module_id).first()
+
+    # Teacher setting: show the numeric score/percentage to students at all.
+    # When off, explanation/hints/suggestions still show — only the score box
+    # and correctness indicators are stripped from the response.
+    show_score_to_student = bool(
+        (module.ai_config or {}).get("grading", {}).get("show_score_to_student", True)
+    ) if module else True
 
     # Single JOIN query: feedback + answer in one shot
     # Exclude mastery practice answers (is_mastery=True) — those are ephemeral and
     # should never appear in the test feedback tab.
-    # Only return feedback marked as released (released=False means teacher_only mode).
+    # Only return feedback marked as released (released=False means pending
+    # teacher review under "manual" grading mode).
     feedback_rows = db.query(AIFeedback, StudentAnswer).join(
         StudentAnswer, AIFeedback.answer_id == StudentAnswer.id
     ).filter(
@@ -495,7 +505,7 @@ def get_module_feedback(
             "requires_teacher_review": feedback.requires_teacher_review,
         })
 
-    # Teacher-only grades (no AI feedback) — single query with JOIN
+    # Manually-entered teacher grades with no AI feedback row — single query with JOIN
     teacher_only_query = db.query(TeacherGrade, StudentAnswer, Question).join(
         StudentAnswer, TeacherGrade.answer_id == StudentAnswer.id
     ).join(
@@ -543,6 +553,16 @@ def get_module_feedback(
             },
             "is_teacher_graded": True
         })
+
+    if not show_score_to_student:
+        for item in student_feedback:
+            item["is_correct"] = None
+            item["score"] = None
+            item["correctness_score"] = None
+            item["points_earned"] = None
+            item["criterion_scores"] = None
+            if item.get("teacher_grade"):
+                item["teacher_grade"] = {**item["teacher_grade"], "points_awarded": None}
 
     return student_feedback
 
@@ -703,10 +723,6 @@ def _maybe_queue_speculative_job(db: Session, answer_id, answer_data: StudentAns
         if not module:
             return
 
-        ai_grading_mode = getattr(module, "ai_grading_mode", "visible") or "visible"
-        if ai_grading_mode == "disabled":
-            return
-
         content_hash = compute_answer_hash(answer_data.answer)
 
         # Already graded this exact content? Nothing to do.
@@ -725,6 +741,20 @@ def _maybe_queue_speculative_job(db: Session, answer_id, answer_data: StudentAns
             FeedbackJob.status.in_(["queued", "processing"]),
         ).first()
         if in_flight:
+            return
+
+        # A job for this answer is still queued (hasn't started processing yet)
+        # but for older content — the student edited again before the worker
+        # picked it up. Update it in place instead of inserting a second row,
+        # which would otherwise cost two OpenAI calls for the same answer.
+        stale_queued = db.query(FeedbackJob).filter(
+            FeedbackJob.answer_id == answer_id,
+            FeedbackJob.status == "queued",
+        ).first()
+        if stale_queued:
+            stale_queued.content_hash = content_hash
+            db.commit()
+            logger.info(f"[speculative] Updated queued job {stale_queued.id} for answer {answer_id} with latest content hash")
             return
 
         create_feedback_job(
@@ -825,20 +855,7 @@ async def submit_test(
 
     is_final = attempt >= max_attempts
     answer_ids = [str(answer.id) for answer in answers]
-    ai_grading_mode = getattr(module, "ai_grading_mode", "visible") or "visible"
-
-    if ai_grading_mode == "disabled":
-        return {
-            "success": True,
-            "submission_id": str(submission.id),
-            "attempt": attempt,
-            "questions_submitted": len(answers),
-            "answer_ids": answer_ids,
-            "can_retry": not is_final,
-            "max_attempts": max_attempts,
-            "feedback_status": "disabled",
-            "message": "Test submitted successfully."
-        }
+    ai_grading_mode = getattr(module, "ai_grading_mode", "auto") or "auto"
 
     # Reuse speculative results: for each answer, compare its current content
     # hash against any already-completed AIFeedback. A match means the student
@@ -863,6 +880,14 @@ async def submit_test(
         ).all()
     }
 
+    require_teacher_approval = bool(
+        (module.ai_config or {}).get("grading", {}).get("require_teacher_approval", False)
+    )
+    needs_review_gate = (
+        ai_grading_mode == "manual"
+        or (ai_grading_mode == "auto" and is_final and require_teacher_approval)
+    )
+
     answers_needing_new_job = []
     reused_count = 0
     bumped_count = 0
@@ -875,7 +900,7 @@ async def submit_test(
         if fb and fb.generation_status == "completed" and not is_fallback and fb.content_hash == current_hash:
             # Unchanged since it was graded (possibly in the background) — reuse instantly.
             reused_count += 1
-            if ai_grading_mode == "teacher_only" or is_final:
+            if needs_review_gate:
                 fb.released = False
                 fb.requires_teacher_review = True
             continue
@@ -885,6 +910,18 @@ async def submit_test(
             # Same content is already being graded in the background — jump the
             # queue instead of duplicating the work with a second job.
             in_flight.priority = 1
+            bumped_count += 1
+            continue
+
+        if in_flight is not None and in_flight.status == "queued":
+            # Content changed since this job was queued (hasn't started yet) —
+            # update it in place instead of leaving it stale and inserting a
+            # duplicate job that would grade the same current content twice.
+            in_flight.content_hash = current_hash
+            in_flight.priority = 1
+            in_flight.is_final_attempt = is_final
+            if previous_feedback_context:
+                in_flight.previous_feedback_json = previous_feedback_context
             bumped_count += 1
             continue
 
@@ -916,7 +953,7 @@ async def submit_test(
         # will never complete a job to trigger scoring, so do it here.
         calculate_test_score(student_id, str(module_id), attempt)
 
-    if ai_grading_mode == "teacher_only":
+    if needs_review_gate:
         return {
             "success": True,
             "submission_id": str(submission.id),
@@ -925,34 +962,21 @@ async def submit_test(
             "answer_ids": answer_ids,
             "can_retry": not is_final,
             "max_attempts": max_attempts,
-            "feedback_status": "teacher_review",
-            "message": "Test submitted! Your teacher will review and share results with you."
+            "feedback_status": "pending_review",
+            "message": "Test submitted! Your teacher will review and release your feedback."
         }
 
-    if not is_final:
-        return {
-            "success": True,
-            "submission_id": str(submission.id),
-            "attempt": attempt,
-            "questions_submitted": len(answers),
-            "answer_ids": answer_ids,
-            "can_retry": True,
-            "max_attempts": max_attempts,
-            "feedback_status": "generating",
-            "message": "Test submitted! Feedback is being generated in the background."
-        }
-    else:
-        return {
-            "success": True,
-            "submission_id": str(submission.id),
-            "attempt": attempt,
-            "questions_submitted": len(answers),
-            "answer_ids": answer_ids,
-            "can_retry": False,
-            "max_attempts": max_attempts,
-            "feedback_status": "pending_review",
-            "message": "Final attempt submitted! Your teacher will review and release your feedback."
-        }
+    return {
+        "success": True,
+        "submission_id": str(submission.id),
+        "attempt": attempt,
+        "questions_submitted": len(answers),
+        "answer_ids": answer_ids,
+        "can_retry": not is_final,
+        "max_attempts": max_attempts,
+        "feedback_status": "generating",
+        "message": "Test submitted! Feedback is being generated in the background."
+    }
 
 # 📊 Get submission status for a student in a module
 @router.get("/modules/{module_id}/submission-status")

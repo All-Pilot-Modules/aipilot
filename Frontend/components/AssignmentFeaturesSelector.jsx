@@ -7,50 +7,34 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { RotateCcw, MessageCircle, Target, Settings, Info, Brain, Eye, EyeOff, PenLine } from "lucide-react";
+import { RotateCcw, MessageCircle, Target, Settings, Info, Brain, Eye } from "lucide-react";
 
 const GRADING_MODES = [
   {
-    value: 'ai_visible',
+    value: 'auto',
     label: 'AI Grading',
     sub: 'Score & feedback shown to student immediately',
     icon: Brain,
     color: 'blue',
   },
   {
-    value: 'teacher_assist',
-    label: 'AI Assists Teacher',
-    sub: 'AI suggests grade to you; you approve before student sees anything',
+    value: 'manual',
+    label: 'Teacher Review',
+    sub: 'AI grades every answer, but nothing reaches the student until a teacher reviews, edits if needed, and releases it',
     icon: Eye,
     color: 'purple',
-  },
-  {
-    value: 'ai_teacher_only',
-    label: 'Grade — Hide from Student',
-    sub: 'AI grades automatically; result visible to teacher only',
-    icon: EyeOff,
-    color: 'amber',
-  },
-  {
-    value: 'manual',
-    label: 'Manual Grading',
-    sub: 'Teacher reviews and grades each answer themselves',
-    icon: PenLine,
-    color: 'gray',
   },
 ];
 
 const ATTEMPT_MODE_OPTIONS = [
-  { value: 'ai_visible',      label: 'AI → Show student' },
-  { value: 'teacher_assist',  label: 'AI → Teacher approves' },
-  { value: 'ai_teacher_only', label: 'AI → Teacher only' },
-  { value: 'manual',          label: 'Manual' },
+  { value: 'auto',   label: 'AI → Show student' },
+  { value: 'manual', label: 'AI → Teacher review' },
 ];
 
 export default function AssignmentFeaturesSelector({ value, onChange }) {
   const defaultConfig = {
     grading: {
-      mode: 'ai_visible',
+      mode: 'auto',
       per_attempt_enabled: false,
       attempt_modes: {},
     },
@@ -118,10 +102,8 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
   const getEnabledFeatures = () => {
     const features = [];
     const g = config.grading;
-    if (g?.mode === 'ai_visible')      features.push('AI Grading');
-    if (g?.mode === 'teacher_assist')  features.push('AI Assists Teacher');
-    if (g?.mode === 'ai_teacher_only') features.push('AI (Hidden from Student)');
-    if (g?.mode === 'manual')          features.push('Manual Grading');
+    if (g?.mode === 'auto')   features.push('AI Grading');
+    if (g?.mode === 'manual') features.push('Teacher Review');
     if (config.features?.multiple_attempts?.enabled) features.push('Multiple Attempts');
     if (config.features?.chatbot_feedback?.enabled)  features.push('AI Chatbot');
     if (config.features?.mastery_learning?.enabled)  features.push('Mastery Learning');
@@ -169,14 +151,10 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
               const colorMap = {
                 blue:   'border-blue-500 bg-blue-50 dark:bg-blue-950/30',
                 purple: 'border-purple-500 bg-purple-50 dark:bg-purple-950/30',
-                amber:  'border-amber-500 bg-amber-50 dark:bg-amber-950/30',
-                gray:   'border-gray-400 bg-gray-50 dark:bg-gray-900/30',
               };
               const iconMap = {
                 blue:   'text-blue-600',
                 purple: 'text-purple-600',
-                amber:  'text-amber-600',
-                gray:   'text-gray-500',
               };
               return (
                 <button
@@ -194,9 +172,7 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
                   </div>
                   {active && (
                     <div className={`ml-auto w-2 h-2 rounded-full mt-1 flex-shrink-0 ${
-                      color === 'blue' ? 'bg-blue-500' :
-                      color === 'purple' ? 'bg-purple-500' :
-                      color === 'amber' ? 'bg-amber-500' : 'bg-gray-400'
+                      color === 'blue' ? 'bg-blue-500' : 'bg-purple-500'
                     }`} />
                   )}
                 </button>

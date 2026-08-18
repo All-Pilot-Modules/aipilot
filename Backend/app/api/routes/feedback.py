@@ -174,6 +174,13 @@ def get_ai_feedback_by_id(
     if not feedback:
         raise HTTPException(status_code=404, detail="Feedback not found")
 
+    # Matches the same released-gate used everywhere else feedback reaches a
+    # student (get_question_feedback, get_module_feedback) — a feedback_critiques
+    # entry can only exist for feedback a student already saw, i.e. already
+    # released, so this doesn't block that legitimate use.
+    if not feedback.released:
+        raise HTTPException(status_code=403, detail="Feedback not yet released")
+
     # Get the associated answer to include question_id
     answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first()
 
@@ -262,12 +269,14 @@ def get_feedback_status_by_answer(
         "answer_id": str(feedback.answer_id),
         "question_id": str(answer.question_id) if answer else None,
 
-        # Include feedback data if completed
+        # Include feedback data only once released — generation can complete
+        # (status='completed') while still gated pending teacher review/release
+        # ("manual" grading mode), and this poll must not leak the score early.
         "feedback": {
             "explanation": feedback.feedback_data.get("explanation") if feedback.feedback_data else None,
             "score": feedback.score,
             "is_correct": feedback.is_correct
-        } if feedback.generation_status == 'completed' and feedback.feedback_data else None
+        } if feedback.generation_status == 'completed' and feedback.feedback_data and feedback.released else None
     }
 
 
@@ -561,7 +570,7 @@ def retry_all_failed_feedback(
     }
 
 
-# ── Teacher-only grading mode: view and release feedback ──────────────────────
+# ── "Manual" grading mode: view and release feedback ───────────────────────────
 
 @router.get("/teacher/module/{module_id}/unreleased")
 def get_unreleased_feedback(
@@ -570,7 +579,7 @@ def get_unreleased_feedback(
 ):
     """
     Teacher endpoint: list all AI feedback not yet released to students.
-    Used when ai_grading_mode is 'teacher_only'.
+    Used when ai_grading_mode is 'manual'.
     """
     rows = (
         db.query(AIFeedback, StudentAnswer)

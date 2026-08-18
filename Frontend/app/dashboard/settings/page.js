@@ -17,7 +17,7 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Slider } from "@/components/ui/slider";
 import ConsentFormEditor from "@/components/ConsentFormEditor";
 import {
-  Brain, Eye, EyeOff, PenLine,
+  Brain, Eye,
   Loader2, Check, AlertCircle,
   Globe, Lock, ChevronRight,
   GraduationCap, RotateCcw,
@@ -43,41 +43,20 @@ const SHARED_SAVE_TABS = new Set(['general', 'grading', 'features']);
 
 const GRADING_MODES = [
   {
-    value: 'ai_visible',
+    value: 'auto',
     label: 'AI Grading',
     sub: 'Automated',
     description: 'AI evaluates and returns score, explanation, and hints to students immediately.',
     icon: Brain,
   },
   {
-    value: 'teacher_assist',
-    label: 'Reviewed by instructor',
+    value: 'manual',
+    label: 'Teacher Review',
     sub: 'Supervised',
-    description: 'AI drafts grade for instructor review. Students see nothing until released.',
+    description: 'AI grades every answer, but nothing reaches the student until a teacher reviews, edits if needed, and releases it.',
     icon: Eye,
   },
-  {
-    value: 'ai_teacher_only',
-    label: 'AI — hidden from students',
-    sub: 'Private',
-    description: 'AI grades automatically. Scores recorded for instructor only.',
-    icon: EyeOff,
-  },
-  {
-    value: 'manual',
-    label: 'Manual grading',
-    sub: 'Manual',
-    description: 'No AI. Instructor reads and assigns points for each response.',
-    icon: PenLine,
-  },
 ];
-
-const GRADING_MODE_MAP = {
-  ai_visible:      'auto',
-  teacher_assist:  'teacher_assist',
-  ai_teacher_only: 'teacher_only',
-  manual:          'disabled',
-};
 
 // ─── Layout primitives ────────────────────────────────────────────────────────
 
@@ -180,8 +159,9 @@ const GRADING_SECTIONS = [
   { id: 'scoring',  label: 'Scoring'  },
 ];
 
-function GradingTab({ formData, setGradingMode, moduleId }) {
-  const gradingMode = formData.assignment_config?.grading?.mode || 'ai_visible';
+function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId }) {
+  const gradingMode = formData.assignment_config?.grading?.mode || 'auto';
+  const showScoreToStudent = formData.assignment_config?.grading?.show_score_to_student ?? true;
   const [section, setSection] = useState('policy');
 
   const [rubric, setRubric] = useState(null);
@@ -322,7 +302,7 @@ function GradingTab({ formData, setGradingMode, moduleId }) {
               );
             })}
           </div>
-          {gradingMode === 'teacher_assist' && (
+          {gradingMode === 'manual' && (
             <div className="flex items-start gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 mt-4">
               <Info className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700 dark:text-amber-300">
@@ -330,6 +310,18 @@ function GradingTab({ formData, setGradingMode, moduleId }) {
               </p>
             </div>
           )}
+          <Row
+            label="Show score to students"
+            description="Turn off to keep explanations, hints, and suggestions visible while hiding the numeric score/percentage."
+            noBorder
+          >
+            <div className="flex items-center gap-3">
+              <Switch checked={showScoreToStudent} onCheckedChange={setShowScoreToStudent} />
+              <span className="text-sm text-gray-600 dark:text-muted-foreground">
+                {showScoreToStudent ? 'Students see their score' : 'Score hidden — feedback text still shown'}
+              </span>
+            </div>
+          </Row>
         </div>
       )}
 
@@ -972,7 +964,7 @@ function SettingsPageContent() {
     is_active: true, visibility: 'class-only', due_date: '',
     consent_required: true,
     assignment_config: {
-      grading: { mode: 'ai_visible' },
+      grading: { mode: 'auto' },
       features: {
         multiple_attempts: { enabled: true, max_attempts: 2, show_feedback_after_each: true },
         chatbot_feedback:  { enabled: true, conversation_mode: 'guided', ai_model: 'gpt-4' },
@@ -1007,7 +999,15 @@ function SettingsPageContent() {
           is_active: mod.is_active ?? true, visibility: mod.visibility || 'class-only',
           due_date: mod.due_date ? new Date(mod.due_date).toISOString().split('T')[0] : '',
           consent_required: mod.consent_required ?? true,
-          assignment_config: mod.assignment_config || formData.assignment_config,
+          assignment_config: {
+            ...(mod.assignment_config || formData.assignment_config),
+            grading: {
+              ...(mod.assignment_config?.grading || formData.assignment_config.grading),
+              // Canonical value lives in ai_config.grading, not assignment_config —
+              // pull it in here so the toggle below reflects the saved setting.
+              show_score_to_student: mod.ai_config?.grading?.show_score_to_student ?? true,
+            },
+          },
         };
         setFormData(d); setOriginalFormData(d);
       }
@@ -1026,9 +1026,12 @@ function SettingsPageContent() {
         due_date: formData.due_date ? new Date(formData.due_date).toISOString() : null,
         consent_required: formData.consent_required, assignment_config: formData.assignment_config,
       };
-      const backendMode = GRADING_MODE_MAP[formData.assignment_config?.grading?.mode];
+      const gradingMode = formData.assignment_config?.grading?.mode;
       const reqs = [apiClient.put(`/api/modules/${moduleId}`, payload)];
-      if (backendMode) reqs.push(apiClient.patch(`/api/modules/${moduleId}/grading-settings`, { mode: backendMode }));
+      if (gradingMode) reqs.push(apiClient.patch(`/api/modules/${moduleId}/grading-settings`, {
+        mode: gradingMode,
+        show_score_to_student: formData.assignment_config?.grading?.show_score_to_student,
+      }));
       await Promise.all(reqs);
       setModuleData(p => ({ ...p, ...formData }));
       setOriginalFormData(formData); setHasChanges(false);
@@ -1047,6 +1050,8 @@ function SettingsPageContent() {
     }));
   const setGradingMode = (mode) =>
     setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, mode } } }));
+  const setShowScoreToStudent = (show_score_to_student) =>
+    setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, show_score_to_student } } }));
 
   const shell = (
     <SidebarProvider style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" }}>
@@ -1122,7 +1127,7 @@ function SettingsPageContent() {
             {/* Main content */}
             <div className="flex-1 min-w-0 px-6 py-6 pb-24">
               {activeTab === 'general'  && <GeneralTab  formData={formData} set={set} />}
-              {activeTab === 'grading'  && <GradingTab  formData={formData} setGradingMode={setGradingMode} moduleId={moduleId} />}
+              {activeTab === 'grading'  && <GradingTab  formData={formData} setGradingMode={setGradingMode} setShowScoreToStudent={setShowScoreToStudent} moduleId={moduleId} />}
               {activeTab === 'features' && <FeaturesTab formData={formData} setFeature={setFeature} />}
               {activeTab === 'chatbot'  && <ChatbotTab  moduleId={moduleId} />}
               {activeTab === 'survey'   && <SurveyTab   moduleId={moduleId} />}

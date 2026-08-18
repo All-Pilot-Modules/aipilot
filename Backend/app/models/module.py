@@ -7,10 +7,9 @@ from datetime import datetime, timezone
 
 DEFAULT_AI_CONFIG = {
     "grading": {
-        # "auto"           – AI grades and result is shown to student
-        # "teacher_assist" – AI suggests a grade to teacher only; teacher approves before student sees
-        # "teacher_only"   – AI grades automatically; result visible to teacher only
-        # "disabled"       – no AI grading
+        # "auto"   – AI grades and result is shown to student immediately
+        # "manual" – AI grades every answer, but nothing reaches the student until
+        #            a teacher reviews (and optionally edits) and releases it
         "mode": "auto",
         "show_score_to_student": True,
         "show_explanation_to_student": True,
@@ -81,7 +80,7 @@ DEFAULT_MODULE_SETTINGS = {
     "ai": {
         "grading": {
             # mirrors flat column ai_grading_mode — keep in sync
-            # "auto" | "teacher_assist" | "teacher_only" | "disabled"
+            # "auto" | "manual"
             "mode": "auto",
             "show_score_to_student": True,
             "show_explanation_to_student": True,
@@ -198,11 +197,10 @@ class Module(Base):
     enrollment_type = Column(String, nullable=False, default="code_required", server_default="code_required")
 
     # ── AI grading mode (flat — read in hot paths throughout the app) ──────────
-    # "auto" | "teacher_assist" | "teacher_only" | "disabled"
-    # auto           – AI grades, result shown to student
-    # teacher_assist – AI suggests grade to teacher; teacher approves before student sees
-    # teacher_only   – AI grades; result visible to teacher only, never student
-    # disabled       – no AI grading
+    # "auto" | "manual"
+    # auto   – AI grades, result shown to student immediately
+    # manual – AI grades every answer, but a teacher must review/edit and release
+    #          it before the student sees anything
     ai_grading_mode = Column(String, nullable=False, default="auto", server_default="auto")
 
     # ── Per-feature config columns ─────────────────────────────────────────────

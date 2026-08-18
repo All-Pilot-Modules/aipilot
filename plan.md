@@ -13,7 +13,8 @@ Speculative/background AI feedback grading (start grading before student submits
 - Tradeoff to weigh before building: trades AI-API cost for latency - every draft-then-changed or draft-then-abandoned answer is a wasted paid AI call. Need debounce tuning to bound cost.
 
 Fix GoDaddy SMTP auth failure for cs@brockportsigai.org (Backend/app/core/email.py)
+
 - test_email.py (Backend/scripts/test_email.py) fails with 535 authentication rejected from smtpout.secureserver.net, even though the same password logs into GoDaddy webmail fine - so it's an account-side SMTP block, not a bad password or .env issue
-- Check GoDaddy dashboard (My Products > Workspace Email > Manage) for cs@brockportsigai.org for a suspended/limited/security-hold status - repeated failed SMTP attempts may have triggered an anti-abuse hold
+- Check GoDaddy dashboard (My Products > Workspace Email > Manage) for cs@brockportsigai.org for a suspended/limited/security-hold status - repeated failed SMTP attempts may have triggered an anti-abiuse hold
 - If nothing shows in the dashboard, contact GoDaddy support directly - this pattern (webmail works, SMTP rejected, password confirmed correct) is usually an account-level hold only support can lift
-- Once unblocked, re-run: cd Backend && source venv/bin/activate && python3 scripts/test_email.py <email> --type all
+- Once unblocked, re-run: cd Backend && source venv/bin/activate && python3 scripts/test_email.py <email></email> --type all

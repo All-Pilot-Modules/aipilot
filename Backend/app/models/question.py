@@ -32,7 +32,7 @@ class Question(Base):
     batch_id = Column(UUID(as_uuid=True), ForeignKey("module_batches.id", ondelete="SET NULL"), nullable=True)
 
     # null = inherit from batch (which inherits from module)
-    # "visible" | "teacher_only" | "disabled"
+    # "auto" | "manual"
     grading_mode = Column(String, nullable=True)
 
     type = Column(String, nullable=False)  # mcq, short, long

@@ -34,7 +34,7 @@ export default function MyModules() {
   const [mounted, setMounted] = useState(false);
   const defaultAssignmentConfig = {
     grading: {
-      mode: 'ai_visible',
+      mode: 'auto',
       per_attempt_enabled: false,
       attempt_modes: {},
     },
@@ -131,14 +131,7 @@ export default function MyModules() {
         throw new Error('User ID not available. Please try logging in again.');
       }
 
-      // Derive ai_grading_mode from grading config
-      const gradingModeMap = {
-        ai_visible:      'visible',
-        ai_teacher_only: 'teacher_only',
-        manual:          'disabled',
-      };
-      const gradingMode = formData.assignment_config?.grading?.mode || 'ai_visible';
-      const ai_grading_mode = gradingModeMap[gradingMode] || 'visible';
+      const ai_grading_mode = formData.assignment_config?.grading?.mode || 'auto';
 
       // Create module first
       const moduleData = {
@@ -350,7 +343,7 @@ export default function MyModules() {
                           <span className="text-xs text-muted-foreground">Active:</span>
                           {(() => {
                             const gm = formData.assignment_config?.grading?.mode;
-                            const label = gm === 'ai_visible' ? 'AI Grading' : gm === 'ai_teacher_only' ? 'AI (Teacher Only)' : 'Manual Grading';
+                            const label = gm === 'manual' ? 'Teacher Review' : 'AI Grading';
                             return <Badge variant="secondary" className="text-xs">{label}</Badge>;
                           })()}
                           {formData.assignment_config.features.multiple_attempts.enabled && (

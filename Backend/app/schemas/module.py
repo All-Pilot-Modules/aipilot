@@ -32,7 +32,7 @@ class ModuleBase(BaseModel):
     enrollment_config: Optional[Dict[str, Any]] = DEFAULT_ENROLLMENT_CONFIG
 
     # AI
-    ai_grading_mode: Optional[str] = "auto"    # "auto" | "teacher_assist" | "teacher_only" | "disabled"
+    ai_grading_mode: Optional[str] = "auto"    # "auto" | "manual"
     ai_config: Optional[Dict[str, Any]] = DEFAULT_AI_CONFIG
     ai_safety_config: Optional[Dict[str, Any]] = DEFAULT_AI_SAFETY_CONFIG
 
@@ -87,14 +87,11 @@ class GradingSettingsUpdate(BaseModel):
     Dedicated payload for updating teacher grading preferences on a module.
 
     mode choices:
-      "auto"           – AI grades and result is shown to student immediately
-      "teacher_assist" – AI surfaces a suggested grade/explanation to teacher only;
-                         teacher reviews and approves before anything reaches the student
-      "teacher_only"   – AI grades automatically but result is hidden from student;
-                         teacher can see and optionally release grades manually
-      "disabled"       – AI grading is off; teacher grades entirely on their own
+      "auto"   – AI grades and result is shown to student immediately
+      "manual" – AI grades every answer, but a teacher must review (and may edit)
+                and release it before the student sees anything
     """
-    mode: Optional[str] = None                         # one of the four values above
+    mode: Optional[str] = None                         # one of the two values above
     show_score_to_student: Optional[bool] = None
     show_explanation_to_student: Optional[bool] = None
     show_hints_to_student: Optional[bool] = None

@@ -34,7 +34,7 @@ class ModuleBatch(Base):
     due_date = Column(TIMESTAMP(timezone=True), nullable=True)
 
     # ── Grading overrides (null = inherit from module) ─────────────────────────
-    # "visible" | "teacher_only" | "disabled" | null
+    # "auto" | "manual" | null
     ai_grading_mode = Column(String, nullable=True)
     max_attempts = Column(Integer, nullable=True)
 

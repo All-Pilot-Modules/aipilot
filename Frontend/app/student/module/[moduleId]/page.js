@@ -2286,8 +2286,15 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                   You did not submit an answer for this question in your attempt.
                                 </p>
                               </div>
-                            ) : selectedAttempt >= (submissionStatus?.max_attempts || 2) && !feedback?.teacher_grade ? (
-                              // Final attempt with no teacher grade yet - show waiting message
+                            ) : selectedAttempt >= (submissionStatus?.max_attempts || 2) && !feedback ? (
+                              // Final attempt with no released feedback yet (still generating, or
+                              // gated pending teacher review/release) - show waiting message.
+                              // NOTE: this must key off `!feedback` (released or not), not
+                              // `!feedback.teacher_grade` - a teacher can approve AI feedback
+                              // as-is (releasing it without ever creating a TeacherGrade row),
+                              // and "AI Grading" mode releases automatically with no teacher
+                              // grade at all, so gating on teacher_grade hid already-released
+                              // feedback behind this panel forever.
                               <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-6 text-center">
                                 <User className="w-12 h-12 text-purple-600 dark:text-purple-400 mx-auto mb-3" />
                                 <p className="text-purple-900 dark:text-purple-100 font-medium">

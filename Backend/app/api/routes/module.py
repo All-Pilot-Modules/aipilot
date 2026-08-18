@@ -762,7 +762,7 @@ def update_ai_config(
         raise HTTPException(status_code=404, detail="Module not found")
 
     if payload.ai_grading_mode is not None:
-        valid = {"auto", "teacher_assist", "teacher_only", "disabled"}
+        valid = {"auto", "manual"}
         if payload.ai_grading_mode not in valid:
             raise HTTPException(status_code=400, detail=f"ai_grading_mode must be one of {valid}")
         module.ai_grading_mode = payload.ai_grading_mode
@@ -791,7 +791,7 @@ def update_ai_config(
     return module
 
 
-_VALID_GRADING_MODES = {"auto", "teacher_assist", "teacher_only", "disabled"}
+_VALID_GRADING_MODES = {"auto", "manual"}
 
 
 @router.get("/modules/{module_id}/grading-settings")
@@ -824,12 +824,9 @@ def update_grading_settings(
     Update teacher grading preferences for a module.
 
     Grading modes:
-    - auto           – AI grades; result shown to student immediately
-    - teacher_assist – AI shows suggested grade/explanation to teacher only;
-                       teacher approves before student sees anything
-    - teacher_only   – AI grades automatically; result hidden from student,
-                       visible to teacher only
-    - disabled       – AI grading off; teacher grades entirely manually
+    - auto   – AI grades; result shown to student immediately
+    - manual – AI grades every answer; a teacher must review (and may edit)
+               and release it before the student sees anything
     """
     module = get_module_by_id(db, module_id)
     if not module:
