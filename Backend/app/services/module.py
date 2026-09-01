@@ -146,14 +146,20 @@ def delete_module_with_documents(db: Session, module_id: str) -> bool:
         # Delete database records in proper order (respecting foreign keys)
         # Using individual record deletion instead of bulk delete to avoid SQLAlchemy issues
 
-        # 1. Delete question queue items first (they reference questions and modules)
+        # 1. Delete question queue items first (they reference questions and modules).
+        # question_queue.question_id has no ON DELETE CASCADE, and SQLAlchemy won't
+        # infer ordering against `questions` deleted later in this same flush since
+        # there's no relationship() between the two models — so this delete must be
+        # flushed now, before step 5 deletes the referenced questions.
         try:
             queue_items_to_delete = db.query(QuestionQueue).filter(QuestionQueue.module_id == module.id).all()
             for item in queue_items_to_delete:
                 db.delete(item)
+            db.flush()
             print(f"Deleted {len(queue_items_to_delete)} question queue items")
         except Exception as e:
             print(f"Error deleting question queue items: {e}")
+            db.rollback()
 
         # 2. Delete student answers (handle both module_id and document_id schemas)
         try:

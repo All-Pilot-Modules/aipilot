@@ -191,7 +191,7 @@ def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     if magnitude1 == 0 or magnitude2 == 0:
         return 0.0
 
-    return dot_product / (magnitude1 * magnitude2)
+    return float(dot_product / (magnitude1 * magnitude2))
 
 
 def search_similar_chunks(

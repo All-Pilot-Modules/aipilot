@@ -504,6 +504,10 @@ export const apiClient = {
     } else if (endpoint.includes('/mastery/submit-answer')) {
       timeout = 45000; // Mastery: synchronous AI grading for open-ended questions can take 15-30s
       retries = 0;     // No retries — retrying would re-count the streak
+    } else if (endpoint.includes('/generate-questions')) {
+      timeout = 90000; // AI question generation: LLM call + per-question DB saves can take 30-60s+
+      retries = 0;     // No retries — questions are saved as drafts even if the client times out first;
+                        // retrying would silently create duplicate drafts on top of the ones already saved
     } else if (endpoint.includes('/submit-test')) {
       timeout = 30000; // Test submission: 30 seconds
       retries = 3;     // 3 retries (critical path)

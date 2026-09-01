@@ -230,6 +230,7 @@ def generate_questions_from_document(
                 saved_count += 1
             except Exception as e:
                 print(f"Warning: Failed to save question: {str(e)}")
+                db.rollback()
                 continue
 
         if saved_count == 0:

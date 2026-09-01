@@ -41,7 +41,7 @@ export default function MyModules() {
     features: {
       multiple_attempts: { enabled: true, max_attempts: 2, show_feedback_after_each: true },
       chatbot_feedback:  { enabled: true, conversation_mode: 'guided', ai_model: 'gpt-4' },
-      mastery_learning:  { enabled: true, streak_required: 3, queue_randomization: true, reset_on_wrong: false },
+      mastery_learning:  { enabled: false, streak_required: 3, queue_randomization: true, reset_on_wrong: false },
     },
     display_settings: {
       show_progress_bar: true,
@@ -286,14 +286,14 @@ export default function MyModules() {
               <div className="relative overflow-hidden rounded-2xl sticky top-6">
                 <div className="absolute top-0 left-0 w-full h-1.5 bg-gray-900"></div>
                 <Card className="shadow-2xl border-2 border-indigo-100 dark:border-indigo-900">
-                  <CardHeader className="pb-4 bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30">
+                  <CardHeader className="pb-4 bg-gray-900 text-white">
                     <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-xl bg-gray-900 flex items-center justify-center shadow-lg">
+                      <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center shadow-lg">
                         <Plus className="w-5 h-5 text-white" />
                       </div>
-                      <CardTitle className="text-xl font-bold">Create New Module</CardTitle>
+                      <CardTitle className="text-xl font-bold text-white">Create New Module</CardTitle>
                     </div>
-                    <p className="text-sm text-muted-foreground">Configure your module settings</p>
+                    <p className="text-sm text-gray-300">Configure your module settings</p>
                   </CardHeader>
                 <CardContent>
                   <form onSubmit={handleSubmit} className="space-y-5">
@@ -327,7 +327,10 @@ export default function MyModules() {
                     </div>
 
                     {/* Rubric Template Selector */}
-                    <div className="pt-4 border-t space-y-2">
+                    <div className="pt-4 border-t">
+                      <div className="mb-2">
+                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Feedback Style</span>
+                      </div>
                       <RubricQuickSelector
                         value={formData.rubric_template}
                         onChange={(template) => setFormData({...formData, rubric_template: template})}
@@ -335,28 +338,7 @@ export default function MyModules() {
                     </div>
 
                     {/* Assignment Features Section */}
-                    <div className="space-y-3 pt-4 border-t">
-                      <div>
-                        <Label className="text-sm font-medium">Assignment Features</Label>
-                        <p className="text-xs text-muted-foreground mt-1">Configure student interaction settings</p>
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          <span className="text-xs text-muted-foreground">Active:</span>
-                          {(() => {
-                            const gm = formData.assignment_config?.grading?.mode;
-                            const label = gm === 'manual' ? 'Teacher Review' : 'AI Grading';
-                            return <Badge variant="secondary" className="text-xs">{label}</Badge>;
-                          })()}
-                          {formData.assignment_config.features.multiple_attempts.enabled && (
-                            <Badge variant="secondary" className="text-xs">Multiple Attempts</Badge>
-                          )}
-                          {formData.assignment_config.features.chatbot_feedback.enabled && (
-                            <Badge variant="secondary" className="text-xs">AI Chatbot</Badge>
-                          )}
-                          {formData.assignment_config.features.mastery_learning.enabled && (
-                            <Badge variant="secondary" className="text-xs">Mastery Learning</Badge>
-                          )}
-                        </div>
-                      </div>
+                    <div className="pt-4 border-t">
                       <AssignmentFeaturesSelector
                         value={formData.assignment_config}
                         onChange={(config) => setFormData({...formData, assignment_config: config})}
@@ -366,7 +348,7 @@ export default function MyModules() {
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full h-12 text-base font-bold bg-gray-900 hover:from-gray-800 hover:to-gray-900 shadow-xl hover:shadow-2xl transition-all duration-300 transform hover:scale-105 mt-6"
+                      className="w-full h-12 text-base font-bold bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 shadow-xl hover:shadow-2xl transition-all duration-300 mt-6"
                     >
                       {isSubmitting ? (
                         <>

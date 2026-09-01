@@ -146,6 +146,9 @@ def send_message(
 
     except Exception as e:
         print(f"❌ Error generating AI response: {str(e)}")
+        # A failed flush (e.g. the earlier create_message) leaves the session
+        # unusable until rolled back, otherwise this fallback write fails too.
+        db.rollback()
         # Save error message
         error_msg_data = ChatMessageCreate(
             conversation_id=conversation_id,
