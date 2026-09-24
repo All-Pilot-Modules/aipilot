@@ -1,1 +1,0 @@
-#All Research about the question type
