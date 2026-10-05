@@ -131,6 +131,8 @@ Consider:
 - Synonyms (e.g., "happy" = "joyful")
 - Different word forms (e.g., "running" = "run")
 - Equivalent meanings (e.g., "2+2" = "four")
+- Mathematically equivalent notation, including LaTeX delimited by $...$/$$...$$
+  (e.g., "1/2" = "0.5" = "$\\frac{{1}}{{2}}$" = "50%", "x=4" = "4")
 
 Response (YES or NO):"""
 

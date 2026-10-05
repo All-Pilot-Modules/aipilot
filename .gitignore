@@ -1,7 +1,19 @@
 # ========================
-# Claude Code
+# AI assistant tooling (Claude Code, agent skills, generated diagrams) —
+# none of this ships in the repo for now.
 # ========================
 CLAUDE.md
+AGENTS.md
+.claude/
+.agents/
+.archify/
+
+# ========================
+# Cleanup quarantine — files pulled out during the unused-code audit, kept
+# locally instead of deleted outright in case something still needs them.
+# Never pushed to GitHub. See TODO_DELETE/NOTES.md for what's here and why.
+# ========================
+TODO_DELETE/
 
 # ========================
 # Dependencies
@@ -42,6 +54,7 @@ Thumbs.db
 # ========================
 # Logs
 # ========================
+Backend/tmp/
 *.log
 npm-debug.log*
 yarn-debug.log*

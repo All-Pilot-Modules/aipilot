@@ -13,15 +13,24 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import StaticPool
 from fastapi.testclient import TestClient
 
-# Set test environment variables BEFORE importing app modules
-os.environ.setdefault("DATABASE_URL", "sqlite:///:memory:")
-os.environ.setdefault("JWT_SECRET", "test-secret-key-for-testing-only")
-os.environ.setdefault("OPENAI_API_KEY", "sk-test-fake-key")
-os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
-os.environ.setdefault("SUPABASE_SERVICE_KEY", "test-service-key")
-os.environ.setdefault("ENV", "testing")
-os.environ.setdefault("LLM_MODEL", "gpt-4")
-os.environ.setdefault("EMBED_MODEL", "text-embedding-ada-002")
+# Never inherit production credentials or load local secret files in tests.
+# Apply before any application import, including during collection.
+for name in tuple(os.environ):
+    if name.startswith(("INFISICAL_", "OPENAI_API_KEY")):
+        os.environ.pop(name)
+os.environ.update({
+    "DATABASE_URL": "sqlite:///:memory:",
+    "JWT_SECRET": "test-secret-key-for-testing-only",
+    "OPENAI_API_KEY": "sk-test-fake-key",
+    "SUPABASE_URL": "https://test.supabase.co",
+    "SUPABASE_SERVICE_KEY": "test-service-key",
+    "ENV": "testing",
+    "LLM_MODEL": "gpt-4o-mini",
+    "EMBED_MODEL": "text-embedding-3-large",
+    "EMAIL_USERNAME": "", "EMAIL_PASSWORD": "",
+})
+_dotenv_patch = patch("dotenv.load_dotenv", return_value=False)
+_dotenv_patch.start()
 
 # Patch Supabase before any app module is imported so the singleton doesn't
 # try to reach a real API with fake test credentials.
@@ -64,6 +73,24 @@ def compile_jsonb_sqlite(type_, compiler, **kw):
     return "TEXT"
 
 
+# psycopg accepts string UUID parameters; SQLite's SQLAlchemy emulation calls
+# .hex directly. Match the production driver's adaptation in offline tests.
+_uuid_bind_processor = PG_UUID.bind_processor
+
+
+def _test_uuid_bind_processor(self, dialect):
+    processor = _uuid_bind_processor(self, dialect)
+    if dialect.name != "sqlite" or processor is None or not self.as_uuid:
+        return processor
+
+    def bind(value):
+        return processor(uuid.UUID(value) if isinstance(value, str) else value)
+    return bind
+
+
+PG_UUID.bind_processor = _test_uuid_bind_processor
+
+
 # ---------------------------------------------------------------------------
 # Database Fixtures
 # ---------------------------------------------------------------------------
@@ -80,9 +107,16 @@ def engine():
     # Enable foreign keys in SQLite
     @event.listens_for(engine, "connect")
     def set_sqlite_pragma(dbapi_conn, connection_record):
+        # SQLite's legacy driver otherwise commits a released SAVEPOINT when
+        # no real BEGIN was issued, leaking data between tests.
+        dbapi_conn.isolation_level = None
         cursor = dbapi_conn.cursor()
         cursor.execute("PRAGMA foreign_keys=ON")
         cursor.close()
+
+    @event.listens_for(engine, "begin")
+    def explicit_begin(connection):
+        connection.exec_driver_sql("BEGIN")
 
     return engine
 
@@ -100,7 +134,7 @@ def db_session(engine, tables) -> Session:
     """Provide a transactional database session that rolls back after each test."""
     connection = engine.connect()
     transaction = connection.begin()
-    session = sessionmaker(bind=connection)()
+    session = sessionmaker(bind=connection, join_transaction_mode="create_savepoint")()
 
     yield session
 
@@ -124,9 +158,15 @@ def client(db_session) -> TestClient:
             pass
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app, raise_server_exceptions=False) as test_client:
-        yield test_client
-    app.dependency_overrides.clear()
+    # Startup must never launch real workers against any database.
+    try:
+        with patch("app.services.feedback_worker.start_worker"), \
+             patch("app.services.feedback_worker.stop_worker"), \
+             patch("app.services.feedback_worker.recover_stale_jobs"), \
+             TestClient(app, raise_server_exceptions=False) as test_client:
+            yield test_client
+    finally:
+        app.dependency_overrides.clear()
 
 
 # ---------------------------------------------------------------------------
@@ -272,11 +312,12 @@ def test_document(db_session, test_module) -> Document:
     doc = Document(
         id=uuid.uuid4(),
         module_id=test_module.id,
-        original_filename="test_document.pdf",
+        title="Test document",
+        file_name="test_document.pdf",
+        file_type="pdf",
+        teacher_id=test_module.teacher_id,
         file_hash="abc123hash",
         storage_path=f"modules/{test_module.id}/test_document.pdf",
-        file_size=1024,
-        mime_type="application/pdf",
         processing_status="completed",
         parse_status="completed",
         uploaded_at=datetime.now(timezone.utc),
@@ -472,6 +513,22 @@ def student_answer_text(db_session, student_user, short_question, test_module) -
 # ---------------------------------------------------------------------------
 # Mock Fixtures
 # ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _reset_shared_openai_client():
+    """
+    AIFeedbackService caches one OpenAIClientWithRetry at module level and
+    reuses it across every instance (process-wide client/key-rotation reuse
+    in production). Without resetting it between tests, whichever test runs
+    first "wins" the cache and every later test that patches
+    OpenAIClientWithRetry silently gets ignored — they'd all share the first
+    test's mock instead of their own.
+    """
+    import app.services.ai_feedback as ai_feedback_module
+    ai_feedback_module._shared_openai_client = None
+    yield
+    ai_feedback_module._shared_openai_client = None
+
+
 @pytest.fixture
 def mock_openai_client():
     """Mock OpenAI client that returns configurable responses."""
@@ -500,3 +557,19 @@ def mock_supabase():
         mock_storage.download.return_value = b"fake file content"
         mock_storage.list.return_value = [{"name": "file.pdf"}]
         yield mock_storage
+
+
+@pytest.fixture(autouse=True)
+def no_external_network(monkeypatch):
+    """Unexpected network access is a test failure, never a live API call."""
+    import socket
+
+    original_connect = socket.socket.connect
+
+    def guarded_connect(sock, address):
+        if sock.family in (socket.AF_INET, socket.AF_INET6):
+            raise AssertionError("Network disabled in tests; mock the external service")
+        return original_connect(sock, address)
+
+    monkeypatch.setattr(socket.socket, "connect", guarded_connect)
+    monkeypatch.setattr(socket.socket, "connect_ex", guarded_connect)

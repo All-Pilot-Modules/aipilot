@@ -1,5 +1,6 @@
 'use client';
 
+import { MathText } from "@/components/MathText";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams, useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
@@ -421,7 +422,7 @@ function GradingPageContent() {
 
       // Fetch feedback + grades in parallel
       const [feedbackResponse, gradesResponse] = await Promise.all([
-        apiClient.get(`/api/student/modules/${moduleData.id}/feedback?student_id=${student.student_id}`).catch(() => []),
+        apiClient.get(`/api/ai-feedback/teacher/module/${moduleData.id}/released?student_id=${student.student_id}`, { skipAuthLogout: true }).catch(() => []),
         apiClient.get(`/api/student-answers/teacher-grades/module/${moduleData.id}/student/${student.student_id}`).catch(() => null),
       ]);
 
@@ -1143,7 +1144,7 @@ function GradingPageContent() {
                                 <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-gray-900 text-white text-sm font-black shadow-lg flex-shrink-0">
                                   {index + 1}
                                 </span>
-                                <span className="flex-1 font-bold text-slate-900 dark:text-slate-100 leading-tight">{answerData.question_text}</span>
+                                <span className="flex-1 font-bold text-slate-900 dark:text-slate-100 leading-tight"><MathText inline>{answerData.question_text}</MathText></span>
                                 <div className="flex items-center gap-2">
                                   {teacherGrade ? (
                                     <span className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/40 dark:to-emerald-800/30 text-emerald-700 dark:text-emerald-400 text-sm font-black border border-emerald-300 dark:border-emerald-700 shadow-md flex items-center gap-1">
@@ -1249,7 +1250,7 @@ function GradingPageContent() {
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium line-clamp-3">{aiFeedback.explanation}</p>
+                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium line-clamp-3"><MathText inline>{aiFeedback.explanation}</MathText></p>
                                   </div>
                                 </div>
                               )}
@@ -1441,7 +1442,7 @@ function GradingPageContent() {
                                     {teacherGrade.feedback_text && (
                                       <div className="mb-3 p-3 rounded-lg bg-white/60 dark:bg-slate-900/40 border border-emerald-200 dark:border-emerald-800">
                                         <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                                          {teacherGrade.feedback_text}
+                                          <MathText inline>{teacherGrade.feedback_text}</MathText>
                                         </p>
                                       </div>
                                     )}

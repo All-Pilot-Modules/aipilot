@@ -2,26 +2,6 @@
   <h1>🚀 AI Education Pilot</h1>
   <p><strong>Empowering Education Through Artificial Intelligence</strong></p>
 
-<p>An innovative educational platform that integrates AI technology to revolutionize learning experiences for teachers and students.</p>
-
-  [Contributors][contributors-url]
-  [Forks][forks-url]
-  [Stargazers][stars-url]
-  [Issues][issues-url]
-  [License][license-url]
-
-<p>
-    <a href="https://github.com/All-Pilot-Modules/AI-PILOT2/wiki"><strong>📚 Explore the Wiki »</strong></a>
-    <br />
-    <br />
-    <a href="#demo">View Demo</a>
-    ·
-    <a href="https://github.com/All-Pilot-Modules/AI-PILOT2/issues/new?template=bug_report.md">Report Bug</a>
-    ·
-    <a href="https://github.com/All-Pilot-Modules/AI-PILOT2/issues/new?template=feature_request.md">Request Feature</a>
-  </p>
-</div>
-
 ## 🌟 About The Project
 
 AI Education Pilot is a comprehensive educational technology platform designed to integrate artificial intelligence into classroom learning. The platform empowers educators with intelligent tools for assignment creation, automated grading, and student progress tracking while providing students with personalized, AI-assisted learning experiences.
@@ -81,35 +61,40 @@ Our PostgreSQL database is designed for scalability and educational workflows:
 
 ### Prerequisites
 
-- **Node.js** (v16 or higher)
-- **Python** (3.8 or higher)
+- **Node.js** (v18.18 or higher — required by Next.js 15)
+- **Python** (3.13 recommended — matches CI and production; 3.10+ also works)
 - **Git**
 - **OpenAI API Key** (for AI features)
+- **PostgreSQL database with the [pgvector](https://github.com/pgvector/pgvector) extension** (e.g. [Supabase](https://supabase.com/))
 
 ### Installation
 
 1. **Clone the repository**
 
    ```bash
-   git clone https://github.com/All-Pilot-Modules/AI-PILOT2.git
-   cd AI-PILOT2
+   git clone https://github.com/All-Pilot-Modules/aipilot.git
+   cd aipilot
    ```
 2. **Set up the Backend**
 
    ```bash
    cd Backend
-   pip install -r requirements.txt
-   cp .env.example .env
-   # Edit .env file with your API keys and database configuration
-   python main.py
+   ./scripts/setup.sh
+   # Creates a venv, installs dependencies, copies .env.example -> .env,
+   # creates local storage dirs, and runs DB migrations once .env is filled in.
+
+   # Fill in OPENAI_API_KEY, DATABASE_URL, JWT_SECRET (and SUPABASE_* for
+   # file uploads) in .env, then:
+   source venv/bin/activate
+   alembic upgrade head        # if .env wasn't ready the first time setup.sh ran
+   uvicorn main:app --reload --port 8000
    ```
 3. **Set up the Frontend**
 
    ```bash
    cd Frontend
    npm install
-   cp .env.example .env.local
-   # Edit .env.local with your environment variables
+   # Create .env.local with the variables listed below (no .env.example yet)
    npm run dev
    ```
 4. **Access the Application**
@@ -125,8 +110,10 @@ Our PostgreSQL database is designed for scalability and educational workflows:
 ```env
 OPENAI_API_KEY=your_openai_api_key
 DATABASE_URL=your_database_url
-JWT_SECRET_KEY=your_jwt_secret
+JWT_SECRET=your_jwt_secret
 ```
+
+See `Backend/.env.example` for the full list (Supabase storage, email, RAG config, etc.).
 
 #### Frontend (.env.local)
 
@@ -160,37 +147,18 @@ NEXT_PUBLIC_APP_URL=http://localhost:3000
 - Configure AI model settings and parameters
 - Access institution-wide analytics and reports
 
-## 🎯 Use Cases
-
-- **K-12 Education** - Elementary through high school classrooms
-- **Higher Education** - Universities and colleges
-- **Online Learning** - Remote and hybrid learning environments
-- **Corporate Training** - Employee education and skill development
-- **Tutoring Services** - Personalized one-on-one instruction
-
-## 📚 Documentation
-
-For detailed documentation, tutorials, and guides, visit our comprehensive [Wiki](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki).
-
-- [Getting Started Guide](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/Getting-Started)
-- [Installation Instructions](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/Installation-Guide)
-- [Database Schema](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/Database-Schema) | [Interactive Diagram](https://dbdiagram.io/d/68b01146777b52b76cf1efaa)
-- [API Documentation](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/AI-Integration)
-- [User Guides](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki/Home)
-
 ## 🛣️ Roadmap
 
 - [X] Core platform development
 - [X] AI-powered assignment generation
 - [X] User authentication and role management
-- [X] Comprehensive wiki documentation
 - [ ] Mobile application
 - [ ] Advanced analytics dashboard
 - [ ] Multi-language support
 - [ ] Integration with popular LMS platforms
 - [ ] Advanced AI tutoring features
 
-See the [open issues](https://github.com/All-Pilot-Modules/AI-PILOT2/issues) for a full list of proposed features and known issues.
+See the [open issues](https://github.com/All-Pilot-Modules/aipilot/issues) for a full list of proposed features and known issues.
 
 ## 🤝 Contributing
 
@@ -212,17 +180,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 **Project Maintainer:** [Yubraj Khatri](https://github.com/Yubraj977)
 
-**Project Link:** [https://github.com/All-Pilot-Modules/AI-PILOT2](https://github.com/All-Pilot-Modules/AI-PILOT2)
-
-**Wiki & Documentation:** [https://github.com/All-Pilot-Modules/AI-PILOT2/wiki](https://github.com/All-Pilot-Modules/AI-PILOT2/wiki)
-
-## 🙏 Acknowledgments
-
-- [OpenAI](https://openai.com/) for providing powerful AI capabilities
-- [LlamaIndex](https://www.llamaindex.ai/) for the excellent data framework
-- [Vercel](https://vercel.com/) for hosting and deployment solutions
-- [Next.js](https://nextjs.org/) for the amazing React framework
-- All contributors and educators who help improve this platform
+**Project Link:** [https://github.com/All-Pilot-Modules/aipilot](https://github.com/All-Pilot-Modules/aipilot)
 
 ---
 
@@ -230,16 +188,3 @@ Distributed under the MIT License. See `LICENSE` for more information.
   <p><strong>Made with ❤️ for the education community</strong></p>
   <p><em>Transforming education through the power of artificial intelligence</em></p>
 </div>
-
-<!-- MARKDOWN LINKS & IMAGES -->
-
-[contributors-shield]: https://img.shields.io/github/contributors/All-Pilot-Modules/AI-PILOT2.svg?style=for-the-badge
-[contributors-url]: https://github.com/All-Pilot-Modules/AI-PILOT2/graphs/contributors
-[forks-shield]: https://img.shields.io/github/forks/All-Pilot-Modules/AI-PILOT2.svg?style=for-the-badge
-[forks-url]: https://github.com/All-Pilot-Modules/AI-PILOT2/network/members
-[stars-shield]: https://img.shields.io/github/stars/All-Pilot-Modules/AI-PILOT2.svg?style=for-the-badge
-[stars-url]: https://github.com/All-Pilot-Modules/AI-PILOT2/stargazers
-[issues-shield]: https://img.shields.io/github/issues/All-Pilot-Modules/AI-PILOT2.svg?style=for-the-badge
-[issues-url]: https://github.com/All-Pilot-Modules/AI-PILOT2/issues
-[license-shield]: https://img.shields.io/github/license/All-Pilot-Modules/AI-PILOT2.svg?style=for-the-badge
-[license-url]: https://github.com/All-Pilot-Modules/AI-PILOT2/blob/master/LICENSE

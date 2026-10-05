@@ -4,6 +4,7 @@ import hashlib
 import time
 import logging
 from threading import Lock
+from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, Any, Optional, List
 from sqlalchemy.orm import Session
 
@@ -16,6 +17,65 @@ from sqlalchemy.orm import Session
 _mcq_cache: dict = {}
 _mcq_cache_lock = Lock()
 _MCQ_CACHE_TTL = 7200  # 2 hours — covers a full exam session
+
+# ---------------------------------------------------------------------------
+# Generation timeout — must exceed the OpenAI client's own worst-case retry
+# budget, or a still-legitimately-working job can get marked 'timeout' by an
+# external poll (check_and_mark_timeout) before it ever gets a chance to
+# finish. OpenAIClientWithRetry.create_chat_completion: 30s per attempt,
+# stop_after_attempt(2), 2s backoff between them = 62s worst case for ONE
+# call. multi_part questions make two back-to-back phases (parallel
+# sub-question grading, then one overall-feedback call) = ~124s worst case.
+# This is a "give up and let the user retry" signal, not a hard cap on
+# actual work, so it's fine to be generous here.
+GENERATION_TIMEOUT_SECONDS = 150
+
+
+import re
+
+def _loads_feedback_json(feedback_text: str):
+    """Repair bare LaTeX escapes inside JSON strings without rewriting pairs.
+
+    Consume existing JSON escapes as units. In particular, the second slash
+    of an already escaped LaTeX command must never be escaped again.
+    """
+    output = []
+    in_string = False
+    math_delimiter = None
+    i = 0
+    while i < len(feedback_text):
+        char = feedback_text[i]
+        if char == '"':
+            in_string = not in_string
+            math_delimiter = None
+        if in_string and char == '$':
+            delimiter = '$$' if feedback_text[i:i + 2] == '$$' else '$'
+            math_delimiter = None if math_delimiter == delimiter else delimiter
+            output.append(delimiter)
+            i += len(delimiter)
+            continue
+        if in_string and char == chr(92) and i + 1 < len(feedback_text):
+            following = feedback_text[i + 1]
+            # Preserve escaped backslashes and quotes, including matrix rows.
+            if following in ('"', chr(92), '/'):
+                output.append(feedback_text[i:i + 2])
+                i += 2
+                continue
+            if following == 'u' and re.match(r'u[0-9a-fA-F]{4}', feedback_text[i + 1:]):
+                output.append(feedback_text[i:i + 6])
+                i += 6
+                continue
+            command_in_math = math_delimiter and re.match(r'[A-Za-z]{2,}', feedback_text[i + 1:])
+            if following in 'bfnrt' and not command_in_math:
+                output.append(feedback_text[i:i + 2])
+                i += 2
+                continue
+            output.append(chr(92) * 2)
+            i += 1
+            continue
+        output.append(char)
+        i += 1
+    return json.loads(''.join(output))
 
 
 def _mcq_cache_key(question_id: str, student_answer: str, is_correct) -> str:
@@ -46,7 +106,8 @@ from app.services.prompt_builder import (
     build_mcq_feedback_prompt,
     build_text_feedback_prompt,
     should_include_context,
-    _build_previous_feedback_section
+    _build_previous_feedback_section,
+    MATH_NOTATION_NOTE
 )
 from app.crud.ai_feedback import (
     create_feedback,
@@ -61,12 +122,54 @@ from app.services.openai_client import OpenAIClientWithRetry
 
 logger = logging.getLogger(__name__)
 
+# Process-wide shared client: every AIFeedbackService() used to build its own
+# OpenAIClientWithRetry, rebuilding an openai.OpenAI() per configured key and
+# resetting the key-rotation cycle to index 0 — on every single job. One
+# instance, built lazily on first use and reused across every worker thread,
+# keeps HTTP connection reuse and actual round-robin rotation intact.
+# Tests that patch OpenAIClientWithRetry must reset this to None first (see
+# the mock_dependencies fixture in tests/unit/services/test_ai_feedback.py)
+# or they'll keep getting whichever test happened to create it first.
+_shared_openai_client: Optional["OpenAIClientWithRetry"] = None
+_shared_openai_client_lock = Lock()
+
+
+def _compute_mcq_is_correct(student_answer: str, question: Question) -> Optional[bool]:
+    """
+    Shared by the early MCQ cache check (generate_instant_feedback, run
+    before RAG retrieval) and _analyze_mcq_answer, so the two can never
+    disagree on what counts as "correct" for the same cache key.
+    """
+    correct_answer = question.correct_option_id or question.correct_answer
+    options = question.options or {}
+
+    if not correct_answer:
+        return None  # Unknown correctness — no correct answer set
+
+    if student_answer and student_answer.upper() == correct_answer.upper():
+        return True
+
+    if options and student_answer:
+        correct_option_text = options.get(correct_answer, "").strip().lower()
+        if student_answer.strip().lower() == correct_option_text:
+            return True
+        for key, value in options.items():
+            if student_answer.upper() == key.upper() and correct_answer.upper() == key.upper():
+                return True
+
+    return False
+
+
 class AIFeedbackService:
     """Service for generating AI-powered feedback on student answers"""
 
     def __init__(self):
-        # Use the new OpenAI client with retry logic
-        self.client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS, default_model=LLM_MODEL)
+        global _shared_openai_client
+        if _shared_openai_client is None:
+            with _shared_openai_client_lock:
+                if _shared_openai_client is None:
+                    _shared_openai_client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS, default_model=LLM_MODEL)
+        self.client = _shared_openai_client
         self.default_model = LLM_MODEL
 
     def generate_instant_feedback(
@@ -138,15 +241,21 @@ class AIFeedbackService:
                 existing_feedback = create_pending_feedback(
                     db=db,
                     answer_id=student_answer.id,
-                    timeout_seconds=45  # 45 second timeout
+                    timeout_seconds=GENERATION_TIMEOUT_SECONDS
                 )
 
             # ========== STEP 3: Update status to 'generating' ==========
+            # This is the only intermediate write for the rest of the function —
+            # 10/20/30/50/90 progress ticks each cost a DB round trip (query +
+            # commit + refresh) the frontend never reads (grep confirms no UI
+            # consumer of generation_progress) and status never changes again
+            # until the final save below, so the real state machine is just
+            # pending -> generating -> completed/failed.
             update_feedback_status(
                 db=db,
                 answer_id=student_answer.id,
                 status='generating',
-                progress=10
+                progress=50
             )
 
             # ========== STEP 4: Load question and module data ==========
@@ -162,8 +271,6 @@ class AIFeedbackService:
                 except Exception:
                     pass
                 return fallback
-
-            update_feedback_status(db, student_answer.id, 'generating', 20)
 
             # Get module configuration
             module = db.query(Module).filter(Module.id == module_id).first()
@@ -185,16 +292,27 @@ class AIFeedbackService:
             # Get AI model from rubric or use default
             ai_model = self._get_ai_model_from_rubric(rubric)
 
-            update_feedback_status(db, student_answer.id, 'generating', 30)
-
             # Extract student's answer based on format
             student_answer_text = self._extract_answer_text(student_answer.answer)
             logger.info(f"📝 Extracted answer text: '{student_answer_text}' from raw answer: {student_answer.answer}")
 
+            # Check the MCQ cache BEFORE RAG retrieval — _analyze_mcq_answer
+            # already skips the OpenAI call on a cache hit, but RAG retrieval
+            # ran unconditionally before dispatch, paying for a vector search
+            # a cache hit would just throw away. previous_feedback_context
+            # bypasses the cache the same way _analyze_mcq_answer's own check
+            # does (progressive feedback must never be cached across attempts).
+            mcq_cache_hit = False
+            if question.type == 'mcq' and not previous_feedback_context:
+                precomputed_is_correct = _compute_mcq_is_correct(student_answer_text, question)
+                mcq_cache_hit = _get_mcq_cached(
+                    _mcq_cache_key(str(question.id), student_answer_text, precomputed_is_correct)
+                ) is not None
+
             # Get RAG context if enabled in rubric
             rag_context = None
-            should_use_rag = should_include_context(rubric, question.type)
-            logger.info(f"🔍 RAG CHECK: should_include_context={should_use_rag}, question_type={question.type}")
+            should_use_rag = should_include_context(rubric, question.type) and not mcq_cache_hit
+            logger.info(f"🔍 RAG CHECK: should_include_context={should_use_rag}, question_type={question.type}, mcq_cache_hit={mcq_cache_hit}")
             logger.info(f"🔍 RAG SETTINGS: {rubric.get('rag_settings', {})}")
 
             if should_use_rag:
@@ -224,8 +342,6 @@ class AIFeedbackService:
                     rag_context = None
             else:
                 logger.info(f"⏭️  Skipping RAG (should_include_context=False)")
-
-            update_feedback_status(db, student_answer.id, 'generating', 50)
 
             # ========== STEP 5: Generate feedback based on question type ==========
             # Use GPT-4o-mini for MCQ types — binary grading doesn't need full GPT-4
@@ -303,8 +419,6 @@ class AIFeedbackService:
             if is_fallback:
                 ai_model = "fallback"
 
-            update_feedback_status(db, student_answer.id, 'generating', 90)
-
             # ========== STEP 6: Save completed feedback to database ==========
             try:
                 logger.info(f"💾 Saving completed feedback for answer_id: {student_answer.id}")
@@ -360,8 +474,16 @@ class AIFeedbackService:
             logger.error(f"❌ Error generating feedback: {str(e)}")
             logger.exception("Full traceback:")
 
-            # NEVER fail — always give the student fallback feedback
+            # NEVER fail — always give the student fallback feedback. But tag
+            # it with the real error so the worker's `is_fallback and
+            # error_type` check actually triggers a retry instead of
+            # silently accepting this as "done" on the very first attempt —
+            # this except block catches genuine unexpected crashes (bad
+            # rubric data, a RAG DB error, etc.), not just an OpenAI failure,
+            # and those deserve the same retry/eventually-mark-failed path.
             fallback = self._build_universal_fallback(student_answer, question_id, module_id, db)
+            fallback["_error_type"] = type(e).__name__
+            fallback["_error_message"] = str(e)[:200]
             try:
                 fallback_data = {
                     "explanation": fallback.get("explanation", ""),
@@ -369,7 +491,9 @@ class AIFeedbackService:
                     "concept_explanation": fallback.get("concept_explanation"),
                     "confidence_level": "low",
                     "feedback_type": fallback.get("feedback_type", "fallback"),
-                    "fallback": True
+                    "fallback": True,
+                    "error_type": fallback["_error_type"],
+                    "error_message": fallback["_error_message"],
                 }
                 complete_feedback_generation(
                     db=db,
@@ -434,30 +558,9 @@ class AIFeedbackService:
         correct_answer = question.correct_option_id or question.correct_answer
         options = question.options or {}
 
-        # Handle missing correct answer - still provide feedback, just without correctness evaluation
-        has_correct_answer = bool(correct_answer)
-        if not has_correct_answer:
+        if not correct_answer:
             logger.warning(f"⚠️  Question {question.id} has no correct answer set - will provide general feedback only")
-            is_correct = None  # Unknown correctness
-        else:
-            # Check if answer is correct
-            # Handle both cases: student_answer could be the option letter (e.g., "A")
-            # or the option text (e.g., "one") due to legacy data
-            is_correct = False
-            if student_answer and student_answer.upper() == correct_answer.upper():
-                # Direct match with option letter
-                is_correct = True
-            elif options and student_answer:
-                # Check if student_answer matches the text of the correct option
-                correct_option_text = options.get(correct_answer, "").strip().lower()
-                if student_answer.strip().lower() == correct_option_text:
-                    is_correct = True
-                # Also check if the correct_answer matches any option key that has this text
-                for key, value in options.items():
-                    if (student_answer.upper() == key.upper() and
-                        correct_answer.upper() == key.upper()):
-                        is_correct = True
-                        break
+        is_correct = _compute_mcq_is_correct(student_answer, question)
 
         # MCQ cache: same question + same selected option always produces the same feedback.
         # Skip cache only when there's progressive previous_feedback (retry attempts).
@@ -509,7 +612,7 @@ class AIFeedbackService:
                     feedback_text = feedback_text[4:]
                 feedback_text = feedback_text.strip()
 
-            feedback = json.loads(feedback_text)
+            feedback = _loads_feedback_json(feedback_text)
 
             # For MCQ, score is binary: correct=100% or incorrect=0%
             # Don't use rubric-based criterion scores for MCQ
@@ -648,7 +751,7 @@ class AIFeedbackService:
                     feedback_text = feedback_text[4:]
                 feedback_text = feedback_text.strip()
 
-            feedback = json.loads(feedback_text)
+            feedback = _loads_feedback_json(feedback_text)
 
             # ⭐ NEW: Extract criterion scores and calculate points
             criterion_scores = feedback.get('criterion_scores', {})
@@ -1001,6 +1104,8 @@ class AIFeedbackService:
 
         prompt = f"""You are an educational AI providing feedback on a fill-in-the-blank answer.
 
+{MATH_NOTATION_NOTE}
+
 Question: {question.text}
 
 Grading Results (INTERNAL - For AI analysis only):
@@ -1056,7 +1161,7 @@ Make your feedback detailed, contextual, and helpful!"""
                     feedback_text = feedback_text[4:]
                 feedback_text = feedback_text.strip()
 
-            feedback_json = json.loads(feedback_text)
+            feedback_json = _loads_feedback_json(feedback_text)
 
             # Calculate points from percentage score
             percentage_score = grading_result['percentage']
@@ -1187,6 +1292,8 @@ Make your feedback detailed, contextual, and helpful!"""
 
         prompt = f"""You are an educational AI providing feedback on a multiple-choice question with multiple correct answers.
 
+{MATH_NOTATION_NOTE}
+
 Question: {question.text}
 
 Options:
@@ -1249,7 +1356,7 @@ Make your feedback detailed, contextual, and helpful!"""
                     feedback_text = feedback_text[4:]
                 feedback_text = feedback_text.strip()
 
-            feedback_json = json.loads(feedback_text)
+            feedback_json = _loads_feedback_json(feedback_text)
 
             # Use algorithmic grading score (no rubric for MCQ)
             percentage_score = grading_result['score']
@@ -1342,6 +1449,92 @@ Make your feedback detailed, contextual, and helpful!"""
                 "_error_message": _mcq_mult_error_message,
             }
 
+    def _grade_one_sub_question(
+        self,
+        sub_q: Dict[str, Any],
+        student_sub_answer: Any,
+        ai_model: str,
+    ) -> Dict[str, Any]:
+        """
+        Grade one sub-question of a multi-part question. Extracted from
+        _analyze_multi_part_answer so it can run inside a ThreadPoolExecutor —
+        each short/long sub-question costs its own OpenAI call, and running
+        them concurrently instead of in a sequential loop is what actually
+        matters for latency; MCQ sub-questions are free (no I/O) either way.
+        """
+        sub_id = sub_q['id']
+        sub_type = sub_q['type']
+        sub_points = sub_q.get('points', 1.0)
+
+        if sub_type == 'mcq':
+            selected = student_sub_answer.get('selected_option', '') if isinstance(student_sub_answer, dict) else student_sub_answer
+            correct_option = sub_q.get('correct_option_id', '')
+            is_correct = selected.upper() == correct_option.upper() if selected and correct_option else False
+            sub_earned = sub_points if is_correct else 0.0
+        elif sub_type in ['short', 'long']:
+            correct_answer = sub_q.get('correct_answer', '')
+            student_text = student_sub_answer if isinstance(student_sub_answer, str) else str(student_sub_answer)
+
+            if correct_answer and student_text:
+                try:
+                    grade_prompt = f"""Compare the student's answer to the correct answer and determine correctness.
+
+{MATH_NOTATION_NOTE}
+
+Question: {sub_q.get('text', '')}
+Correct Answer: {correct_answer}
+Student Answer: {student_text}
+
+Respond in JSON format:
+{{
+    "is_correct": true/false,
+    "similarity_score": 0-100,
+    "reasoning": "brief explanation"
+}}"""
+
+                    response = self.client.create_chat_completion(
+                        messages=[{"role": "user", "content": grade_prompt}],
+                        model=ai_model,
+                        temperature=0.3,
+                        max_tokens=300
+                    )
+
+                    grade_text = response.choices[0].message.content.strip()
+                    if grade_text.startswith("```"):
+                        grade_text = grade_text.split("```")[1]
+                        if grade_text.startswith("json"):
+                            grade_text = grade_text[4:]
+                        grade_text = grade_text.strip()
+
+                    grade_result = _loads_feedback_json(grade_text)
+                    is_correct = grade_result.get('is_correct', False)
+                    similarity = grade_result.get('similarity_score', 0) / 100
+
+                    if is_correct:
+                        sub_earned = sub_points
+                    else:
+                        sub_earned = sub_points * similarity if similarity > 0.5 else 0.0
+
+                except Exception as e:
+                    logger.error(f"AI grading failed for sub-question {sub_id}: {str(e)}")
+                    is_correct = correct_answer.lower() in student_text.lower()
+                    sub_earned = sub_points if is_correct else 0.0
+            else:
+                is_correct = False
+                sub_earned = 0.0
+        else:
+            is_correct = False
+            sub_earned = 0.0
+
+        return {
+            "sub_id": sub_id,
+            "sub_type": sub_type,
+            "student_answer": student_sub_answer,
+            "is_correct": is_correct,
+            "points_possible": sub_points,
+            "points_earned": sub_earned
+        }
+
     def _analyze_multi_part_answer(
         self,
         student_answer: Dict[str, Any],
@@ -1371,96 +1564,21 @@ Make your feedback detailed, contextual, and helpful!"""
         # Format: {"sub_answers": {"1a": "answer", "1b": {"selected_option": "A"}, ...}}
         sub_answers = student_answer.get('sub_answers', {})
 
-        # Grade each sub-question
-        sub_results = []
-        total_points = 0.0
-        earned_points = 0.0
+        # Grade sub-questions concurrently — short/long sub-questions each cost
+        # their own OpenAI call, and running them one after another in a loop
+        # means wall-clock time scales with sub-question count. MCQ sub-questions
+        # are pure Python (no I/O) and just ride along in the same pool.
+        # ThreadPoolExecutor.map preserves input order in its output, so
+        # sub_results stays aligned with sub_questions exactly like the
+        # original sequential append did.
+        with ThreadPoolExecutor(max_workers=min(len(sub_questions), 5), thread_name_prefix="subq-grade") as executor:
+            sub_results = list(executor.map(
+                lambda sq: self._grade_one_sub_question(sq, sub_answers.get(sq['id'], ""), ai_model),
+                sub_questions
+            ))
 
-        for sub_q in sub_questions:
-            sub_id = sub_q['id']
-            sub_type = sub_q['type']
-            sub_points = sub_q.get('points', 1.0)
-            total_points += sub_points
-
-            student_sub_answer = sub_answers.get(sub_id, "")
-
-            # Grade based on sub-question type
-            if sub_type == 'mcq':
-                # MCQ sub-question
-                selected = student_sub_answer.get('selected_option', '') if isinstance(student_sub_answer, dict) else student_sub_answer
-                correct_option = sub_q.get('correct_option_id', '')
-                is_correct = selected.upper() == correct_option.upper() if selected and correct_option else False
-                sub_earned = sub_points if is_correct else 0.0
-            elif sub_type in ['short', 'long']:
-                # Text sub-question - use AI to grade against correct answer
-                correct_answer = sub_q.get('correct_answer', '')
-                student_text = student_sub_answer if isinstance(student_sub_answer, str) else str(student_sub_answer)
-
-                if correct_answer and student_text:
-                    # Use AI to grade text answer
-                    try:
-                        grade_prompt = f"""Compare the student's answer to the correct answer and determine correctness.
-
-Question: {sub_q.get('text', '')}
-Correct Answer: {correct_answer}
-Student Answer: {student_text}
-
-Respond in JSON format:
-{{
-    "is_correct": true/false,
-    "similarity_score": 0-100,
-    "reasoning": "brief explanation"
-}}"""
-
-                        response = self.client.create_chat_completion(
-                            messages=[{"role": "user", "content": grade_prompt}],
-                            model=ai_model,
-                            temperature=0.3,
-                            max_tokens=300
-                        )
-
-                        # Parse JSON response
-                        grade_text = response.choices[0].message.content.strip()
-
-                        # Handle markdown code blocks if present
-                        if grade_text.startswith("```"):
-                            grade_text = grade_text.split("```")[1]
-                            if grade_text.startswith("json"):
-                                grade_text = grade_text[4:]
-                            grade_text = grade_text.strip()
-
-                        grade_result = json.loads(grade_text)
-                        is_correct = grade_result.get('is_correct', False)
-                        similarity = grade_result.get('similarity_score', 0) / 100
-
-                        # Award partial credit based on similarity
-                        if is_correct:
-                            sub_earned = sub_points
-                        else:
-                            sub_earned = sub_points * similarity if similarity > 0.5 else 0.0
-
-                    except Exception as e:
-                        logger.error(f"AI grading failed for sub-question {sub_id}: {str(e)}")
-                        # Fall back to keyword matching
-                        is_correct = correct_answer.lower() in student_text.lower()
-                        sub_earned = sub_points if is_correct else 0.0
-                else:
-                    is_correct = False
-                    sub_earned = 0.0
-            else:
-                is_correct = False
-                sub_earned = 0.0
-
-            earned_points += sub_earned
-
-            sub_results.append({
-                "sub_id": sub_id,
-                "sub_type": sub_type,
-                "student_answer": student_sub_answer,
-                "is_correct": is_correct,
-                "points_possible": sub_points,
-                "points_earned": sub_earned
-            })
+        total_points = sum(r['points_possible'] for r in sub_results)
+        earned_points = sum(r['points_earned'] for r in sub_results)
 
         # Calculate score
         score = (earned_points / total_points * 100) if total_points > 0 else 0
@@ -1487,6 +1605,8 @@ Respond in JSON format:
             rag_section = "\n" + rag_context["formatted_context"] + "\n"
 
         prompt = f"""You are an educational AI providing feedback on a multi-part question.
+
+{MATH_NOTATION_NOTE}
 
 Main Question: {question.text}
 
@@ -1543,7 +1663,7 @@ Make your feedback detailed, contextual, and helpful!"""
                     feedback_text = feedback_text[4:]
                 feedback_text = feedback_text.strip()
 
-            feedback_json = json.loads(feedback_text)
+            feedback_json = _loads_feedback_json(feedback_text)
 
             # Calculate question-level points from percentage score
             question_points_earned = (score / 100.0) * question.points

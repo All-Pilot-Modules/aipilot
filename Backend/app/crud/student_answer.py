@@ -5,11 +5,21 @@ from uuid import UUID
 from typing import List, Optional
 
 # Create a student answer
-def create_student_answer(db: Session, answer_data: StudentAnswerCreate) -> StudentAnswer:
+def create_student_answer(db: Session, answer_data: StudentAnswerCreate, commit: bool = True) -> StudentAnswer:
+    """
+    Pass commit=False to add the answer within an already-open transaction
+    (e.g. so it lands atomically together with the FeedbackJob it triggers)
+    instead of committing immediately — the caller then owns the final
+    db.commit(). The id is available on the returned object either way
+    since StudentAnswer generates its UUID client-side.
+    """
     db_answer = StudentAnswer(**answer_data.dict())
     db.add(db_answer)
-    db.commit()
-    db.refresh(db_answer)
+    if commit:
+        db.commit()
+        db.refresh(db_answer)
+    else:
+        db.flush()
     return db_answer
 
 # Get student answer by ID
@@ -33,16 +43,20 @@ def get_student_answer(db: Session, student_id: str, question_id: UUID, attempt:
     ).first()
 
 # Update student answer
-def update_student_answer(db: Session, answer_id: UUID, answer_data: StudentAnswerUpdate) -> Optional[StudentAnswer]:
+def update_student_answer(db: Session, answer_id: UUID, answer_data: StudentAnswerUpdate, commit: bool = True) -> Optional[StudentAnswer]:
+    """Pass commit=False to defer to the caller's own final db.commit() (see create_student_answer)."""
     db_answer = get_student_answer_by_id(db, answer_id)
     if not db_answer:
         return None
-    
+
     for key, value in answer_data.dict(exclude_unset=True).items():
         setattr(db_answer, key, value)
-    
-    db.commit()
-    db.refresh(db_answer)
+
+    if commit:
+        db.commit()
+        db.refresh(db_answer)
+    else:
+        db.flush()
     return db_answer
 
 # Delete student answer

@@ -21,9 +21,9 @@ class TestQuestionGenerationService:
     @pytest.fixture
     def mock_openai(self):
         """Mock OpenAI client."""
-        with patch("app.services.question_generation.openai") as mock:
+        with patch("app.services.question_generation.OpenAIClientWithRetry") as mock_cls:
             mock_client = MagicMock()
-            mock.OpenAI.return_value = mock_client
+            mock_cls.return_value = mock_client
             yield mock_client
 
     @pytest.fixture
@@ -34,34 +34,43 @@ class TestQuestionGenerationService:
         service.client = mock_openai
         return service
 
-    def _create_mock_document(self, chunks=None):
-        """Helper to create a mock document."""
+    def _create_mock_document(self, processing_status="embedded"):
+        """Helper to create a mock Document row."""
         doc = MagicMock()
         doc.id = uuid.uuid4()
         doc.module_id = uuid.uuid4()
-        doc.original_filename = "test_document.pdf"
-        doc.processing_status = "completed"
-        doc.parse_status = "completed"
-
-        if chunks is None:
-            chunks = [
-                MagicMock(
-                    text="Chapter 1: Introduction to OOP. Object-oriented programming is a paradigm...",
-                    metadata={"page": 1}
-                ),
-                MagicMock(
-                    text="Chapter 2: Inheritance. Inheritance allows classes to inherit properties...",
-                    metadata={"page": 5}
-                ),
-            ]
-        doc.chunks = chunks
+        doc.title = "test_document.pdf"
+        doc.processing_status = processing_status
         return doc
+
+    def _create_mock_chunks(self, texts=None):
+        """Helper to create mock DocumentChunk rows."""
+        if texts is None:
+            texts = [
+                "Chapter 1: Introduction to OOP. Object-oriented programming is a paradigm...",
+                "Chapter 2: Inheritance. Inheritance allows classes to inherit properties...",
+            ]
+        chunks = []
+        for i, text in enumerate(texts):
+            chunk = MagicMock()
+            chunk.chunk_index = i
+            chunk.chunk_text = text
+            chunk.chunk_metadata = {"page_number": i + 1}
+            chunks.append(chunk)
+        return chunks
+
+    def _wire_db(self, mock_db, document, chunks):
+        """Wire a mock db session's query chain for Document lookup + chunk fetch."""
+        mock_db.query.return_value.filter.return_value.first.return_value = document
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = chunks
 
     def _create_mock_completion(self, content: str):
         """Helper to create mock OpenAI completion response."""
         mock_response = MagicMock()
         mock_response.choices = [MagicMock()]
         mock_response.choices[0].message.content = content
+        mock_response.choices[0].finish_reason = "stop"
+        mock_response.usage = MagicMock(total_tokens=100, prompt_tokens=80, completion_tokens=20)
         return mock_response
 
     # -------------------------------------------------------------------------
@@ -70,114 +79,94 @@ class TestQuestionGenerationService:
     def test_generate_questions_from_document(self, service, mock_openai, mock_db):
         """Test generating questions from a document."""
         mock_doc = self._create_mock_document()
-        mock_openai.chat.completions.create.return_value = \
+        self._wire_db(mock_db, mock_doc, self._create_mock_chunks())
+        mock_openai.create_chat_completion.return_value = \
             self._create_mock_completion(QUESTION_GENERATION_RESPONSE)
-
-        with patch.object(service, '_parse_openai_response') as mock_parse:
-            mock_parse.return_value = json.loads(QUESTION_GENERATION_RESPONSE)["questions"]
-
-            result = service.generate_questions_from_document(
-                db=mock_db,
-                document=mock_doc,
-                num_short=2,
-                num_long=1,
-                num_mcq=3
-            )
-
-            assert result is not None
-            mock_openai.chat.completions.create.assert_called_once()
-
-    def test_generate_with_all_question_types(self, service, mock_openai, mock_db):
-        """Test generating all question types."""
-        mock_doc = self._create_mock_document()
-
-        response_data = {
-            "questions": [
-                {"type": "short", "text": "Short Q", "points": 5},
-                {"type": "long", "text": "Long Q", "points": 10},
-                {"type": "mcq", "text": "MCQ", "options": {"A": "1", "B": "2"}, "correct_option_id": "A"},
-                {"type": "mcq_multiple", "text": "MCQ Multi", "options": {"A": "1", "B": "2"},
-                 "extended_config": {"correct_option_ids": ["A", "B"]}},
-                {"type": "fill_blank", "text": "Fill ___",
-                 "extended_config": {"blanks": [{"position": 0, "correct_answers": ["answer"]}]}},
-            ]
-        }
-
-        mock_openai.chat.completions.create.return_value = \
-            self._create_mock_completion(json.dumps(response_data))
 
         result = service.generate_questions_from_document(
             db=mock_db,
-            document=mock_doc,
-            num_short=1,
+            document_id=mock_doc.id,
+            num_short=2,
             num_long=1,
-            num_mcq=1,
-            num_mcq_multiple=1,
-            num_fill_blank=1
+            num_mcq=3
         )
 
         assert result is not None
+        assert len(result) == 3
+        mock_openai.create_chat_completion.assert_called_once()
+
+    def test_generate_with_all_question_types(self, service, mock_openai, mock_db):
+        """Test generating short, long, and MCQ questions together."""
+        mock_doc = self._create_mock_document()
+        self._wire_db(mock_db, mock_doc, self._create_mock_chunks())
+
+        mock_openai.create_chat_completion.return_value = \
+            self._create_mock_completion(QUESTION_GENERATION_RESPONSE)
+
+        result = service.generate_questions_from_document(
+            db=mock_db,
+            document_id=mock_doc.id,
+            num_short=1,
+            num_long=1,
+            num_mcq=1
+        )
+
+        assert result is not None
+        types = {q["type"] for q in result}
+        assert types == {"short", "long", "mcq"}
 
     def test_generate_zero_questions_requested(self, service, mock_openai, mock_db):
         """Test behavior when zero questions requested."""
         mock_doc = self._create_mock_document()
+        self._wire_db(mock_db, mock_doc, self._create_mock_chunks())
+        mock_openai.create_chat_completion.return_value = \
+            self._create_mock_completion(json.dumps({"questions": []}))
 
-        result = service.generate_questions_from_document(
-            db=mock_db,
-            document=mock_doc,
-            num_short=0,
-            num_long=0,
-            num_mcq=0
-        )
-
-        # Should return empty or raise error
-        assert result is None or len(result) == 0
+        with pytest.raises(ValueError):
+            service.generate_questions_from_document(
+                db=mock_db,
+                document_id=mock_doc.id,
+                num_short=0,
+                num_long=0,
+                num_mcq=0
+            )
 
     def test_generate_from_document_not_processed(self, service, mock_db):
         """Test handling unprocessed document."""
-        mock_doc = self._create_mock_document()
-        mock_doc.processing_status = "pending"
+        mock_doc = self._create_mock_document(processing_status="pending")
+        self._wire_db(mock_db, mock_doc, self._create_mock_chunks())
 
-        try:
-            result = service.generate_questions_from_document(
+        with pytest.raises(ValueError):
+            service.generate_questions_from_document(
                 db=mock_db,
-                document=mock_doc,
+                document_id=mock_doc.id,
                 num_short=1,
                 num_long=0,
                 num_mcq=0
             )
-            # Should fail or return None
-            assert result is None
-        except ValueError:
-            pass  # Expected
 
     def test_generate_from_empty_document(self, service, mock_db):
         """Test handling document with no chunks."""
-        mock_doc = self._create_mock_document(chunks=[])
+        mock_doc = self._create_mock_document()
+        self._wire_db(mock_db, mock_doc, [])
 
-        try:
-            result = service.generate_questions_from_document(
+        with pytest.raises(ValueError):
+            service.generate_questions_from_document(
                 db=mock_db,
-                document=mock_doc,
+                document_id=mock_doc.id,
                 num_short=1,
                 num_long=0,
                 num_mcq=0
             )
-            assert result is None or len(result) == 0
-        except ValueError:
-            pass  # Expected
 
     # -------------------------------------------------------------------------
     # Prompt Building Tests
     # -------------------------------------------------------------------------
     def test_format_chunks_for_prompt(self, service):
         """Test formatting document chunks for the prompt."""
-        chunks = [
-            MagicMock(text="Chunk 1 content", metadata={"page": 1, "section": "Intro"}),
-            MagicMock(text="Chunk 2 content", metadata={"page": 2}),
-        ]
+        chunks = self._create_mock_chunks(["Chunk 1 content", "Chunk 2 content"])
 
-        result = service._format_chunks_for_prompt(chunks)
+        result = service._format_chunks_for_prompt(chunks, "Test Document")
 
         assert "Chunk 1" in result
         assert "Chunk 2" in result
@@ -187,21 +176,23 @@ class TestQuestionGenerationService:
         content = "This is course material about programming concepts."
 
         result = service._build_question_generation_prompt(
-            content=content,
+            document_content=content,
+            document_title="Programming 101",
             num_short=2,
             num_long=1,
             num_mcq=3
         )
 
-        assert "programming" in result.lower() or content in result
-        assert "short" in result.lower() or "2" in result
-        assert "mcq" in result.lower() or "multiple choice" in result.lower()
-        assert "json" in result.lower()
+        assert content in result
+        assert "SHORT ANSWER" in result and "2" in result
+        assert "MULTIPLE CHOICE" in result or "mcq" in result.lower()
+        assert "JSON" in result or "json" in result.lower()
 
     def test_prompt_includes_bloom_taxonomy(self, service):
         """Test that prompt requests Bloom's taxonomy levels."""
         result = service._build_question_generation_prompt(
-            content="Test content",
+            document_content="Test content",
+            document_title="Test Doc",
             num_short=1,
             num_long=1,
             num_mcq=1
@@ -217,7 +208,9 @@ class TestQuestionGenerationService:
         """Test parsing valid JSON response."""
         response = QUESTION_GENERATION_RESPONSE
 
-        result = service._parse_openai_response(response)
+        result = service._parse_openai_response(
+            response, document_id=uuid.uuid4(), module_id=uuid.uuid4()
+        )
 
         assert result is not None
         assert len(result) > 0
@@ -227,22 +220,19 @@ class TestQuestionGenerationService:
         """Test handling invalid JSON response."""
         response = "This is not valid JSON at all"
 
-        try:
-            result = service._parse_openai_response(response)
-            assert result is None or len(result) == 0
-        except json.JSONDecodeError:
-            pass  # Expected
+        with pytest.raises(ValueError):
+            service._parse_openai_response(
+                response, document_id=uuid.uuid4(), module_id=uuid.uuid4()
+            )
 
     def test_parse_openai_response_missing_questions_key(self, service):
         """Test handling response without 'questions' key."""
         response = json.dumps({"data": [{"type": "mcq"}]})
 
-        try:
-            result = service._parse_openai_response(response)
-            # May return empty or raise
-            assert result is None or len(result) == 0
-        except (KeyError, ValueError):
-            pass  # Expected
+        with pytest.raises(ValueError):
+            service._parse_openai_response(
+                response, document_id=uuid.uuid4(), module_id=uuid.uuid4()
+            )
 
     def test_parse_response_marks_unreviewed(self, service):
         """Test that parsed questions are marked as unreviewed."""
@@ -252,11 +242,12 @@ class TestQuestionGenerationService:
             ]
         })
 
-        result = service._parse_openai_response(response)
+        result = service._parse_openai_response(
+            response, document_id=uuid.uuid4(), module_id=uuid.uuid4()
+        )
 
-        if result:
-            for q in result:
-                assert q.get("status") == "unreviewed" or q.get("is_ai_generated") is True
+        assert result[0]["is_ai_generated"] is True
+        assert str(result[0]["status"]) == "unreviewed" or result[0]["status"].value == "unreviewed"
 
     def test_parse_response_includes_bloom_level(self, service):
         """Test that parsed questions include Bloom's taxonomy."""
@@ -271,10 +262,11 @@ class TestQuestionGenerationService:
             ]
         })
 
-        result = service._parse_openai_response(response)
+        result = service._parse_openai_response(
+            response, document_id=uuid.uuid4(), module_id=uuid.uuid4()
+        )
 
-        if result:
-            assert result[0].get("bloom_taxonomy") == "Understand"
+        assert result[0].get("bloom_taxonomy") == "Understand"
 
     # -------------------------------------------------------------------------
     # Edge Cases Tests
@@ -282,16 +274,18 @@ class TestQuestionGenerationService:
     def test_handles_special_characters_in_content(self, service, mock_openai, mock_db):
         """Test handling content with special characters."""
         mock_doc = self._create_mock_document()
-        mock_doc.chunks[0].text = "Content with \"quotes\" and 'apostrophes' and <html> tags"
+        chunks = self._create_mock_chunks(
+            ['Content with "quotes" and \'apostrophes\' and <html> tags']
+        )
+        self._wire_db(mock_db, mock_doc, chunks)
 
-        mock_openai.chat.completions.create.return_value = \
+        mock_openai.create_chat_completion.return_value = \
             self._create_mock_completion(QUESTION_GENERATION_RESPONSE)
 
-        # Should not crash
         try:
-            result = service.generate_questions_from_document(
+            service.generate_questions_from_document(
                 db=mock_db,
-                document=mock_doc,
+                document_id=mock_doc.id,
                 num_short=1,
                 num_long=0,
                 num_mcq=0
@@ -302,16 +296,16 @@ class TestQuestionGenerationService:
     def test_handles_unicode_content(self, service, mock_openai, mock_db):
         """Test handling Unicode content."""
         mock_doc = self._create_mock_document()
-        mock_doc.chunks[0].text = "Content with émojis 🎉 and accénts café résumé"
+        chunks = self._create_mock_chunks(["Content with émojis 🎉 and accénts café résumé"])
+        self._wire_db(mock_db, mock_doc, chunks)
 
-        mock_openai.chat.completions.create.return_value = \
+        mock_openai.create_chat_completion.return_value = \
             self._create_mock_completion(QUESTION_GENERATION_RESPONSE)
 
-        # Should not crash
         try:
-            result = service.generate_questions_from_document(
+            service.generate_questions_from_document(
                 db=mock_db,
-                document=mock_doc,
+                document_id=mock_doc.id,
                 num_short=1,
                 num_long=0,
                 num_mcq=0
@@ -320,25 +314,20 @@ class TestQuestionGenerationService:
             pytest.fail(f"Should handle Unicode: {e}")
 
     def test_handles_very_long_document(self, service, mock_openai, mock_db):
-        """Test handling very long documents (should truncate)."""
-        # Create document with many long chunks
-        chunks = [
-            MagicMock(text="Long content " * 1000, metadata={"page": i})
-            for i in range(50)
-        ]
-        mock_doc = self._create_mock_document(chunks=chunks)
+        """Test handling very long documents."""
+        chunks = self._create_mock_chunks(["Long content " * 1000 for _ in range(50)])
+        mock_doc = self._create_mock_document()
+        self._wire_db(mock_db, mock_doc, chunks)
 
-        mock_openai.chat.completions.create.return_value = \
+        mock_openai.create_chat_completion.return_value = \
             self._create_mock_completion(QUESTION_GENERATION_RESPONSE)
 
-        # Should handle without error (may truncate content)
-        result = service.generate_questions_from_document(
+        service.generate_questions_from_document(
             db=mock_db,
-            document=mock_doc,
+            document_id=mock_doc.id,
             num_short=1,
             num_long=0,
             num_mcq=0
         )
 
-        # Verify API was called (content was processed somehow)
-        mock_openai.chat.completions.create.assert_called()
+        mock_openai.create_chat_completion.assert_called()

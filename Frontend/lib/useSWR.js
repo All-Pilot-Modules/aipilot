@@ -50,7 +50,9 @@ export function useAPI(key, options = {}) {
  */
 export async function prefetchAPI(key) {
   try {
-    const data = await apiClient.get(key);
+    // Prefetches are best-effort (e.g. hover prefetch) — a failure here
+    // should never force-logout the whole session.
+    const data = await apiClient.get(key, { skipAuthLogout: true });
     // Populate SWR cache so subsequent useAPI calls return instantly
     globalMutate(key, data, false);
     return data;

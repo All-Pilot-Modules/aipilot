@@ -1,5 +1,6 @@
 'use client';
 
+import { MathText } from "@/components/MathText";
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
@@ -404,14 +405,14 @@ function QuestionReviewContent() {
                               </div>
                             ) : (
                               <>
-                                <CardTitle className="text-lg mb-3">{question.text}</CardTitle>
+                                <CardTitle className="text-lg mb-3"><MathText inline>{question.text}</MathText></CardTitle>
                                 {question.type === 'mcq' && question.options && (
                                   <div className="space-y-2 pl-4">
                                     {Object.entries(question.options).map(([key, value]) => (
                                       <div key={key} className="flex items-center gap-2">
                                         <span className="font-semibold">{key}.</span>
                                         <span className={key === question.correct_option_id ? "font-semibold text-green-600" : ""}>
-                                          {value}
+                                          <MathText inline>{value}</MathText>
                                         </span>
                                         {key === question.correct_option_id && (
                                           <CheckCircle2 className="w-4 h-4 text-green-600" />
@@ -426,13 +427,13 @@ function QuestionReviewContent() {
                                       Expected Answer (for AI feedback):
                                     </p>
                                     <p className="text-sm text-green-900 dark:text-green-100 whitespace-pre-wrap">
-                                      {question.correct_answer}
+                                      <MathText inline>{question.correct_answer}</MathText>
                                     </p>
                                   </div>
                                 )}
                                 {question.learning_outcome && (
                                   <p className="text-sm text-muted-foreground mt-3">
-                                    <strong>Learning Outcome:</strong> {question.learning_outcome}
+                                    <strong>Learning Outcome:</strong> <MathText inline>{question.learning_outcome}</MathText>
                                   </p>
                                 )}
                               </>

@@ -1,4 +1,10 @@
 
+if __name__ == "__main__":
+    # Configure capture before importing the app and starting its workers.
+    from scripts.run_backend import main
+    main()
+    raise SystemExit(0)
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 from typing import Union
@@ -44,6 +50,8 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
 
 
 app = FastAPI()
+from app.core.latency import LatencyMiddleware
+app.add_middleware(LatencyMiddleware)
 
 # Global handler: catch unhandled exceptions and return JSON so CORS headers
 # are written correctly (BaseHTTPMiddleware swallows crashes otherwise).
@@ -109,6 +117,23 @@ def on_startup():
         print(f"⚠️  start_worker failed (non-fatal): {e}")
 
     print("🎉 Application startup complete!")
+
+
+@app.on_event("shutdown")
+def on_shutdown():
+    """
+    Release feedback-worker leadership cleanly so the next instance (e.g.
+    after a deploy) doesn't wait out LEADER_TAKEOVER_SECONDS for a heartbeat
+    that will never come again. stop_worker() was built for this but was
+    never actually wired to a shutdown hook — this was dead code until now.
+    """
+    print("🛑 App shutdown initiated...")
+    from app.services.feedback_worker import stop_worker
+    try:
+        stop_worker()
+        print("✅ Feedback worker stopped cleanly")
+    except Exception as e:
+        print(f"⚠️  stop_worker failed (non-fatal): {e}")
 
 # 📎 Test route
 @app.get("/")

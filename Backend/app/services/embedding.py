@@ -17,6 +17,9 @@ from app.services.openai_client import OpenAIClientWithRetry
 client = OpenAIClientWithRetry(api_keys=OPENAI_API_KEYS)
 
 
+from app.core.latency import timed
+
+@timed("generate_embedding")
 def generate_embedding(
     text: str,
     model: str = None
@@ -58,6 +61,7 @@ def generate_embedding(
         raise
 
 
+@timed("generate_embeddings_batch")
 def generate_embeddings_batch(
     texts: List[str],
     model: str = None
@@ -98,6 +102,7 @@ def generate_embeddings_batch(
         raise
 
 
+@timed("generate_embeddings_for_document")
 def generate_embeddings_for_document(
     db: Session,
     document_id: str,
@@ -194,22 +199,29 @@ def cosine_similarity(vec1: List[float], vec2: List[float]) -> float:
     return float(dot_product / (magnitude1 * magnitude2))
 
 
+@timed("search_similar_chunks")
 def search_similar_chunks(
     db: Session,
     query_text: str,
     document_id: Optional[str] = None,
     limit: int = 5,
-    model: str = None
+    model: str = None,
+    query_vector: Optional[List[float]] = None,
 ) -> List[Dict[str, Any]]:
     """
     Search for chunks similar to a query text
 
     Args:
         db: Database session
-        query_text: The search query
+        query_text: The search query (ignored for embedding if query_vector
+            is provided — still used for logging/debugging)
         document_id: Optional document ID to limit search scope
         limit: Number of results to return
         model: Embedding model to use (default: from EMBED_MODEL config)
+        query_vector: Precomputed embedding for query_text. Pass this when
+            calling in a loop over multiple documents for the SAME query
+            (e.g. rag_retriever's per-module document scan) so the query
+            is embedded once via the OpenAI API instead of once per document.
 
     Returns:
         List of dicts with 'chunk', 'similarity', 'text'
@@ -217,9 +229,9 @@ def search_similar_chunks(
     if model is None:
         model = EMBED_MODEL
 
-    # Generate embedding for query
-    query_embedding_info = generate_embedding(query_text, model=model)
-    query_vector = query_embedding_info['embedding']
+    if query_vector is None:
+        query_embedding_info = generate_embedding(query_text, model=model)
+        query_vector = query_embedding_info['embedding']
 
     # Get all embeddings (optionally filtered by document)
     from app.models.document_embedding import DocumentEmbedding
@@ -267,3 +279,77 @@ def search_similar_chunks(
             })
 
     return top_results
+
+
+def search_similar_chunks_in_module(
+    db: Session,
+    module_id,
+    query_vector: List[float],
+    limit: int = 5,
+    exclude_testbank: bool = True,
+) -> List[Dict[str, Any]]:
+    """
+    Nearest-neighbor search across every embedded chunk in a module, in one
+    query — the HNSW index on document_embeddings.embedding_vector (built
+    with vector_cosine_ops) only gets used if the ORDER BY is the matching
+    operator, so this must use .cosine_distance() (<=>), not a plain Python
+    comparison. Returns the module's globally best `limit` chunks directly,
+    joined with chunk text/metadata and document title — replaces the old
+    search_similar_chunks() being called once per document (each call
+    pulling that whole document's vectors into Python to score and sort
+    there) with the equivalent, strictly cheaper single round trip.
+
+    Args:
+        db: Database session
+        module_id: Module to search within
+        query_vector: Precomputed query embedding (see generate_embedding)
+        limit: Max chunks to return (already the module-wide top N, sorted)
+        exclude_testbank: Skip documents marked as testbank (answer keys etc.)
+
+    Returns:
+        List of dicts: chunk_id, document_id, document_title, similarity,
+        text, chunk_index, metadata — same shape search_similar_chunks()
+        returns, with document_title/document_id already merged in (callers
+        used to add those themselves after the fact).
+    """
+    from app.models.document_embedding import DocumentEmbedding
+    from app.models.document import Document
+
+    distance = DocumentEmbedding.embedding_vector.cosine_distance(query_vector)
+
+    query = (
+        db.query(
+            DocumentEmbedding.chunk_id,
+            DocumentEmbedding.document_id,
+            DocumentChunk.chunk_text,
+            DocumentChunk.chunk_index,
+            DocumentChunk.chunk_metadata,
+            Document.title,
+            distance.label("distance"),
+        )
+        .join(DocumentChunk, DocumentEmbedding.chunk_id == DocumentChunk.id)
+        .join(Document, DocumentEmbedding.document_id == Document.id)
+        .filter(DocumentEmbedding.module_id == module_id)
+        .filter(Document.processing_status == "embedded")
+    )
+
+    if exclude_testbank:
+        query = query.filter(Document.is_testbank == False)
+
+    rows = query.order_by(distance).limit(limit).all()
+
+    return [
+        {
+            'chunk_id': row.chunk_id,
+            'document_id': row.document_id,
+            'document_title': row.title,
+            # pgvector's cosine_distance is 1 - cosine_similarity, so convert
+            # back to a similarity score to keep this the same metric
+            # (0..1, higher = more relevant) callers already expect.
+            'similarity': 1.0 - row.distance,
+            'text': row.chunk_text,
+            'chunk_index': row.chunk_index,
+            'metadata': row.chunk_metadata or {},
+        }
+        for row in rows
+    ]

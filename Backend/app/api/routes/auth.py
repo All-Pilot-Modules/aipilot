@@ -1,6 +1,6 @@
 import uuid
 from datetime import timedelta, datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.security import HTTPBearer
 from sqlalchemy.orm import Session
 from app.schemas.user import (
@@ -168,7 +168,7 @@ def get_current_user_info(current_user: User = Depends(get_current_active_user))
     return current_user
 
 @router.post("/refresh")
-def refresh_token(refresh_token: str, db: Session = Depends(get_db)):
+def refresh_token(refresh_token: str = Body(..., embed=True), db: Session = Depends(get_db)):
     """Refresh access token using refresh token."""
     try:
         # Verify refresh token

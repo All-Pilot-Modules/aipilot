@@ -1,9 +1,10 @@
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+from uuid import UUID
 import jwt
 from jwt import PyJWTError
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Query, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 from app.database import get_db
@@ -127,3 +128,114 @@ def require_roles(required_roles: list):
             )
         return current_user
     return role_checker
+
+
+# ---------------------------------------------------------------------------
+# Student sessions
+#
+# Students don't have a `users` row (no password, no account) — they join a
+# module with a shared access code plus a self-reported banner ID, and every
+# student-facing route used to just trust whatever student_id showed up in
+# the query string. Anyone who knew (or guessed) a classmate's banner ID and
+# the module's access code — which the whole class shares, not a secret per
+# student — could read or submit as them.
+#
+# join_module_with_code now issues one of these tokens after enrollment, and
+# every student route should derive identity from it instead of the
+# query/body-supplied student_id (that field still exists in request
+# payloads for backward compatibility but must never be trusted).
+# ---------------------------------------------------------------------------
+
+STUDENT_TOKEN_EXPIRE_HOURS = 12  # covers a full exam session with margin
+
+
+class StudentIdentity:
+    """Verified student identity derived from a signed session token."""
+    def __init__(self, student_id: str, module_id: str):
+        self.student_id = student_id
+        self.module_id = module_id
+
+
+def create_student_token(student_id: str, module_id) -> str:
+    """Issue a short-lived, module-scoped student session token after enrollment."""
+    return create_access_token(
+        data={"sub": student_id, "module_id": str(module_id), "role": "student"},
+        expires_delta=timedelta(hours=STUDENT_TOKEN_EXPIRE_HOURS),
+    )
+
+
+def _decode_student_token(token: str) -> StudentIdentity:
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Invalid or missing student session — please rejoin the module",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+    except PyJWTError:
+        raise credentials_exception
+
+    if payload.get("role") != "student":
+        raise credentials_exception
+
+    student_id = payload.get("sub")
+    module_id = payload.get("module_id")
+    if not student_id or not module_id:
+        raise credentials_exception
+
+    return StudentIdentity(student_id=student_id, module_id=module_id)
+
+
+def get_current_student(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+) -> StudentIdentity:
+    """Derive student identity from a signed session token — never trust a client-supplied student_id."""
+    return _decode_student_token(credentials.credentials)
+
+
+def get_current_student_from_query_token(
+    token: str = Query(..., description="Student session token"),
+) -> StudentIdentity:
+    """
+    Same as get_current_student, but reads the token from a query param
+    instead of the Authorization header — for the SSE endpoint, whose
+    browser EventSource client cannot send custom headers at all.
+    """
+    return _decode_student_token(token)
+
+
+def get_current_student_for_module(
+    module_id: UUID,
+    identity: StudentIdentity = Depends(get_current_student),
+) -> str:
+    """
+    Use on any route whose path already scopes to {module_id} — FastAPI
+    resolves this dependency's module_id parameter from the enclosing
+    route's path param of the same name. Verifies the token's module_id
+    claim matches the path (so a valid session for Module A can't read or
+    write Module B), then returns the verified student_id.
+    """
+    if str(identity.module_id) != str(module_id):
+        raise HTTPException(status_code=403, detail="Session not valid for this module")
+    return identity.student_id
+
+
+def get_current_student_for_module_from_query_token(
+    module_id: UUID,
+    identity: StudentIdentity = Depends(get_current_student_from_query_token),
+) -> str:
+    """Query-token variant of get_current_student_for_module, for the SSE endpoint."""
+    if str(identity.module_id) != str(module_id):
+        raise HTTPException(status_code=403, detail="Session not valid for this module")
+    return identity.student_id
+
+
+def get_current_student_id(identity: StudentIdentity = Depends(get_current_student)) -> str:
+    """
+    Use on routes with no module_id path param to match against (so
+    get_current_student_for_module doesn't apply) that only need the bare
+    student_id string — typically because the query/model they filter by is
+    already scoped to student_id directly, making it safe by construction
+    once that value comes from a verified token instead of client input.
+    """
+    return identity.student_id

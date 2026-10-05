@@ -33,8 +33,7 @@ jobs:
             -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/ai-pilot-backend:${{ github.sha }} \
             -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/ai-pilot-backend:latest \
             -f Backend/Dockerfile \
-            Backe
-            nd
+            Backend
 
       - name: Push Docker image
         run: |

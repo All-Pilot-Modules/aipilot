@@ -62,7 +62,6 @@ const nextConfig = {
       '@radix-ui/react-tabs',
       '@radix-ui/react-tooltip',
     ],
-    serverExternalPackages: ['exceljs', 'pg'],
   },
 
   // ========== COMPILER OPTIMIZATIONS ==========

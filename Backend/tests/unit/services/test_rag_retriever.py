@@ -47,17 +47,27 @@ class TestRAGRetriever:
     # -------------------------------------------------------------------------
     def test_get_context_for_feedback_returns_chunks(self, mock_db):
         """Test that context retrieval returns relevant chunks."""
-        with patch("app.services.rag_retriever.search_similar_chunks") as mock_search:
+        with patch("app.services.rag_retriever.generate_embedding") as mock_embed, \
+             patch("app.services.rag_retriever.search_similar_chunks_in_module") as mock_search:
+            mock_embed.return_value = {"embedding": [0.1] * 1536}
             mock_search.return_value = [
-                MagicMock(
-                    text="Relevant content here",
-                    similarity_score=0.9,
-                    document=MagicMock(original_filename="test.pdf"),
-                    metadata={"page": 1}
-                )
+                {
+                    "chunk_id": uuid.uuid4(),
+                    "document_id": uuid.uuid4(),
+                    "document_title": "test.pdf",
+                    "similarity": 0.9,
+                    "text": "Relevant content here",
+                    "chunk_index": 0,
+                    "metadata": {"page": 1},
+                }
             ]
 
             from app.services.rag_retriever import get_context_for_feedback
+
+            # mock_db.query(...).filter(...).all() must return a non-empty
+            # list (truthy but iterable) so the "no documents" early-return
+            # doesn't short-circuit before search_similar_chunks_in_module runs.
+            mock_db.query.return_value.filter.return_value.all.return_value = [MagicMock()]
 
             result = get_context_for_feedback(
                 db=mock_db,
@@ -71,11 +81,16 @@ class TestRAGRetriever:
 
     def test_get_context_respects_similarity_threshold(self, mock_db):
         """Test that low-similarity chunks are filtered out."""
-        with patch("app.services.rag_retriever.search_similar_chunks") as mock_search:
+        with patch("app.services.rag_retriever.generate_embedding") as mock_embed, \
+             patch("app.services.rag_retriever.search_similar_chunks_in_module") as mock_search:
+            mock_embed.return_value = {"embedding": [0.1] * 1536}
+            mock_db.query.return_value.filter.return_value.all.return_value = [MagicMock()]
             # Return chunks with varying similarity
             mock_search.return_value = [
-                MagicMock(text="High relevance", similarity_score=0.95),
-                MagicMock(text="Low relevance", similarity_score=0.3),
+                {"chunk_id": uuid.uuid4(), "document_id": uuid.uuid4(), "document_title": "doc",
+                 "similarity": 0.95, "text": "High relevance", "chunk_index": 0, "metadata": {}},
+                {"chunk_id": uuid.uuid4(), "document_id": uuid.uuid4(), "document_title": "doc",
+                 "similarity": 0.3, "text": "Low relevance", "chunk_index": 1, "metadata": {}},
             ]
 
             from app.services.rag_retriever import get_context_for_feedback
@@ -93,10 +108,14 @@ class TestRAGRetriever:
 
     def test_get_context_limits_chunks(self, mock_db):
         """Test that max_chunks parameter is respected."""
-        with patch("app.services.rag_retriever.search_similar_chunks") as mock_search:
+        with patch("app.services.rag_retriever.generate_embedding") as mock_embed, \
+             patch("app.services.rag_retriever.search_similar_chunks_in_module") as mock_search:
+            mock_embed.return_value = {"embedding": [0.1] * 1536}
+            mock_db.query.return_value.filter.return_value.all.return_value = [MagicMock()]
             # Return many chunks
             mock_search.return_value = [
-                MagicMock(text=f"Chunk {i}", similarity_score=0.9 - i*0.05)
+                {"chunk_id": uuid.uuid4(), "document_id": uuid.uuid4(), "document_title": "doc",
+                 "similarity": 0.9 - i * 0.05, "text": f"Chunk {i}", "chunk_index": i, "metadata": {}}
                 for i in range(10)
             ]
 
@@ -114,8 +133,9 @@ class TestRAGRetriever:
 
     def test_get_context_empty_when_no_documents(self, mock_db):
         """Test empty context when no documents found."""
-        with patch("app.services.rag_retriever.search_similar_chunks") as mock_search:
+        with patch("app.services.rag_retriever.search_similar_chunks_in_module") as mock_search:
             mock_search.return_value = []
+            mock_db.query.return_value.filter.return_value.all.return_value = []
 
             from app.services.rag_retriever import get_context_for_feedback
 
@@ -245,11 +265,12 @@ class TestSimilaritySearch:
 
     def test_search_combines_question_and_answer(self, mock_db):
         """Test that search query combines question and answer."""
-        with patch("app.services.rag_retriever.search_similar_chunks") as mock_search, \
+        with patch("app.services.rag_retriever.search_similar_chunks_in_module") as mock_search, \
              patch("app.services.rag_retriever.generate_embedding") as mock_embed:
 
-            mock_embed.return_value = [0.1] * 1536
+            mock_embed.return_value = {"embedding": [0.1] * 1536}
             mock_search.return_value = []
+            mock_db.query.return_value.filter.return_value.all.return_value = [MagicMock()]
 
             from app.services.rag_retriever import get_context_for_feedback
 
@@ -265,8 +286,11 @@ class TestSimilaritySearch:
 
     def test_search_filters_by_module(self, mock_db):
         """Test that search filters by module ID."""
-        with patch("app.services.rag_retriever.search_similar_chunks") as mock_search:
+        with patch("app.services.rag_retriever.search_similar_chunks_in_module") as mock_search, \
+             patch("app.services.rag_retriever.generate_embedding") as mock_embed:
+            mock_embed.return_value = {"embedding": [0.1] * 1536}
             mock_search.return_value = []
+            mock_db.query.return_value.filter.return_value.all.return_value = [MagicMock()]
 
             from app.services.rag_retriever import get_context_for_feedback
 
@@ -281,3 +305,4 @@ class TestSimilaritySearch:
             # Verify module_id filtering
             call_args = mock_search.call_args
             assert call_args is not None
+            assert call_args.kwargs.get("module_id") == module_id

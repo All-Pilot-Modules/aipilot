@@ -36,7 +36,8 @@ class QuestionGenerationService:
         document_id: UUID,
         num_short: int = 0,
         num_long: int = 0,
-        num_mcq: int = 0
+        num_mcq: int = 0,
+        instructions: str = ""
     ) -> List[Dict[str, Any]]:
         """
         Generate questions from a document using its RAG-processed chunks
@@ -90,7 +91,8 @@ class QuestionGenerationService:
             document_title=document.title,
             num_short=num_short,
             num_long=num_long,
-            num_mcq=num_mcq
+            num_mcq=num_mcq,
+            instructions=instructions
         )
 
         # Log the full prompt for debugging
@@ -217,7 +219,8 @@ class QuestionGenerationService:
         document_title: str,
         num_short: int,
         num_long: int,
-        num_mcq: int
+        num_mcq: int,
+        instructions: str = ""
     ) -> str:
         """
         Build the OpenAI prompt for question generation
@@ -294,6 +297,10 @@ RESPONSE FORMAT (JSON):
 
 Generate all {total_questions} questions now. Ensure questions are pedagogically sound and aligned with the content."""
 
+        if instructions.strip():
+            prompt += ("\n\nTEACHER GENERATION GUIDANCE:\n" + instructions.strip()
+                       + "\nFollow this guidance for topic, difficulty and style while staying grounded "
+                       "in the document. Preserve the requested question counts, types and JSON schema.")
         return prompt
 
     def _parse_openai_response(

@@ -8,6 +8,7 @@ This module provides a robust wrapper around OpenAI API calls with:
 - Comprehensive error logging
 """
 
+from app.core.latency import timed
 import openai
 import time
 import logging
@@ -52,9 +53,17 @@ class OpenAIClientWithRetry:
         with self._lock:
             return next(self._key_cycle)
 
+    @timed("openai.chat.total")
     @retry(
-        stop=stop_after_attempt(2),  # Try up to 2 times (fits within 45s stale window)
-        wait=wait_exponential(multiplier=1, min=2, max=5),  # 2s, then 4s delay
+        # Worst case: 30s (attempt 1 timeout) + 2s backoff + 30s (attempt 2
+        # timeout) = 62s for a single create_chat_completion call. This does
+        # NOT fit in a 45s window — callers that gate on a "generation
+        # timeout" (see AIFeedback.timeout_seconds / GENERATION_TIMEOUT_SECONDS
+        # in ai_feedback.py) must budget for at least this long per call, and
+        # longer if they make more than one call per job (e.g. multi_part).
+        reraise=True,  # retain the provider error type for worker diagnostics
+        stop=stop_after_attempt(2),
+        wait=wait_exponential(multiplier=1, min=2, max=5),  # always 2s between the 2 attempts
         retry=retry_if_exception_type((
             openai.APITimeoutError,
             openai.APIConnectionError,
@@ -62,6 +71,7 @@ class OpenAIClientWithRetry:
         )),
         before_sleep=before_sleep_log(logger, logging.WARNING)
     )
+    @timed("openai.chat.attempt")
     def create_chat_completion(
         self,
         messages: List[Dict[str, str]],
@@ -142,6 +152,7 @@ class OpenAIClientWithRetry:
             logger.error(f"💥 Unexpected error in OpenAI call: {type(e).__name__}: {e}")
             raise
 
+    @timed("openai.embedding.total")
     @retry(
         stop=stop_after_attempt(2),
         wait=wait_exponential(multiplier=1, min=2, max=5),
@@ -152,6 +163,7 @@ class OpenAIClientWithRetry:
         )),
         before_sleep=before_sleep_log(logger, logging.WARNING)
     )
+    @timed("openai.embedding.attempt")
     def create_embedding(
         self,
         input: Any,

@@ -6,9 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { MathText } from "@/components/MathText";
+import { StudentAnswerField as EquationField } from "@/components/StudentAnswerField";
 import {
   ArrowLeft,
   CheckCircle,
@@ -269,7 +270,7 @@ const MasteryPage = memo(function MasteryPage() {
                 />
                 <Label className="flex-1 cursor-pointer text-base leading-relaxed">
                   <span className="font-semibold mr-3 text-purple-600">{key}.</span>
-                  <span className={`whitespace-pre-wrap ${isSelected ? "text-purple-900 dark:text-purple-100" : ""}`}>{option}</span>
+                  <MathText inline className={`whitespace-pre-wrap ${isSelected ? "text-purple-900 dark:text-purple-100" : ""}`}>{option}</MathText>
                 </Label>
               </div>
             );
@@ -308,7 +309,7 @@ const MasteryPage = memo(function MasteryPage() {
                 />
                 <Label className="flex-1 cursor-pointer text-base">
                   <span className="font-semibold mr-3 text-purple-600">{key}.</span>
-                  {option}
+                  <MathText inline>{option}</MathText>
                 </Label>
               </div>
             );
@@ -326,7 +327,7 @@ const MasteryPage = memo(function MasteryPage() {
           <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg text-lg leading-relaxed">
             {textParts.map((part, i) => (
               <span key={i}>
-                {part}
+                <MathText inline>{part}</MathText>
                 {i < textParts.length - 1 && (
                   <span className="inline-flex items-center mx-1 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/40 border border-purple-300 dark:border-purple-700 rounded text-purple-900 dark:text-purple-100 font-medium">
                     {currentBlanks[blanks[i]?.position] || `___${i+1}___`}
@@ -363,7 +364,7 @@ const MasteryPage = memo(function MasteryPage() {
           {subQuestions.map((subQ, i) => (
             <div key={i} className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
               <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-sm font-medium">{subQ.id}</span>
-              <p className="mt-2 mb-3 text-base">{subQ.text}</p>
+              <MathText className="mt-2 mb-3 text-base">{subQ.text}</MathText>
               {subQ.type === "mcq" ? (
                 <div className="space-y-2">
                   {subQ.options && Object.entries(subQ.options).map(([key, opt]) => {
@@ -378,23 +379,24 @@ const MasteryPage = memo(function MasteryPage() {
                         onClick={() => !disabled && setAnswer({ ...subAnswers, [subQ.id]: key })}
                       >
                         <input type="radio" checked={isSel} onChange={() => {}} disabled={disabled} className="h-4 w-4 text-purple-600" />
-                        <Label className="flex-1 cursor-pointer text-sm"><span className="font-semibold mr-2">{key}.</span>{opt}</Label>
+                        <Label className="flex-1 cursor-pointer text-sm"><span className="font-semibold mr-2">{key}.</span><MathText inline>{opt}</MathText></Label>
                       </div>
                     );
                   })}
                 </div>
               ) : subQ.type === "short" ? (
-                <Input
+                <EquationField
                   value={subAnswers[subQ.id] || ""}
-                  onChange={e => setAnswer({ ...subAnswers, [subQ.id]: e.target.value })}
-                  placeholder="Your answer..."
+                  onChange={v => setAnswer({ ...subAnswers, [subQ.id]: v })}
+                  placeholder="Your answer... use $x^2$ for math"
+                  rows={1}
                   disabled={disabled}
                 />
               ) : (
-                <Textarea
+                <EquationField
                   value={subAnswers[subQ.id] || ""}
-                  onChange={e => setAnswer({ ...subAnswers, [subQ.id]: e.target.value })}
-                  placeholder="Write your detailed answer..."
+                  onChange={v => setAnswer({ ...subAnswers, [subQ.id]: v })}
+                  placeholder="Write your detailed answer... use $x^2$ for inline math or $$x^2$$ for a block equation"
                   rows={3}
                   disabled={disabled}
                 />
@@ -408,24 +410,23 @@ const MasteryPage = memo(function MasteryPage() {
     // Short / long / default text
     if (type === "short") {
       return (
-        <Input
+        <EquationField
           value={answer || ""}
-          onChange={e => setAnswer(e.target.value)}
-          placeholder="Type your answer here..."
+          onChange={v => setAnswer(v)}
+          placeholder="Type your answer here... use $x^2$ for math"
+          rows={1}
           disabled={disabled}
-          className="text-base"
         />
       );
     }
 
     return (
-      <Textarea
+      <EquationField
         value={answer || ""}
-        onChange={e => setAnswer(e.target.value)}
-        placeholder="Write your answer here..."
+        onChange={v => setAnswer(v)}
+        placeholder="Write your answer here... use $x^2$ for inline math or $$x^2$$ for a block equation"
         rows={6}
         disabled={disabled}
-        className="text-base"
       />
     );
   };
@@ -646,7 +647,7 @@ const MasteryPage = memo(function MasteryPage() {
             {/* Question text (skip for fill_blank — shown inline) */}
             {currentQ.type !== "fill_blank" && (
               <div className="prose dark:prose-invert max-w-none">
-                <p className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ.text}</p>
+                <MathText className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ.text}</MathText>
               </div>
             )}
 
@@ -657,7 +658,7 @@ const MasteryPage = memo(function MasteryPage() {
                   <Target className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-xs font-medium text-blue-900 dark:text-blue-100">Learning Outcome</p>
-                    <p className="text-xs text-blue-700 dark:text-blue-300">{currentQ.learning_outcome}</p>
+                    <p className="text-xs text-blue-700 dark:text-blue-300"><MathText inline>{currentQ.learning_outcome}</MathText></p>
                   </div>
                 </div>
               </div>
@@ -691,18 +692,18 @@ const MasteryPage = memo(function MasteryPage() {
                 </div>
                 <div className="p-4 space-y-3">
                   {wrongFeedback.explanation && (
-                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{wrongFeedback.explanation}</p>
+                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><MathText inline>{wrongFeedback.explanation}</MathText></p>
                   )}
                   {wrongFeedback.improvement_hint && (
                     <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
                       <p className="text-xs font-medium text-amber-800 dark:text-amber-200 mb-1">Hint</p>
-                      <p className="text-sm text-amber-700 dark:text-amber-300">{wrongFeedback.improvement_hint}</p>
+                      <p className="text-sm text-amber-700 dark:text-amber-300"><MathText inline>{wrongFeedback.improvement_hint}</MathText></p>
                     </div>
                   )}
                   {wrongFeedback.concept_explanation && (
                     <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
                       <p className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-1">Concept</p>
-                      <p className="text-sm text-blue-700 dark:text-blue-300">{wrongFeedback.concept_explanation}</p>
+                      <p className="text-sm text-blue-700 dark:text-blue-300"><MathText inline>{wrongFeedback.concept_explanation}</MathText></p>
                     </div>
                   )}
                   <Button

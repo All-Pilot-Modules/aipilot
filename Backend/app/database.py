@@ -50,3 +50,31 @@ def get_db():
         yield db
     finally:
         db.close()
+
+from app.core.latency import instrument_engine
+instrument_engine(engine)
+
+# Lease renewals need one reserved connection: generation sessions can occupy
+# every application-pool slot while waiting on the provider. Construct lazily,
+# so API-only processes do not open an extra connection.
+from functools import lru_cache
+from threading import Lock
+
+_lease_factory_lock = Lock()
+
+@lru_cache(maxsize=1)
+def _lease_session_factory():
+    if engine.dialect.name == 'sqlite':
+        return SessionLocal
+    lease_engine = create_engine(
+        engine.url, pool_size=1, max_overflow=0, pool_timeout=5,
+        pool_pre_ping=True, pool_recycle=1800, connect_args=_connect_args,
+    )
+    instrument_engine(lease_engine)
+    return sessionmaker(bind=lease_engine, autocommit=False, autoflush=False)
+
+
+def new_lease_session():
+    with _lease_factory_lock:
+        factory = _lease_session_factory()
+    return factory()

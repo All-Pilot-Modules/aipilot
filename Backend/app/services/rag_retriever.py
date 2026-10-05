@@ -10,7 +10,8 @@ from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
 
 from app.models.document import Document
-from app.services.embedding import search_similar_chunks
+from app.services.embedding import search_similar_chunks_in_module, generate_embedding
+from app.core.config import EMBED_MODEL
 
 logger = logging.getLogger(__name__)
 
@@ -23,9 +24,18 @@ _rag_cache_lock = threading.Lock()
 _RAG_CACHE_TTL = 1800  # 30 minutes
 
 
-def _cache_key(module_id: str, question_text: str) -> str:
-    """Stable cache key from module + question text."""
-    raw = f"{module_id}:{question_text}"
+from app.core.latency import timed
+
+def _cache_key(module_id: str, question_text: str, student_answer: str) -> str:
+    """
+    Stable cache key from module + question + student answer. The retrieval
+    query embeds the student's answer alongside the question text (see
+    `query` below), so the cache MUST vary with it too — otherwise the
+    second student to answer a question gets served context that was
+    selected based on the FIRST student's (possibly wrong, possibly
+    unrelated) answer.
+    """
+    raw = f"{module_id}:{question_text}:{student_answer}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
@@ -48,6 +58,7 @@ def _set_cached(key: str, data: Dict[str, Any]):
         _rag_cache[key] = {"data": data, "ts": time.time()}
 
 
+@timed("get_context_for_feedback")
 def get_context_for_feedback(
     db: Session,
     question_text: str,
@@ -78,8 +89,10 @@ def get_context_for_feedback(
             'sources': List[str]  # Document sources for citations
         }
     """
-    # Check cache first — keyed on module + question only (not student answer)
-    key = _cache_key(str(module_id), question_text)
+    # Check cache first — keyed on module + question + student answer, since
+    # the query embedded below includes the answer and a stale key would
+    # serve one student's context to a later student with a different answer.
+    key = _cache_key(str(module_id), question_text, student_answer)
     cached = _get_cached(key)
     if cached is not None:
         logger.info(f"RAG CACHE HIT for module {module_id}")
@@ -112,26 +125,31 @@ def get_context_for_feedback(
         _set_cached(key, no_ctx)
         return no_ctx
 
-    # Search across all module documents
-    all_results = []
-    for doc in documents:
-        try:
-            results = search_similar_chunks(
-                db=db,
-                query_text=query,
-                document_id=str(doc.id),
-                limit=max_chunks
-            )
-            # Add document info to each result
-            for result in results:
-                result['document_title'] = doc.title
-                result['document_id'] = str(doc.id)
-            all_results.extend(results)
-        except Exception as e:
-            logger.error(f"Error searching document {doc.id}: {str(e)}")
-            continue
+    # Embed the query ONCE — the module-wide search below needs it just once
+    # (previously, calling search_similar_chunks once per document re-embedded
+    # the identical query text every time: N OpenAI API calls instead of 1).
+    query_vector = generate_embedding(query, model=EMBED_MODEL)['embedding']
 
-    logger.info(f"   Retrieved {len(all_results)} total chunks from {len(documents)} documents")
+    # One query across every embedded chunk in the module, ordered by pgvector
+    # cosine distance (uses the HNSW index on embedding_vector once the table
+    # is large enough for the planner to prefer it over a sequential scan —
+    # verified via EXPLAIN; same operator the index was built with). This
+    # already returns the module-wide top `max_chunks` directly, so there's
+    # no Python-side loading-every-vector-then-sorting left to do — replaces
+    # the old per-document loop (one round trip per document, each pulling
+    # that whole document's vectors into Python to score and sort there).
+    try:
+        all_results = search_similar_chunks_in_module(
+            db=db,
+            module_id=module_id,
+            query_vector=query_vector,
+            limit=max_chunks,
+        )
+    except Exception as e:
+        logger.error(f"Error searching module {module_id}: {str(e)}")
+        all_results = []
+
+    logger.info(f"   Retrieved {len(all_results)} chunks from {len(documents)} documents")
 
     # Filter by similarity threshold
     filtered_results = [
@@ -144,15 +162,14 @@ def get_context_for_feedback(
     # BEST-EFFORT FALLBACK: If threshold filtering removed all results but we
     # DO have embedded documents, use the top results anyway.  Course material
     # is almost always relevant to questions from the same module — the
-    # similarity score just isn't high enough for the threshold.
+    # similarity score just isn't high enough for the threshold. all_results
+    # is already the module-wide top `max_chunks` sorted by similarity (the
+    # query above does ORDER BY distance), so no re-sort needed here.
     if all_results and not filtered_results:
-        all_results.sort(key=lambda x: x['similarity'], reverse=True)
-        filtered_results = all_results[:max_chunks]
+        filtered_results = all_results
         top_scores = [f"{r['similarity']:.3f}" for r in filtered_results]
         logger.info(f"   Best-effort fallback: using top {len(filtered_results)} chunks (scores: {top_scores})")
 
-    # Sort by similarity and get top N
-    filtered_results.sort(key=lambda x: x['similarity'], reverse=True)
     top_results = filtered_results[:max_chunks]
 
     if not top_results:

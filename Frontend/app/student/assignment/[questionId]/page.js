@@ -5,11 +5,11 @@ import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 // RadioGroup not available - using custom implementation
 import { Label } from "@/components/ui/label";
+import { MathText } from "@/components/MathText";
+import { StudentAnswerField as EquationField } from "@/components/StudentAnswerField";
 import { Spinner } from "@/components/ui/spinner";
 import { LoadingCard } from "@/components/ui/loading-overlay";
 import {
@@ -301,7 +301,7 @@ function StudentAssignmentContent() {
             <CardContent>
               <div className="space-y-4">
                 <div className="prose dark:prose-invert max-w-none">
-                  <p className="text-lg leading-relaxed whitespace-pre-wrap">{question?.text}</p>
+                  <MathText className="text-lg leading-relaxed whitespace-pre-wrap">{question?.text}</MathText>
                 </div>
 
                 {question?.learning_outcome && (
@@ -310,7 +310,7 @@ function StudentAssignmentContent() {
                       <Target className="w-4 h-4 text-blue-600 mt-1" />
                       <div>
                         <h4 className="font-medium text-blue-900 dark:text-blue-100">Learning Outcome</h4>
-                        <p className="text-sm text-blue-700 dark:text-blue-300">{question.learning_outcome}</p>
+                        <p className="text-sm text-blue-700 dark:text-blue-300"><MathText inline>{question.learning_outcome}</MathText></p>
                       </div>
                     </div>
                   </div>
@@ -364,7 +364,7 @@ function StudentAssignmentContent() {
                           className="flex-1 cursor-pointer"
                         >
                           <span className="font-medium mr-2">{key}.</span>
-                          {option}
+                          <MathText inline>{option}</MathText>
                         </Label>
                         {isCompleted && key === question.correct_answer && (
                           <CheckCircle className="w-5 h-5 text-green-500" />
@@ -376,21 +376,20 @@ function StudentAssignmentContent() {
                     ))}
                   </div>
                 ) : question?.type === 'short' ? (
-                  <Input
+                  <EquationField
                     value={answer}
-                    onChange={(e) => canEdit && setAnswer(e.target.value)}
-                    placeholder="Enter your short answer..."
+                    onChange={(v) => canEdit && setAnswer(v)}
+                    placeholder="Enter your short answer... use $x^2$ for math"
                     disabled={!canEdit}
-                    className="text-base"
+                    rows={1}
                   />
                 ) : (
-                  <Textarea
+                  <EquationField
                     value={answer}
-                    onChange={(e) => canEdit && setAnswer(e.target.value)}
-                    placeholder="Write your detailed response here..."
+                    onChange={(v) => canEdit && setAnswer(v)}
+                    placeholder="Write your detailed response here... use $x^2$ for inline math or $$x^2$$ for a block equation"
                     disabled={!canEdit}
                     rows={8}
-                    className="text-base"
                   />
                 )}
 
@@ -400,7 +399,7 @@ function StudentAssignmentContent() {
                       <CheckCircle className="w-4 h-4 text-green-600 mt-1" />
                       <div>
                         <h4 className="font-medium text-green-900 dark:text-green-100">Correct Answer</h4>
-                        <p className="text-sm text-green-700 dark:text-green-300">{question.correct_answer}</p>
+                        <MathText className="text-sm text-green-700 dark:text-green-300">{question.correct_answer}</MathText>
                       </div>
                     </div>
                   </div>

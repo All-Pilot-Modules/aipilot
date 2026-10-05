@@ -28,7 +28,12 @@ class TestAIFeedbackService:
 
     @pytest.fixture
     def mock_dependencies(self):
-        """Mock all external dependencies for the AI feedback service."""
+        """Mock all external dependencies for the AI feedback service.
+
+        Note: the root conftest.py's autouse _reset_shared_openai_client
+        fixture resets AIFeedbackService's cached client before/after every
+        test, so the patch below always takes effect fresh here.
+        """
         with patch("app.services.ai_feedback.OpenAIClientWithRetry") as mock_openai_cls, \
              patch("app.services.ai_feedback.get_question_by_id") as mock_get_question, \
              patch("app.services.ai_feedback.get_module_rubric") as mock_get_rubric, \

@@ -408,7 +408,7 @@ class TestTokenOperations:
         )
         refresh_tok = login.json()["refresh_token"]
 
-        resp = client.post("/api/auth/refresh", params={"refresh_token": refresh_tok})
+        resp = client.post("/api/auth/refresh", json={"refresh_token": refresh_tok})
         assert resp.status_code == 200
         assert "access_token" in resp.json()
 
@@ -420,7 +420,7 @@ class TestTokenOperations:
         )
         access_tok = login.json()["access_token"]
 
-        resp = client.post("/api/auth/refresh", params={"refresh_token": access_tok})
+        resp = client.post("/api/auth/refresh", json={"refresh_token": access_tok})
         assert resp.status_code == 401
 
     def test_logout_succeeds(self, client, auth_headers_student):

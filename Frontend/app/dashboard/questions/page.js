@@ -11,6 +11,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { MathText } from "@/components/MathText";
+import { MathQuestionEditorDialog } from "@/components/MathQuestionEditorDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -38,6 +40,7 @@ import {
   Download,
   FileCheck,
   Cpu,
+  Sigma,
 } from "lucide-react";
 import {
   Dialog,
@@ -101,6 +104,8 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
   const [selectedImageFile, setSelectedImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const [mathEditorOpen, setMathEditorOpen] = useState(false);
+  const [isMathEditorSubmitting, setIsMathEditorSubmitting] = useState(false);
   const [questionForm, setQuestionForm] = useState({
     type: "mcq",
     text: "",
@@ -423,6 +428,19 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     return typeSettings?.default_points || 1.0;
   };
 
+  // Shared by the create form, edit drawer, and the math editor's own type
+  // selector so switching type always resets the same type-specific fields.
+  const handleQuestionTypeChange = (value) => {
+    setQuestionForm({
+      ...questionForm,
+      type: value,
+      points: getDefaultPoints(value).toString(),
+      blanks: value === 'fill_blank' ? (questionForm.blanks || []) : [],
+      correct_option_ids: value === 'mcq_multiple' ? (questionForm.correct_option_ids || []) : [],
+      sub_questions: value === 'multi_part' ? (questionForm.sub_questions || []) : []
+    });
+  };
+
   const getQuestionIcon = (type) => {
     switch (type) {
       case 'mcq':
@@ -512,19 +530,19 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
   const handleCreate = async (e) => {
     console.log('🔵 handleCreate called!', { e, questionForm, currentModule, moduleName });
-    e.preventDefault();
+    e?.preventDefault?.();
 
     // Better validation with user feedback
     if (!questionForm.text) {
       alert('Please enter a question text');
       console.error('Validation failed: questionForm.text is empty');
-      return;
+      return false;
     }
 
     if (!currentModule) {
       alert('Module not loaded. Please refresh the page and try again.');
       console.error('Validation failed: currentModule is null', { moduleName });
-      return;
+      return false;
     }
 
     // Validate question type specific requirements
@@ -533,20 +551,20 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
       if (filledOptions < 2) {
         alert('Please provide at least 2 options for the MCQ question');
         console.error('Validation failed: MCQ question has less than 2 options', { filledOptions });
-        return;
+        return false;
       }
     }
 
     if (questionForm.type === "mcq" && !questionForm.correct_option_id) {
       alert('Please select a correct answer for the MCQ question');
       console.error('Validation failed: MCQ question missing correct_option_id');
-      return;
+      return false;
     }
 
     if (questionForm.type === "mcq_multiple" && (!questionForm.correct_option_ids || questionForm.correct_option_ids.length === 0)) {
       alert('Please select at least one correct answer for the multiple choice question');
       console.error('Validation failed: MCQ multiple question missing correct_option_ids');
-      return;
+      return false;
     }
 
     try {
@@ -639,15 +657,20 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
       clearImageSelection();
       setShowCreateForm(false);
       console.log('✅ Question creation complete!');
+      return true;
     } catch (error) {
       console.error('❌ Create error:', error);
       alert(`Failed to create question: ${error.message}\n\nPlease check the console for details.`);
+      return false;
     }
   };
 
   const handleEdit = async (e) => {
-    e.preventDefault();
-    if (!selectedQuestion || !questionForm.text) return;
+    e?.preventDefault?.();
+    if (!selectedQuestion || !questionForm.text) {
+      alert('Please enter a question text');
+      return false;
+    }
 
     try {
       // Build extended_config based on question type (same as create)
@@ -721,8 +744,11 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
       setSelectedQuestion(null);
       resetForm();
       clearImageSelection();
+      return true;
     } catch (error) {
       console.error('Edit error:', error);
+      alert(`Failed to update question: ${error.message}\n\nPlease check the console for details.`);
+      return false;
     }
   };
 
@@ -862,6 +888,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
       setQuestionForm({...questionForm, text: text});
     }
   };
+
 
   const handleImageSelect = (e) => {
     const file = e.target.files?.[0];
@@ -1301,18 +1328,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
                       <div>
                         <Label htmlFor="type">Question Type *</Label>
-                        <Select value={questionForm.type} onValueChange={(value) => {
-                          // Reset type-specific fields when type changes
-                          const newForm = {
-                            ...questionForm,
-                            type: value,
-                            points: getDefaultPoints(value).toString(),
-                            blanks: value === 'fill_blank' ? [] : [],
-                            correct_option_ids: value === 'mcq_multiple' ? [] : [],
-                            sub_questions: value === 'multi_part' ? [] : []
-                          };
-                          setQuestionForm(newForm);
-                        }}>
+                        <Select value={questionForm.type} onValueChange={handleQuestionTypeChange}>
                           <SelectTrigger className="mt-1">
                             <SelectValue />
                           </SelectTrigger>
@@ -1328,17 +1344,35 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       </div>
 
                       <div>
-                        <Label htmlFor="text">Question Text *</Label>
+                        <div className="flex items-center justify-between">
+                          <Label htmlFor="text">Question Text *</Label>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-7 gap-1.5 text-xs"
+                            onClick={() => setMathEditorOpen(true)}
+                          >
+                            <Sigma className="h-3.5 w-3.5" />
+                            Math Question Editor
+                          </Button>
+                        </div>
                         <Textarea
                           id="text"
                           value={questionForm.text}
                           onChange={(e) => handleQuestionTextChange(e.target.value)}
-                          placeholder="Enter your question..."
+                          placeholder="Enter your question... use $x^2$ for inline math or $$x^2$$ for a block equation"
                           required
                           rows={3}
                           className="mt-1"
                           spellCheck={true}
                         />
+                        {questionForm.text?.includes('$') && (
+                          <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+                            <p className="text-xs text-muted-foreground mb-1">Preview</p>
+                            <MathText>{questionForm.text}</MathText>
+                          </div>
+                        )}
                       </div>
 
                       {/* Image Upload Section */}
@@ -1464,8 +1498,9 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                       }}
                                       className="h-4 w-4 text-green-600 focus:ring-green-500"
                                     />
-                                    <Label htmlFor={`correct-${letter}`} className="cursor-pointer flex-1">
-                                      {letter} - {option || "(empty)"}
+                                    <Label htmlFor={`correct-${letter}`} className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0">
+                                      <span>{letter} -</span>
+                                      <MathText inline>{option || "(empty)"}</MathText>
                                     </Label>
                                   </div>
                                 );
@@ -1699,7 +1734,16 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                               onValueChange={(value) => setQuestionForm({...questionForm, correct_option_id: value})}
                             >
                               <SelectTrigger className="mt-1">
-                                <SelectValue placeholder="Select the correct option" />
+                                <SelectValue placeholder="Select the correct option">
+                                  {questionForm.correct_option_id && (
+                                    <span className="flex items-center gap-1.5 min-w-0">
+                                      <span>{questionForm.correct_option_id} -</span>
+                                      <MathText inline className="truncate">
+                                        {questionForm.options[questionForm.correct_option_id.charCodeAt(0) - 65] || "(empty)"}
+                                      </MathText>
+                                    </span>
+                                  )}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {questionForm.options
@@ -1708,7 +1752,10 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                     // Keep all 4 options even if empty, to maintain correct letter-to-index mapping
                                     return (
                                       <SelectItem key={letter} value={letter}>
-                                        {letter} - {option || "(empty)"}
+                                        <span className="flex items-center gap-1.5 min-w-0">
+                                          <span>{letter} -</span>
+                                          <MathText inline>{option || "(empty)"}</MathText>
+                                        </span>
                                       </SelectItem>
                                     );
                                   })}
@@ -1959,9 +2006,11 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                               </Badge>
                             )}
                           </div>
-                          <p className="text-sm sm:text-base text-foreground font-medium mb-3 leading-relaxed whitespace-pre-wrap">
+                          <MathText
+                            className="text-sm sm:text-base text-foreground font-medium mb-3 leading-relaxed whitespace-pre-wrap"
+                          >
                             {question.text}
-                          </p>
+                          </MathText>
                           {question.image_url && (
                             <div className="mb-3">
                               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -1992,7 +2041,12 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                     }`}>
                                       {key}
                                     </span>
-                                    <span className={`flex-1 whitespace-pre-wrap min-w-0 ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{option}</span>
+                                    <MathText
+                                      inline
+                                      className={`flex-1 whitespace-pre-wrap min-w-0 ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}
+                                    >
+                                      {option}
+                                    </MathText>
                                     {isCorrect && (
                                       <div className="ml-auto flex items-center gap-1 sm:gap-1.5 text-green-700 dark:text-green-400 flex-shrink-0">
                                         <CheckCircle className="w-3 h-3 sm:w-4 sm:h-4" />
@@ -2065,7 +2119,12 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                     }`}>
                                       {key}
                                     </span>
-                                    <span className={`flex-1 whitespace-pre-wrap ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}>{option}</span>
+                                    <MathText
+                                      inline
+                                      className={`flex-1 whitespace-pre-wrap ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}
+                                    >
+                                      {option}
+                                    </MathText>
                                     {isCorrect && (
                                       <div className="ml-auto flex items-center gap-1.5 text-green-700 dark:text-green-400">
                                         <CheckCircle className="w-4 h-4" />
@@ -2125,7 +2184,9 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                 <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-500 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
                                   <p className="text-xs font-bold text-green-700 dark:text-green-400 mb-1.5">Correct Answer:</p>
-                                  <p className="text-sm font-medium text-gray-900 dark:text-white whitespace-pre-wrap">{question.correct_answer}</p>
+                                  <MathText className="text-sm font-medium text-gray-900 dark:text-white whitespace-pre-wrap">
+                                    {question.correct_answer}
+                                  </MathText>
                                 </div>
                               </div>
                             </div>
@@ -2133,7 +2194,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           {question.learning_outcome && (
                             <div className="flex items-center gap-2 mt-2 text-xs text-muted-foreground">
                               <Target className="w-3 h-3" />
-                              <span>{question.learning_outcome}</span>
+                              <span><MathText inline>{question.learning_outcome}</MathText></span>
                             </div>
                           )}
                           {question.image_url && (
@@ -2228,17 +2289,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
                 <div>
                   <Label htmlFor="edit-type">Question Type *</Label>
-                  <Select value={questionForm.type} onValueChange={(value) => {
-                    const newForm = {
-                      ...questionForm,
-                      type: value,
-                      points: getDefaultPoints(value).toString(),
-                      blanks: value === 'fill_blank' ? (questionForm.blanks || []) : [],
-                      correct_option_ids: value === 'mcq_multiple' ? (questionForm.correct_option_ids || []) : [],
-                      sub_questions: value === 'multi_part' ? (questionForm.sub_questions || []) : []
-                    };
-                    setQuestionForm(newForm);
-                  }}>
+                  <Select value={questionForm.type} onValueChange={handleQuestionTypeChange}>
                     <SelectTrigger className="mt-1">
                       <SelectValue />
                     </SelectTrigger>
@@ -2254,17 +2305,35 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 </div>
 
                 <div>
-                  <Label htmlFor="edit-text">Question Text *</Label>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="edit-text">Question Text *</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={() => setMathEditorOpen(true)}
+                    >
+                      <Sigma className="h-3.5 w-3.5" />
+                      Math Question Editor
+                    </Button>
+                  </div>
                   <Textarea
                     id="edit-text"
                     value={questionForm.text}
                     onChange={(e) => handleQuestionTextChange(e.target.value)}
-                    placeholder="Enter your question..."
+                    placeholder="Enter your question... use $x^2$ for inline math or $$x^2$$ for a block equation"
                     required
                     rows={3}
                     className="mt-1"
                     spellCheck={true}
                   />
+                  {questionForm.text?.includes('$') && (
+                    <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2">
+                      <p className="text-xs text-muted-foreground mb-1">Preview</p>
+                      <MathText>{questionForm.text}</MathText>
+                    </div>
+                  )}
                 </div>
 
                 {/* Image Upload Section */}
@@ -2403,8 +2472,9 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                 }}
                                 className="h-4 w-4 text-green-600 focus:ring-green-500"
                               />
-                              <Label htmlFor={`edit-correct-${letter}`} className="cursor-pointer flex-1">
-                                {letter} - {option || "(empty)"}
+                              <Label htmlFor={`edit-correct-${letter}`} className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0">
+                                <span>{letter} -</span>
+                                <MathText inline>{option || "(empty)"}</MathText>
                               </Label>
                             </div>
                           );
@@ -2632,15 +2702,17 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                     <div className="mt-1">
                       <Select
                         value={questionForm.correct_option_id || ""}
-                        onValueChange={(value) => {
-                          console.log("✅ Selected correct option:", value);
-                          setQuestionForm({...questionForm, correct_option_id: value});
-                        }}
+                        onValueChange={(value) => setQuestionForm({...questionForm, correct_option_id: value})}
                       >
                         <SelectTrigger>
                           <SelectValue placeholder="Select the correct option">
                             {questionForm.correct_option_id && (
-                              <span>{questionForm.correct_option_id} - {questionForm.options[questionForm.correct_option_id.charCodeAt(0) - 65]}</span>
+                              <span className="flex items-center gap-1.5 min-w-0">
+                                <span>{questionForm.correct_option_id} -</span>
+                                <MathText inline className="truncate">
+                                  {questionForm.options[questionForm.correct_option_id.charCodeAt(0) - 65] || "(empty)"}
+                                </MathText>
+                              </span>
                             )}
                           </SelectValue>
                         </SelectTrigger>
@@ -2651,17 +2723,15 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                               // Keep all 4 options even if empty, to maintain correct letter-to-index mapping
                               return (
                                 <SelectItem key={letter} value={letter}>
-                                  {letter} - {option || "(empty)"}
+                                  <span className="flex items-center gap-1.5 min-w-0">
+                                    <span>{letter} -</span>
+                                    <MathText inline>{option || "(empty)"}</MathText>
+                                  </span>
                                 </SelectItem>
                               );
                             })}
                         </SelectContent>
                       </Select>
-                      {questionForm.correct_option_id && (
-                        <p className="text-xs text-muted-foreground mt-1">
-                          Selected: {questionForm.correct_option_id} - {questionForm.options[questionForm.correct_option_id.charCodeAt(0) - 65]}
-                        </p>
-                      )}
                     </div>
                   ) : (
                     <Input
@@ -2753,6 +2823,25 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
             </form>
           </DrawerContent>
         </Drawer>
+
+        <MathQuestionEditorDialog
+          open={mathEditorOpen}
+          onOpenChange={setMathEditorOpen}
+          questionForm={questionForm}
+          setQuestionForm={setQuestionForm}
+          onTypeChange={handleQuestionTypeChange}
+          submitLabel={isEditOpen ? "Update Question" : "Create Question"}
+          isSubmitting={isMathEditorSubmitting}
+          onSubmit={async () => {
+            setIsMathEditorSubmitting(true);
+            try {
+              const success = isEditOpen ? await handleEdit() : await handleCreate();
+              if (success) setMathEditorOpen(false);
+            } finally {
+              setIsMathEditorSubmitting(false);
+            }
+          }}
+        />
     </SidebarProvider>
   );
 });

@@ -185,6 +185,14 @@ export const auth = {
     }
   },
 
+  // Keep student sessions separate from the teacher login cookie. Module keys
+  // allow a teacher preview and student tabs to coexist without replacing auth.
+  setStudentToken(token, expiresInSeconds = 12 * 60 * 60) {
+    const claims = jwtDecode(token);
+    sessionStorage.setItem(`student_token:${claims.module_id}`, token);
+    sessionStorage.setItem('student_token:active', token);
+  },
+
   // Logout function
   logout() {
     // Clear all auth-related storage
@@ -260,6 +268,15 @@ export const auth = {
   // Get token from cookie
   getToken() {
     if (typeof window !== 'undefined') {
+      if (window.location?.pathname?.startsWith('/student/')) {
+        const moduleMatch = window.location.pathname.match(/^\/student\/(?:module|test|mastery)\/([^/]+)/);
+        const stored = sessionStorage.getItem(moduleMatch ? `student_token:${moduleMatch[1]}` : 'student_token:active');
+        if (stored) return stored;
+        // Support an existing student cookie during migration, never a teacher token.
+        const legacy = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.trim().slice(6);
+        try { if (legacy && jwtDecode(legacy).role === 'student') return legacy; } catch {}
+        return null;
+      }
       const cookies = document.cookie.split(';');
       const tokenCookie = cookies.find(c => c.trim().startsWith('token='));
       if (tokenCookie) {
@@ -461,8 +478,12 @@ export const auth = {
 // API helper with authentication, auto-refresh, and retry
 export const apiClient = {
   async request(endpoint, options = {}) {
+    const { skipAuthLogout, ...fetchOptions } = options;
+    options = fetchOptions;
     let token = auth.getToken();
-    
+    let studentSession = typeof window !== 'undefined' && window.location?.pathname?.startsWith('/student/');
+    try { studentSession = studentSession || (token && jwtDecode(token).role === 'student'); } catch {}
+
 
     // Check if token is about to expire (within 5 minutes)
     if (token) {
@@ -471,7 +492,7 @@ export const apiClient = {
         const timeUntilExpiry = decoded.exp - Date.now() / 1000;
 
         // If token expires in less than 5 minutes, refresh it
-        if (timeUntilExpiry < 300) {
+        if (timeUntilExpiry < 300 && !studentSession) {
           const newToken = await auth.refreshAccessToken();
           if (newToken) {
             token = newToken;
@@ -495,7 +516,10 @@ export const apiClient = {
     let timeout = 15000; // Default: 15 seconds
     let retries = 2;     // Default: 2 retries (3 total attempts)
 
-    if (endpoint.includes('/dashboard-metrics') || endpoint.includes('/performance')) {
+    if (/\/api\/chat\/feedback\/[^/]+\/discuss$/.test(endpoint)) {
+      timeout = 90000;
+      retries = 0;
+    } else if (endpoint.includes('/dashboard-metrics') || endpoint.includes('/performance')) {
       timeout = 45000; // Dashboard metrics: 45 seconds (heavy aggregation queries)
       retries = 1;     // 1 retry (data load, not critical path)
     } else if (endpoint.includes('/feedback') || endpoint.includes('/cleanup-feedback') || endpoint.includes('/feedback-status')) {
@@ -539,7 +563,13 @@ export const apiClient = {
         }
 
         if (!response.ok) {
+          if (studentSession && !token && response.status === 403) {
+            throw new Error('Your student session is missing. Rejoin this module using its access code, then retry.');
+          }
           if (response.status === 401) {
+            if (studentSession) {
+              throw new Error('Your student session has expired or is missing. Rejoin this module using its access code, then retry.');
+            }
             console.warn(`[apiClient] 401 on ${endpoint} — attempting token refresh`);
             const newToken = await auth.refreshAccessToken();
             if (newToken) {
@@ -549,6 +579,14 @@ export const apiClient = {
                 return retryResponse.json();
               }
               console.error(`[apiClient] Retry after token refresh still failed on ${endpoint}: HTTP ${retryResponse.status}`);
+              // A newly issued token does not authorize every endpoint. Keep the
+              // session when this particular request is rejected or unavailable.
+              const retryError = await retryResponse.json().catch(() => ({}));
+              throw new Error(typeof retryError.detail === 'string'
+                ? retryError.detail : `HTTP ${retryResponse.status}`);
+            }
+            if (skipAuthLogout) {
+              throw new Error('Authentication required');
             }
             auth.logout();
             throw new Error('Authentication required');
@@ -599,8 +637,8 @@ export const apiClient = {
     throw lastError;
   },
 
-  get(endpoint) {
-    return this.request(endpoint);
+  get(endpoint, options = {}) {
+    return this.request(endpoint, options);
   },
 
   post(endpoint, data) {

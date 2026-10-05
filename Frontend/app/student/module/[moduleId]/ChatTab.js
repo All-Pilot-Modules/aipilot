@@ -4,11 +4,13 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Brain, User, MessageSquare, Send } from "lucide-react";
+import { Brain, User, MessageSquare, Send, Loader2 } from "lucide-react";
+import { MathText } from "@/components/MathText";
 import { apiClient } from "@/lib/auth";
+import { chatMessageText, feedbackDiscussionContext } from "@/lib/feedbackDiscussion.mjs";
 
 
-export default function ChatTab({ moduleId, moduleAccess }) {
+export default function ChatTab({ moduleId, moduleAccess, feedbackContext, onContextSent }) {
   const [conversations, setConversations] = useState([]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
@@ -16,28 +18,70 @@ export default function ChatTab({ moduleId, moduleAccess }) {
   const [isSending, setIsSending] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const messagesEndRef = useRef(null);
+  const inputRef = useRef(null);
+  const startedFeedback = useRef(new Set());
+  const conversationRevision = useRef(0);
+  const feedbackContextRef = useRef(feedbackContext);
+  const currentConversationRef = useRef(currentConversationId);
+  const [discussionSummary, setDiscussionSummary] = useState(null);
+  feedbackContextRef.current = feedbackContext;
+  currentConversationRef.current = currentConversationId;
+  useEffect(() => {
+    if (!feedbackContext?.feedbackId || startedFeedback.current.has(feedbackContext.id)) return;
+    startedFeedback.current.add(feedbackContext.id);
+    const revision = ++conversationRevision.current;
+    setDiscussionSummary({ question: feedbackContext.question, attempt: feedbackContext.attempt, ready: false });
+    setCurrentConversationId(null);
+    setInputMessage('');
+    setMessages([{ role: 'student', content: 'Help me understand this feedback and improve my answer.', created_at: new Date().toISOString() }]);
+    setIsSending(true);
+    apiClient.post(`/api/chat/feedback/${feedbackContext.feedbackId}/discuss`)
+      .then(response => {
+        if (revision !== conversationRevision.current) return;
+        const result = response?.data || response;
+        setCurrentConversationId(result.conversation_id);
+        setMessages([result.student_message, result.assistant_message]);
+        setDiscussionSummary(summary => ({ ...summary, ready: true }));
+        onContextSent?.(feedbackContext.id);
+      })
+      .catch(error => {
+        if (revision !== conversationRevision.current) return;
+        setMessages([{ role: 'assistant', content: `Could not start the discussion: ${error.message}. Return to Feedback and try again.`, created_at: new Date().toISOString() }]);
+        onContextSent?.(feedbackContext.id);
+      })
+      .finally(() => {
+        if (revision === conversationRevision.current) setIsSending(false);
+      });
+  }, [feedbackContext, onContextSent]);
 
   // Auto-scroll to bottom of messages
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"
+    });
   };
 
   useEffect(() => {
     scrollToBottom();
-  }, [messages]);
+  }, [messages, isSending]);
 
   const loadConversation = useCallback(async (conversationId) => {
+    const revision = conversationRevision.current;
     try {
       setCurrentConversationId(conversationId);
       const response = await apiClient.get(`/api/chat/conversations/${conversationId}`);
+      if (revision !== conversationRevision.current || feedbackContextRef.current) return;
       const conv = response?.data || response;
       setMessages(conv.messages || []);
+      const context = feedbackDiscussionContext(conv.messages?.[0]);
+      setDiscussionSummary(context ? { question: context.question, attempt: context.attempt, ready: true } : null);
     } catch (error) {
       console.error('Failed to load conversation:', error);
     }
   }, []);
 
   const loadConversations = useCallback(async () => {
+    const revision = conversationRevision.current;
     try {
       setLoadingConversations(true);
       const response = await apiClient.get(
@@ -48,7 +92,7 @@ export default function ChatTab({ moduleId, moduleAccess }) {
       setConversations(convs);
 
       // If there are conversations, load the most recent one
-      if (convs.length > 0 && !currentConversationId) {
+      if (revision === conversationRevision.current && convs.length > 0 && !currentConversationRef.current && !feedbackContextRef.current) {
         loadConversation(convs[0].id);
       }
     } catch (error) {
@@ -56,7 +100,7 @@ export default function ChatTab({ moduleId, moduleAccess }) {
     } finally {
       setLoadingConversations(false);
     }
-  }, [moduleAccess, moduleId, currentConversationId, loadConversation]);
+  }, [moduleAccess?.studentId, moduleId, loadConversation]);
 
   // Load conversations on mount
   useEffect(() => {
@@ -89,6 +133,8 @@ export default function ChatTab({ moduleId, moduleAccess }) {
   const handleSendMessage = async () => {
     if (!inputMessage.trim() || isSending) return;
 
+    if (feedbackContext) return;
+    const revision = ++conversationRevision.current;
     const message = inputMessage.trim();
     setInputMessage("");
     setIsSending(true);
@@ -129,11 +175,13 @@ export default function ChatTab({ moduleId, moduleAccess }) {
       const result = response?.data || response;
       console.log('📥 AI Response:', result);
 
-      // Add AI response to the UI
+      // Ignore a response if a newer feedback discussion replaced this chat.
+      if (revision !== conversationRevision.current) return;
       setMessages(prev => [...prev, result.assistant_message]);
 
     } catch (error) {
       console.error('Failed to send message:', error);
+      if (revision !== conversationRevision.current) return;
       // Add error message
       setMessages(prev => [
         ...prev,
@@ -144,7 +192,7 @@ export default function ChatTab({ moduleId, moduleAccess }) {
         }
       ]);
     } finally {
-      setIsSending(false);
+      if (revision === conversationRevision.current) setIsSending(false);
     }
   };
 
@@ -167,7 +215,7 @@ export default function ChatTab({ moduleId, moduleAccess }) {
     return date.toLocaleDateString();
   };
 
-  if (loadingConversations) {
+  if (loadingConversations && !isSending && !feedbackContext && messages.length === 0) {
     return (
       <div className="h-[700px] flex gap-4">
         {/* Conversations sidebar skeleton */}
@@ -225,7 +273,7 @@ export default function ChatTab({ moduleId, moduleAccess }) {
       </CardHeader>
 
       <CardContent className="flex-1 overflow-y-auto p-6 space-y-4">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !isSending ? (
           <div className="flex items-center justify-center h-full">
             <div className="text-center max-w-md">
               <Brain className="w-16 h-16 text-gray-400 mx-auto mb-4" />
@@ -249,13 +297,13 @@ export default function ChatTab({ moduleId, moduleAccess }) {
                     <Brain className="w-4 h-4 text-white" />
                   </div>
                 )}
-                <div className={`flex-1 ${msg.role === 'student' ? 'flex flex-col items-end' : ''}`}>
+                <div className={`min-w-0 flex-1 ${msg.role === 'student' ? 'flex flex-col items-end' : ''}`}>
                   <div className={`${
                     msg.role === 'student'
                       ? 'bg-blue-600 rounded-2xl rounded-tr-none text-white'
                       : 'bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-none text-gray-900 dark:text-gray-100'
                   } p-4 max-w-[80%]`}>
-                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <MathText className="break-words [&_p]:mb-3 [&_p:last-child]:mb-0 [&_.katex-display]:overflow-x-auto [&_.katex-display]:py-1 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5">{chatMessageText(msg)}</MathText>
                   </div>
                   <span className="text-xs text-gray-500 dark:text-gray-400 mt-1 block">
                     {formatTime(msg.created_at)}
@@ -268,30 +316,37 @@ export default function ChatTab({ moduleId, moduleAccess }) {
                 )}
               </div>
             ))}
-            {isSending && (
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0">
-                  <Brain className="w-4 h-4 text-white" />
-                </div>
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-none p-4 max-w-[80%]">
-                  <div className="flex items-center gap-2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-purple-600"></div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Thinking...</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            <div ref={messagesEndRef} />
           </>
         )}
+        {isSending && (
+          <div className="flex items-start gap-3" role="status" aria-live="polite" aria-atomic="true">
+            <div className="w-8 h-8 rounded-full bg-gradient-to-r from-purple-600 to-blue-600 flex items-center justify-center flex-shrink-0" aria-hidden="true">
+              <Brain className="w-4 h-4 text-white" />
+            </div>
+            <div className="bg-gray-100 dark:bg-gray-800 rounded-2xl rounded-tl-none p-4 max-w-[80%]">
+              <div className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-200">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" />
+                <span>{feedbackContext ? 'Reviewing your answer and feedback…' : 'AI tutor is thinking…'}</span>
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
       </CardContent>
 
       {/* Chat Input */}
       <div className="border-t p-4">
+        {discussionSummary && <div className="mb-3 rounded-lg border bg-muted/30 p-3 text-sm">
+          <p className="font-medium">Discussing feedback · Attempt {discussionSummary.attempt}</p>
+          <MathText>{discussionSummary.question}</MathText>
+          <p className="mt-1 text-xs text-muted-foreground">{isSending ? "Reviewing your saved answer and feedback…" : discussionSummary.ready ? "This conversation includes your question, answer, score, and feedback." : "The discussion could not start. Return to Feedback to try again."}</p>
+        </div>}
         <div className="flex gap-2">
           <input
+            ref={inputRef}
             type="text"
-            placeholder="Ask a question about course materials..."
+            aria-label="Message to AI tutor"
+            placeholder={isSending ? "Waiting for the AI tutor…" : "Ask a question about course materials..."}
             value={inputMessage}
             onChange={(e) => setInputMessage(e.target.value)}
             onKeyPress={handleKeyPress}
@@ -303,8 +358,11 @@ export default function ChatTab({ moduleId, moduleAccess }) {
             disabled={!inputMessage.trim() || isSending}
             className="px-6 bg-blue-600 hover:bg-blue-700"
           >
-            <Send className="w-4 h-4 mr-2" />
-            Send
+            {isSending ? (
+              <><Loader2 className="w-4 h-4 mr-2 animate-spin motion-reduce:animate-none" aria-hidden="true" />Thinking…</>
+            ) : (
+              <><Send className="w-4 h-4 mr-2" aria-hidden="true" />Send</>
+            )}
           </Button>
         </div>
         <p className="text-xs text-gray-500 dark:text-gray-400 mt-2 text-center">

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { auth } from '@/lib/auth';
 
 /**
  * Hook to poll feedback generation status for a specific answer
@@ -32,6 +33,7 @@ export function useFeedbackPolling(answerId, enabled = true, pollInterval = 2000
           method: 'GET',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${auth.getToken() || ''}`,
           },
         }
       );
@@ -93,6 +95,7 @@ export function useFeedbackPolling(answerId, enabled = true, pollInterval = 2000
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
+            'Authorization': `Bearer ${auth.getToken() || ''}`,
           },
         }
       );

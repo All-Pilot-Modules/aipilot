@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MathText } from "@/components/MathText";
+import { feedbackCounts } from "@/lib/feedbackState.mjs";
 import {
   BookOpen,
   FileText,
@@ -30,7 +32,7 @@ import {
   ChevronUp,
   RefreshCw
 } from "lucide-react";
-import { apiClient } from "@/lib/auth";
+import { apiClient, auth } from "@/lib/auth";
 import { FullPageLoader } from '@/components/LoadingSpinner';
 import { ErrorAlert } from '@/components/ErrorAlert';
 import { PageLoadingSkeleton, CardSkeleton } from '@/components/SkeletonLoader';
@@ -77,6 +79,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   // Get tab from URL parameter, default to "assignments"
   const initialTab = searchParams.get('tab') || 'assignments';
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [feedbackChat, setFeedbackChat] = useState(null);
 
   // Sync activeTab with URL parameter changes (important for redirects)
   // Only sync when URL changes, not when activeTab changes (to prevent race condition)
@@ -534,6 +537,21 @@ const StudentModuleContent = memo(function StudentModuleContent() {
     startPollingIfNeeded();
   }, [activeTab, moduleAccess, submissionStatus, moduleId, loadFeedbackForAnswers]);
 
+  useEffect(() => {
+    if (activeTab !== 'feedback' || !moduleAccess) return;
+    let cancelled = false;
+    apiClient.get(`/api/student/modules/${moduleId}/feedback-status?attempt=${selectedAttempt}`)
+      .then(response => {
+        if (!cancelled) {
+          const status = response?.data || response;
+          setFeedbackStatus(status);
+          if (!status.all_complete) setIsPolling(true);
+        }
+      })
+      .catch(error => console.warn('Feedback status unavailable:', error.message));
+    return () => { cancelled = true; };
+  }, [activeTab, moduleAccess, moduleId, selectedAttempt]);
+
   // Poll for feedback generation status
   const checkFeedbackStatus = useCallback(async (access, attempt) => {
     const timestamp = new Date().toLocaleTimeString();
@@ -554,12 +572,23 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
       setFeedbackStatus(status);
 
-      // Load feedback data on every poll to show them as they're generated
-      console.log(`📥 [${timestamp}] Loading feedback data...`);
-      await loadFeedbackForAnswers(access).catch(err => {
-        console.log(`❌ [${timestamp}] Feedback load failed:`, err.message || err);
-      });
-      console.log(`✅ [${timestamp}] Feedback data loaded successfully`);
+      // Only reload the (heavier) full feedback payload when the ready count
+      // actually moved since the last tick, or this is the first check for
+      // this attempt — re-fetching on every tick when nothing finished adds
+      // load without helping an unprocessed job finish any sooner.
+      const seen = lastKnownReadyCountRef.current;
+      const readyChanged = seen.attempt !== attempt || seen.ready !== status.feedback_ready;
+
+      if (readyChanged || status.all_complete) {
+        console.log(`📥 [${timestamp}] Ready count ${seen.ready} → ${status.feedback_ready} — loading feedback data...`);
+        await loadFeedbackForAnswers(access).catch(err => {
+          console.log(`❌ [${timestamp}] Feedback load failed:`, err.message || err);
+        });
+        console.log(`✅ [${timestamp}] Feedback data loaded successfully`);
+        lastKnownReadyCountRef.current = { attempt, ready: status.feedback_ready };
+      } else {
+        console.log(`⏭️  [${timestamp}] Ready count unchanged (${status.feedback_ready}) — skipping feedback reload`);
+      }
 
       // If all feedback is complete, stop polling
       if (status.all_complete) {
@@ -813,6 +842,11 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   // Track which attempt we've already done the feedback-tab setup for so we
   // don't fire 3 API calls every time the student clicks the Feedback tab.
   const feedbackSetupAttemptRef = useRef(null);
+  // Last feedback_ready count seen by the polling fallback, keyed per attempt.
+  // Reloading the full feedback payload on every poll tick regardless of
+  // whether anything finished just adds load without helping an unprocessed
+  // job finish any sooner — only reload when the ready count actually moved.
+  const lastKnownReadyCountRef = useRef({ attempt: null, ready: -1 });
 
   // Update refs when callbacks change
   useEffect(() => {
@@ -827,17 +861,18 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       return;
     }
 
-    const MAX_POLL_TIME = 6 * 60 * 1000; // Stop after 6 minutes total
-    const currentAttempt = submissionStatus.current_attempt || 1;
-    const attemptToWatch = currentAttempt - 1;
+    const attemptToWatch = selectedAttempt;
     let stopped = false;
 
     // ── SSE path ──
     if (useSSE) {
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const sseUrl = `${API_BASE_URL}/api/ai-feedback/stream/${moduleId}?student_id=${encodeURIComponent(moduleAccess.studentId)}&attempt=${attemptToWatch}`;
+      // EventSource can't send custom headers, so the session token goes in
+      // the query string here — the backend's stream endpoint reads it via
+      // a dedicated query-token auth dependency instead of Authorization.
+      const sseUrl = `${API_BASE_URL}/api/ai-feedback/stream/${moduleId}?token=${encodeURIComponent(auth.getToken() || '')}&attempt=${attemptToWatch}`;
 
-      console.log(`📡 SSE connecting: ${sseUrl}`);
+      console.log('📡 SSE connecting for feedback updates');
       const es = new EventSource(sseUrl);
       eventSourceRef.current = es;
 
@@ -862,7 +897,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
         try {
           const data = JSON.parse(e.data);
           console.log(`🎉 SSE complete: ${data.ready}/${data.total}`);
-          setFeedbackStatus(prev => ({ ...prev, all_complete: true, feedback_ready: data.ready, total_questions: data.total }));
+          setFeedbackStatus({ ...data, all_complete: true, feedback_ready: data.ready, total_questions: data.total });
           await loadFeedbackForAnswersRef.current(moduleAccess);
           setIsPolling(false);
           setPollCount(0);
@@ -874,11 +909,11 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       });
 
       es.addEventListener('timeout', (e) => {
-        console.log('⏱️ SSE timeout — server closed stream');
+        console.log('⏱️ SSE window ended — continuing with polling');
         stopped = true; // prevent onerror from firing when we call es.close() below
         es.close();
         eventSourceRef.current = null;
-        setIsPolling(false);
+        setUseSSE(false);
       });
 
       es.onerror = (err) => {
@@ -911,29 +946,15 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       const elapsed = Date.now() - pollStart;
       if (elapsed < 30000) return 2000;
       if (elapsed < 150000) return 5000;
-      return 10000;
+      if (elapsed < 360000) return 10000;
+      return 30000; // Long-running jobs remain monitored without frequent requests.
     };
 
     const doPoll = async () => {
       if (stopped) return;
       pollCount++;
-      const elapsed = Date.now() - pollStart;
-
       setPollCount(pollCount);
 
-      if (elapsed >= MAX_POLL_TIME) {
-        console.log('⏱️ Polling timeout — stopping after 6 minutes');
-        setIsPolling(false);
-        try {
-          await apiClient.post(
-            `/api/student/modules/${moduleId}/cleanup-feedback?student_id=${moduleAccess.studentId}`
-          );
-          await loadFeedbackForAnswersRef.current(moduleAccess);
-        } catch (error) {
-          console.error('Failed to cleanup stale feedback:', error);
-        }
-        return;
-      }
 
       try {
         const allComplete = await checkFeedbackStatusRef.current(moduleAccess, attemptToWatch);
@@ -961,7 +982,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       if (timeoutId) clearTimeout(timeoutId);
       setPollCount(0);
     };
-  }, [isPolling, moduleAccess, submissionStatus, moduleId, useSSE]); // useSSE added to re-run on fallback
+  }, [isPolling, moduleAccess, submissionStatus, moduleId, useSSE, selectedAttempt]); // useSSE added to re-run on fallback
 
   const handleStartTest = () => {
     router.push(`/student/test/${moduleId}`);
@@ -1874,19 +1895,16 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                     {/* Show regenerate all button if there are failed feedback */}
                     {(() => {
-                      // Only count TRULY failed feedback (must have explicit failed/timeout status)
-                      const failedCount = Object.values(feedbackData).filter(f => {
-                        return f && f.generation_status && (f.generation_status === 'failed' || f.generation_status === 'timeout');
-                      }).length;
-
-                      // Get max attempts to check if this attempt should have AI feedback
-                      const maxAttempts = submissionStatus?.max_attempts || 2;
-
-                      // IMPORTANT: Only show regenerate button when:
-                      // 1. There are actually failed feedbacks (not pending/generating)
-                      // 2. This is not the final attempt (final attempt is for teacher grading)
-                      // 3. NOT currently polling (if polling, feedback is still being generated)
-                      if (failedCount === 0 || selectedAttempt >= maxAttempts || isPolling) return null;
+                      const { failed: failedCount, retrying: retryingCount } = feedbackCounts(feedbackStatus, selectedAttempt);
+                      if (retryingCount > 0) {
+                        return (
+                          <div role="status" className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-100">
+                            <p className="font-medium">Retrying automatically ({retryingCount})</p>
+                            <p className="mt-1 text-sm">Your answers are saved. We’re trying again to generate your feedback.</p>
+                          </div>
+                        );
+                      }
+                      if (failedCount === 0) return null;
 
                       return (
                         <div className="mt-4 p-4 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg">
@@ -1896,7 +1914,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 {failedCount} feedback generation{failedCount > 1 ? 's' : ''} failed
                               </p>
                               <p className="text-sm text-red-700 dark:text-red-300 mt-1">
-                                Some feedback failed to generate. Use this button to retry all failed items at once
+                                Automatic generation could not finish. Your answers are saved; you can retry the failed feedback.
                               </p>
                             </div>
                             <Button
@@ -2235,9 +2253,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                     Question {index + 1} of {questions.length}
                                   </Badge>
                                 </div>
-                                <p className="text-base text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">
+                                <MathText className="text-base text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">
                                   {question.text}
-                                </p>
+                                </MathText>
                                 {question.image_url && (
                                   <div className="mt-3">
                                     {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -2315,8 +2333,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 {question.type === 'mcq' && feedback.selected_option && (
                                   <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Your answer:</p>
-                                    <p className="text-base font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
-                                      {feedback.selected_option}. {feedback.available_options?.[feedback.selected_option]}
+                                    <p className="flex items-start gap-1 text-base font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                                      <span>{feedback.selected_option}.</span>
+                                      <MathText inline>{feedback.available_options?.[feedback.selected_option]}</MathText>
                                     </p>
                                   </div>
                                 )}
@@ -2327,8 +2346,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                     <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Your answers:</p>
                                     <div className="space-y-1">
                                       {feedback.selected_options.map((opt, idx) => (
-                                        <p key={idx} className="text-base font-medium text-gray-900 dark:text-gray-100">
-                                          {opt}. {feedback.available_options?.[opt]}
+                                        <p key={idx} className="flex items-start gap-1 text-base font-medium text-gray-900 dark:text-gray-100">
+                                          <span>{opt}.</span>
+                                          <MathText inline>{feedback.available_options?.[opt]}</MathText>
                                         </p>
                                       ))}
                                     </div>
@@ -2343,7 +2363,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       {feedback.grading_details.blank_results.map((blank, idx) => (
                                         <div key={idx} className="flex items-start gap-2">
                                           <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Blank {blank.position + 1}:</span>
-                                          <span className="text-base font-medium text-gray-900 dark:text-gray-100">{blank.student_answer || '(empty)'}</span>
+                                          <MathText inline className="text-base font-medium text-gray-900 dark:text-gray-100">{blank.student_answer || '(empty)'}</MathText>
                                           {blank.is_correct ? (
                                             <CheckCircle className="w-5 h-5 text-green-500" />
                                           ) : (
@@ -2363,9 +2383,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       {feedback.sub_results.map((sub, idx) => (
                                         <div key={idx} className="flex items-start gap-2">
                                           <span className="text-sm font-medium text-purple-600 dark:text-purple-400">{sub.sub_id}:</span>
-                                          <span className="text-base font-medium text-gray-900 dark:text-gray-100 flex-1">
+                                          <MathText inline className="text-base font-medium text-gray-900 dark:text-gray-100 flex-1">
                                             {typeof sub.student_answer === 'string' ? sub.student_answer : JSON.stringify(sub.student_answer)}
-                                          </span>
+                                          </MathText>
                                           {sub.is_correct !== null && (
                                             sub.is_correct ? (
                                               <CheckCircle className="w-5 h-5 text-green-500" />
@@ -2514,7 +2534,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                                   </span>
                                                 </div>
                                                 {details.reasoning && (
-                                                  <p className={`text-xs leading-relaxed ${
+                                                  <MathText className={`text-xs leading-relaxed ${
                                                     feedback.correctness_score === 100
                                                       ? 'text-green-800 dark:text-green-200'
                                                       : feedback.correctness_score >= 70
@@ -2524,7 +2544,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                                       : 'text-red-800 dark:text-red-200'
                                                   }`}>
                                                     {details.reasoning}
-                                                  </p>
+                                                  </MathText>
                                                 )}
                                               </div>
                                             );
@@ -2540,9 +2560,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
                                         Feedback
                                       </p>
-                                      <p className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                                      <MathText className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
                                         {feedback.explanation}
-                                      </p>
+                                      </MathText>
                                     </div>
                                   )}
 
@@ -2556,7 +2576,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                         {feedback.strengths.map((strength, idx) => (
                                           <li key={idx} className="text-sm text-green-800 dark:text-green-200 flex items-start gap-2">
                                             <span className="mt-1">•</span>
-                                            <span>{strength}</span>
+                                            <MathText inline>{strength}</MathText>
                                           </li>
                                         ))}
                                       </ul>
@@ -2573,7 +2593,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                         {feedback.weaknesses.map((weakness, idx) => (
                                           <li key={idx} className="text-sm text-orange-800 dark:text-orange-200 flex items-start gap-2">
                                             <span className="mt-1">•</span>
-                                            <span>{weakness}</span>
+                                            <MathText inline>{weakness}</MathText>
                                           </li>
                                         ))}
                                       </ul>
@@ -2586,9 +2606,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-1">
                                         Suggestion
                                       </p>
-                                      <p className="text-sm text-yellow-800 dark:text-yellow-200 leading-relaxed">
+                                      <MathText className="text-sm text-yellow-800 dark:text-yellow-200 leading-relaxed">
                                         {feedback.improvement_hint}
-                                      </p>
+                                      </MathText>
                                     </div>
                                   )}
 
@@ -2598,9 +2618,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-1">
                                         Key concept
                                       </p>
-                                      <p className="text-sm text-purple-800 dark:text-purple-200 leading-relaxed">
+                                      <MathText className="text-sm text-purple-800 dark:text-purple-200 leading-relaxed">
                                         {feedback.concept_explanation}
-                                      </p>
+                                      </MathText>
                                     </div>
                                   )}
 
@@ -2625,9 +2645,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                               <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
                                                 Teacher&apos;s Comments:
                                               </p>
-                                              <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                                              <MathText className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
                                                 {feedback.teacher_grade.feedback_text}
-                                              </p>
+                                              </MathText>
                                             </div>
                                           )}
                                           {feedback.teacher_grade.graded_at && (
@@ -2640,6 +2660,27 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                     </div>
                                   )}
                                 </div>
+
+                                {isChatbotEnabled && feedback?.id && feedback.generation_status === 'completed' && !feedback.fallback && feedback.explanation?.trim() && (
+                                  <Button type="button" variant="outline" className="mt-4" disabled={Boolean(feedbackChat)} onClick={() => {
+                                    setFeedbackChat({
+                                      id: `${question.id}-${selectedAttempt}-${Date.now()}`,
+                                      feedbackId: feedback.id,
+                                      question: question.text,
+                                      attempt: selectedAttempt,
+                                      answer: feedback.answer_text || feedback.student_answer || feedback.selected_options || feedback.selected_option || null,
+                                      options: feedback.available_options,
+                                      explanation: feedback.explanation,
+                                      strengths: feedback.strengths,
+                                      weaknesses: feedback.weaknesses,
+                                      suggestion: feedback.improvement_hint,
+                                      concept: feedback.concept_explanation,
+                                      score: feedback.correctness_score,
+                                      teacherFeedback: feedback.teacher_grade?.feedback_text,
+                                    });
+                                    setActiveTab('chat');
+                                  }}>Discuss this feedback</Button>
+                                )}
 
                                 {/* Feedback Critique Component - Allow students to rate AI feedback */}
                                 {feedback && feedback.id && !feedback.teacher_grade && moduleAccess?.studentId && question.allow_critique === true && (
@@ -2736,7 +2777,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
           {/* Chat Tab */}
           <TabsContent value="chat" className="space-y-6 data-[state=inactive]:hidden" forceMount>
             {isChatbotEnabled ? (
-              <ChatTab moduleId={moduleId} moduleAccess={moduleAccess} />
+              <ChatTab moduleId={moduleId} moduleAccess={moduleAccess} feedbackContext={feedbackChat} onContextSent={(requestId) => setFeedbackChat(current => current?.id === requestId ? null : current)} />
             ) : (
               <Card className="relative overflow-hidden border-2 border-amber-200 dark:border-amber-800 shadow-lg">
                 <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-50/60 to-yellow-50/40 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10"></div>

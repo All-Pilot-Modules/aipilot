@@ -12,9 +12,9 @@ class TestQuestionGradingService:
     @pytest.fixture
     def grading_service(self):
         """Create a grading service instance with mocked OpenAI."""
-        with patch("app.services.question_grading.openai") as mock_openai:
+        with patch("app.services.question_grading.OpenAIClientWithRetry") as mock_client_cls:
             mock_client = MagicMock()
-            mock_openai.OpenAI.return_value = mock_client
+            mock_client_cls.return_value = mock_client
             from app.services.question_grading import QuestionGradingService
             service = QuestionGradingService()
             service.client = mock_client
@@ -178,7 +178,7 @@ class TestQuestionGradingService:
             mock_response = MagicMock()
             mock_response.choices = [MagicMock()]
             mock_response.choices[0].message.content = "YES"
-            grading_service.client.chat.completions.create.return_value = mock_response
+            grading_service.client.create_chat_completion.return_value = mock_response
 
             student_answers = {0: "powerhouse"}  # Synonym for mitochondria
             blank_configs = [
@@ -198,7 +198,7 @@ class TestQuestionGradingService:
             mock_response = MagicMock()
             mock_response.choices = [MagicMock()]
             mock_response.choices[0].message.content = "NO"
-            grading_service.client.chat.completions.create.return_value = mock_response
+            grading_service.client.create_chat_completion.return_value = mock_response
 
             student_answers = {0: "completely wrong"}
             blank_configs = [
@@ -214,7 +214,7 @@ class TestQuestionGradingService:
 
         def test_semantic_matching_api_error(self, grading_service):
             """Test graceful handling of AI API errors."""
-            grading_service.client.chat.completions.create.side_effect = Exception("API Error")
+            grading_service.client.create_chat_completion.side_effect = Exception("API Error")
 
             student_answers = {0: "synonym"}
             blank_configs = [
@@ -368,7 +368,7 @@ class TestExactMatchHelper:
 
     @pytest.fixture
     def grading_service(self):
-        with patch("app.services.question_grading.openai"):
+        with patch("app.services.question_grading.OpenAIClientWithRetry"):
             from app.services.question_grading import QuestionGradingService
             yield QuestionGradingService()
 

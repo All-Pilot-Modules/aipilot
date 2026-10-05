@@ -1,3 +1,4 @@
+import { MathText } from "@/components/MathText";
 import { cn } from '@/lib/utils'
 
 export const ChatMessageItem = ({
@@ -31,7 +32,7 @@ export const ChatMessageItem = ({
             'py-2 px-3 rounded-xl text-sm w-fit',
             isOwnMessage ? 'bg-primary text-primary-foreground' : 'bg-muted text-foreground'
           )}>
-          {message.content}
+          <MathText>{message.content}</MathText>
         </div>
       </div>
     </div>

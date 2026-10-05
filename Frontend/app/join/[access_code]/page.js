@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { BookOpen, Users, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useCallback } from "react";
-import { apiClient } from "@/lib/auth";
+import { apiClient, auth } from "@/lib/auth";
 
 export default function AccessAssignment() {
   const params = useParams();
@@ -61,21 +61,25 @@ export default function AccessAssignment() {
     setError(null);
 
     try {
-      // Validate the access code with the backend
+      // Validate the access code with the backend and enroll this student.
+      // student_id was previously never sent here, so this flow collected a
+      // banner ID in the form but never actually enrolled the student —
+      // fixed alongside wiring up the session token every other join flow
+      // now returns.
       const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/student/join-module?access_code=${encodeURIComponent(formData.accessCode.trim())}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` }),
-        },
-        body: JSON.stringify({})
-      });
-      
+      const response = await fetch(
+        `${API_BASE_URL}/api/student/join-module?access_code=${encodeURIComponent(formData.accessCode.trim())}&student_id=${encodeURIComponent(formData.bannerId.trim())}&module_id=${module.id}`,
+        { method: 'POST', headers: { 'Content-Type': 'application/json' } }
+      );
+
       if (!response.ok) {
         const error = await response.json().catch(() => ({}));
         throw new Error(error.detail || 'Invalid access code');
+      }
+
+      const joinResult = await response.json();
+      if (joinResult?.token) {
+        auth.setStudentToken(joinResult.token);
       }
 
       // Store access data in sessionStorage

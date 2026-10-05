@@ -208,7 +208,8 @@ def generate_questions_from_document(
             document_id=doc_id,
             num_short=request.num_short,
             num_long=request.num_long,
-            num_mcq=request.num_mcq
+            num_mcq=request.num_mcq,
+            instructions=request.instructions
         )
 
         # Get module to check ownership and for review URL

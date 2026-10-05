@@ -6,7 +6,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,7 +16,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Copy, RotateCcw, ExternalLink, Check, Trash2, Settings, FileText, Plus, Loader2, Sparkles, Rocket } from "lucide-react";
+import { Copy, RotateCcw, ExternalLink, Check, Trash2, Settings, FileText, Plus, Loader2, Rocket, ChevronDown } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -149,10 +148,13 @@ export default function MyModules() {
       // Apply rubric template if not default
       if (formData.rubric_template && formData.rubric_template !== 'default') {
         try {
+          const templateParams = new URLSearchParams({
+            template_name: formData.rubric_template,
+            preserve_custom_instructions: 'false',
+          });
           await apiClient.post(
-            `/api/modules/${createdModule.id}/rubric/apply-template`,
-            null,
-            { params: { template_name: formData.rubric_template, preserve_custom_instructions: false } }
+            `/api/modules/${createdModule.id}/rubric/apply-template?${templateParams}`,
+            null
           );
         } catch (error) {
           console.error('Failed to apply rubric template:', error);
@@ -227,7 +229,7 @@ export default function MyModules() {
   // Show loading while auth is initializing OR user data not yet available
   if (loading || (isAuthenticated && !user)) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-800/30 to-gray-900/30 dark:from-gray-950 dark:via-gray-800/10 dark:to-gray-900/10 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <LoadingSpinner size="large" text="Loading modules..." />
       </div>
     );
@@ -247,56 +249,32 @@ export default function MyModules() {
   if (user && user.role === 'student') return null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-gray-800/30 to-gray-900/30 dark:from-gray-950 dark:via-gray-800/10 dark:to-gray-900/10">
-      <div className="max-w-7xl mx-auto px-6 py-8">
-        {/* Premium Header */}
-        <div className="mb-10 relative overflow-hidden rounded-3xl">
-          <div className="absolute inset-0 bg-gradient-to-r from-yellow-400 via-amber-500 to-orange-500 opacity-95"></div>
-          <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjIiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30"></div>
-          <div className="relative p-8 md:p-12 text-white">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div className="flex-1">
-                <div className="flex items-center gap-3 mb-3">
-                  <Badge className="bg-white/30 backdrop-blur-sm border-white/40 text-white font-bold text-sm px-4 py-1.5">
-                    ⭐ MOST IMPORTANT PAGE
-                  </Badge>
-                  <Sparkles className="w-6 h-6 animate-pulse" />
-                </div>
-                <h1 className="text-4xl md:text-5xl font-bold mb-3 tracking-tight drop-shadow-lg">
-                  Module Management
-                </h1>
-                <p className="text-lg text-white/90">
-                  Create and manage your educational modules - your central hub for course management
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="text-4xl font-bold">{modules.length}</div>
-                  <div className="text-sm text-white/80">Total Modules</div>
-                </div>
-              </div>
-            </div>
+    <div className="min-h-screen bg-background">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        <header className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Teaching workspace</p>
+            <h1 className="text-3xl font-semibold tracking-tight text-foreground">My Modules</h1>
+            <p className="mt-2 text-sm text-muted-foreground">Create modules, share access with students, and manage learning.</p>
           </div>
-        </div>
-        
+          <div className="self-start sm:self-center rounded-full border border-border bg-card px-4 py-2 text-sm text-muted-foreground">
+            <span className="font-semibold text-foreground">{modules.length}</span> {modules.length === 1 ? 'module' : 'modules'}
+          </div>
+        </header>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Create Module Form - Left Side */}
           <div className="lg:col-span-1">
             <div className="space-y-6">
               <div className="relative overflow-hidden rounded-2xl sticky top-6">
-                <div className="absolute top-0 left-0 w-full h-1.5 bg-gray-900"></div>
-                <Card className="shadow-2xl border-2 border-indigo-100 dark:border-indigo-900">
-                  <CardHeader className="pb-4 bg-gray-900 text-white">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-10 h-10 rounded-xl bg-white/10 border border-white/10 flex items-center justify-center shadow-lg">
-                        <Plus className="w-5 h-5 text-white" />
-                      </div>
-                      <CardTitle className="text-xl font-bold text-white">Create New Module</CardTitle>
-                    </div>
-                    <p className="text-sm text-gray-300">Configure your module settings</p>
+
+                <Card className="shadow-sm border border-border bg-card">
+                  <CardHeader className="px-5 pt-5 pb-0">
+                    <CardTitle className="text-lg font-semibold tracking-tight">New module</CardTitle>
+                    <p className="text-xs text-muted-foreground">Start with a name. Customize as you go.</p>
                   </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleSubmit} className="space-y-5">
+                <CardContent className="px-5 pb-5">
+                  <form onSubmit={handleSubmit} className="space-y-4">
                     <div className="space-y-2">
                       <Label htmlFor="name" className="text-sm font-medium">Module Name</Label>
                       <Input
@@ -312,43 +290,53 @@ export default function MyModules() {
                         title="Module name cannot contain spaces or forward slashes"
                         className="h-10"
                       />
-                      <p className="text-xs text-muted-foreground">Use hyphens or underscores instead of spaces or slashes</p>
+                      <p className="text-xs text-muted-foreground">Use hyphens between words.</p>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="description" className="text-sm font-medium">Description</Label>
+                      <Label htmlFor="description" className="text-sm font-medium">Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
                       <Textarea
                         id="description"
                         value={formData.description}
                         onChange={(e) => setFormData({...formData, description: e.target.value})}
                         placeholder="Brief description of this module..."
-                        rows={3}
+                        rows={2}
                         className="resize-none"
                       />
                     </div>
 
-                    {/* Rubric Template Selector */}
-                    <div className="pt-4 border-t">
-                      <div className="mb-2">
-                        <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500">Feedback Style</span>
-                      </div>
-                      <RubricQuickSelector
-                        value={formData.rubric_template}
-                        onChange={(template) => setFormData({...formData, rubric_template: template})}
-                      />
+                    <div className="divide-y divide-border rounded-xl border border-border bg-muted/20">
+                      <details className="group/feedback">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-xl">
+                          <span>Feedback style</span>
+                          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open/feedback:rotate-180" />
+                        </summary>
+                        <div className="px-4 pb-4">
+                          <RubricQuickSelector
+                            value={formData.rubric_template}
+                            onChange={(template) => setFormData({...formData, rubric_template: template})}
+                          />
+                        </div>
+                      </details>
+                      <details className="group/features">
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium [&::-webkit-details-marker]:hidden focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring rounded-xl">
+                          <span>Assignment options</span>
+                          <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open/features:rotate-180" />
+                        </summary>
+                        <div className="px-3 pb-3">
+                          <AssignmentFeaturesSelector
+                            value={formData.assignment_config}
+                            onChange={(config) => setFormData({...formData, assignment_config: config})}
+                          />
+                        </div>
+                      </details>
                     </div>
 
-                    {/* Assignment Features Section */}
-                    <div className="pt-4 border-t">
-                      <AssignmentFeaturesSelector
-                        value={formData.assignment_config}
-                        onChange={(config) => setFormData({...formData, assignment_config: config})}
-                      />
-                    </div>
+                    <p className="text-xs text-muted-foreground">Includes 5 default student survey questions. Edit them in module settings after creation.</p>
 
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full h-12 text-base font-bold bg-gradient-to-r from-gray-900 to-gray-800 hover:from-gray-800 hover:to-gray-700 shadow-xl hover:shadow-2xl transition-all duration-300 mt-6"
+                      className="w-full h-11 rounded-xl text-sm font-semibold"
                     >
                       {isSubmitting ? (
                         <>
@@ -391,35 +379,35 @@ export default function MyModules() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {modules.map((module) => (
-                  <Card key={module.id} className="group hover:shadow-md transition-all duration-200 border bg-card">
-                    <CardContent className="p-6">
-                      <div className="space-y-5">
+                  <Card key={module.id} className="group rounded-2xl border border-border bg-card shadow-none hover:border-primary/20 hover:shadow-sm transition-[border-color,box-shadow] duration-200">
+                    <CardContent className="p-5">
+                      <div className="space-y-4">
                         {/* Header */}
-                        <div className="border-b border-border pb-4">
-                          <h3 className="font-semibold text-lg text-foreground mb-2">{module.name}</h3>
+                        <div className="min-w-0">
+                          <h3 className="font-semibold text-base text-foreground mb-1 break-words">{module.name}</h3>
                           {module.description && (
-                            <p className="text-muted-foreground text-sm leading-relaxed">{module.description}</p>
+                            <p className="text-muted-foreground text-sm leading-relaxed line-clamp-2">{module.description}</p>
                           )}
                         </div>
 
                         {/* Access Code Section */}
-                        <div className="space-y-3">
-                          <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Student Access Code</Label>
+                        <div className="space-y-2">
+                          <Label className="text-xs font-medium text-muted-foreground">Student access</Label>
                           <div className="flex items-center gap-2">
-                            <div className="flex-1 bg-muted/50 px-4 py-3 rounded-lg border border-border">
-                              <span className="font-mono text-lg font-bold text-foreground tracking-wider">
+                            <div className="min-w-0 flex-1 bg-muted/50 px-3 py-2 rounded-lg">
+                              <span className="font-mono text-base font-semibold text-foreground tracking-wide break-all">
                                 {module.access_code}
                               </span>
                             </div>
                             <div className="flex gap-1.5">
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant="ghost"
                                 onClick={() => copyToClipboard(module.access_code, 'code', module.id)}
-                                className="h-10 w-10 p-0 hover:bg-muted"
-                                title="Copy access code"
+                                className="h-9 w-9 p-0 hover:bg-muted"
+                                title="Copy access code" aria-label="Copy access code"
                               >
                                 {copiedItems[`${module.id}-code`] ? (
                                   <Check className="w-4 h-4 text-green-600" />
@@ -429,13 +417,13 @@ export default function MyModules() {
                               </Button>
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant="ghost"
                                 onClick={() => {
                                   setModuleToRegenerate(module.id);
                                   setShowRegenerateDialog(true);
                                 }}
-                                className="h-10 w-10 p-0 hover:bg-muted"
-                                title="Regenerate access code"
+                                className="h-9 w-9 p-0 hover:bg-muted"
+                                title="Regenerate access code" aria-label="Regenerate access code"
                               >
                                 <RotateCcw className="w-4 h-4" />
                               </Button>
@@ -444,20 +432,14 @@ export default function MyModules() {
                         </div>
 
                         {/* Join URL Section */}
-                        <div className="space-y-3">
-                          <Label className="text-xs font-semibold text-foreground uppercase tracking-wider">Enrollment URL</Label>
+                        <div className="space-y-2">
                           <div className="relative">
-                            <div className="bg-muted/30 p-3.5 rounded-lg border border-border">
-                              <p className="text-xs text-foreground/70 font-mono break-all leading-relaxed">
-                                {generateModuleUrl(module)}
-                              </p>
-                            </div>
-                            <div className="flex gap-2 mt-3">
+                            <div className="flex items-center gap-2">
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant="ghost"
                                 onClick={() => copyToClipboard(generateModuleUrl(module), 'url', module.id)}
-                                className="flex-1 h-9 hover:bg-muted"
+                                className="flex-1 h-9 justify-start px-2 text-muted-foreground hover:text-foreground hover:bg-muted"
                               >
                                 {copiedItems[`${module.id}-url`] ? (
                                   <>
@@ -467,16 +449,16 @@ export default function MyModules() {
                                 ) : (
                                   <>
                                     <Copy className="w-3.5 h-3.5 mr-2" />
-                                    <span className="text-sm font-medium">Copy URL</span>
+                                    <span className="text-sm font-medium">Copy invite link</span>
                                   </>
                                 )}
                               </Button>
                               <Button
                                 size="sm"
-                                variant="outline"
+                                variant="ghost"
                                 onClick={() => window.open(generateModuleUrl(module), '_blank')}
-                                className="h-9 px-4 hover:bg-muted"
-                                title="Open in new tab"
+                                className="h-9 w-9 p-0 text-muted-foreground hover:bg-muted"
+                                title="Open student enrollment page" aria-label="Open student enrollment page"
                               >
                                 <ExternalLink className="w-3.5 h-3.5" />
                               </Button>
@@ -487,7 +469,7 @@ export default function MyModules() {
                         {/* Actions */}
                         <div className="pt-4 border-t border-border">
                           <div className="space-y-2">
-                            <Button asChild size="lg" className="w-full bg-primary hover:bg-primary/90 font-medium shadow-sm">
+                            <Button asChild size="lg" className="w-full h-10 rounded-lg bg-primary hover:bg-primary/90 text-sm font-medium shadow-none">
                               <Link href={`/dashboard?module=${encodeURIComponent(module.name)}`}>
                                 Manage Module
                               </Link>
@@ -495,7 +477,7 @@ export default function MyModules() {
                             <div className="grid grid-cols-3 gap-2">
                               <Button
                                 asChild
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
                                 className="w-full h-9 text-xs hover:bg-muted"
                               >
@@ -506,7 +488,7 @@ export default function MyModules() {
                               </Button>
                               <Button
                                 asChild
-                                variant="outline"
+                                variant="ghost"
                                 size="sm"
                                 className="w-full h-9 text-xs hover:bg-muted"
                               >
@@ -516,15 +498,15 @@ export default function MyModules() {
                                 </Link>
                               </Button>
                               <Button
-                                variant="destructive"
+                                variant="ghost"
                                 size="sm"
                                 onClick={() => deleteModule(module.id, module.name)}
                                 disabled={deletingModules[module.id]}
-                                className="w-full h-9 text-xs"
+                                className="w-full h-9 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5"
                               >
                                 {deletingModules[module.id] ? (
                                   <>
-                                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-1.5"></div>
+                                    <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-current mr-1.5"></div>
                                     <span className="text-xs">Deleting</span>
                                   </>
                                 ) : (

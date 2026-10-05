@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
 from typing import List
+from copy import deepcopy
+from app.config.survey_defaults import DEFAULT_SURVEY_QUESTIONS
 
 from app.schemas.survey import (
     ModuleSurveyConfig,
@@ -19,6 +21,8 @@ from app.crud.survey_response import (
 from app.crud.module import get_module_by_id
 from app.database import get_db
 from app.models.module import Module
+from app.core.auth import get_current_student_for_module, require_role
+from app.models.user import User
 
 router = APIRouter()
 
@@ -26,7 +30,10 @@ router = APIRouter()
 def _get_survey_config(module: Module):
     """Survey config lives in module.settings['survey'] (JSONB), not dedicated columns."""
     survey = (module.settings or {}).get("survey") or {}
-    return survey.get("questions") or [], survey.get("required", False)
+    questions = survey.get("questions") or []
+    if not questions and not survey.get("customized", False):
+        questions = deepcopy(DEFAULT_SURVEY_QUESTIONS)
+    return questions, survey.get("required", False)
 
 
 def _set_survey_config(module: Module, questions=None, required=None):
@@ -39,6 +46,7 @@ def _set_survey_config(module: Module, questions=None, required=None):
     survey = dict(settings.get("survey") or {})
     if questions is not None:
         survey["questions"] = questions
+        survey["customized"] = True
     if required is not None:
         survey["required"] = required
     settings["survey"] = survey
@@ -116,10 +124,25 @@ def get_all_survey_responses(
 # STUDENT ENDPOINTS
 # ========================================
 
+@router.get("/modules/{module_id}/survey/students/{student_id}", response_model=StudentSurveyView)
+def get_teacher_student_survey(
+    module_id: UUID,
+    student_id: str,
+    db: Session = Depends(get_db),
+    teacher: User = Depends(require_role("teacher")),
+):
+    """Read a student's survey only as the module's owning teacher."""
+    module = get_module_by_id(db, module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="Module not found")
+    if module.teacher_id != teacher.id:
+        raise HTTPException(status_code=403, detail="Not authorized for this module")
+    return get_student_survey_view(module_id, student_id, db)
+
 @router.get("/student/modules/{module_id}/survey", response_model=StudentSurveyView)
 def get_student_survey_view(
     module_id: UUID,
-    student_id: str = Query(..., description="Student Banner ID"),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """Get survey for a student (includes questions and their response if exists)"""
@@ -146,7 +169,7 @@ def get_student_survey_view(
 @router.post("/student/modules/{module_id}/survey", response_model=SurveyResponseOut)
 def submit_student_survey(
     module_id: UUID,
-    student_id: str = Query(..., description="Student Banner ID"),
+    student_id: str = Depends(get_current_student_for_module),
     response_data: SurveyResponseCreate = ...,
     db: Session = Depends(get_db)
 ):
@@ -177,7 +200,7 @@ def submit_student_survey(
 @router.get("/student/modules/{module_id}/survey/my-response", response_model=SurveyResponseOut)
 def get_my_survey_response(
     module_id: UUID,
-    student_id: str = Query(..., description="Student Banner ID"),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """Get student's own survey response"""
@@ -191,7 +214,7 @@ def get_my_survey_response(
 @router.get("/student/modules/{module_id}/survey/status")
 def check_survey_status(
     module_id: UUID,
-    student_id: str = Query(..., description="Student Banner ID"),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """Check if student has submitted survey"""

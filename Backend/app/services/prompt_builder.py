@@ -5,6 +5,29 @@ Builds prompts based on rubric settings, question type, and RAG context
 from typing import Dict, Any, Optional, List
 
 
+# Question text, options, and answers may contain LaTeX math notation delimited
+# by $...$ (inline) or $$...$$ (block) — the frontend renders these with KaTeX.
+# Shared across every prompt builder so grading and feedback generation treat
+# math consistently: interpret the LaTeX as the notation it represents (not
+# literal backslashes/braces), judge equivalent expressions as the same answer
+# regardless of formatting, and echo any formulas back inside the same $ / $$
+# delimiters so the student-facing feedback renders instead of showing raw LaTeX.
+MATH_NOTATION_NOTE = (
+    "⚠️ MATH NOTATION: The question, options, and answers may contain LaTeX math "
+    "notation delimited by $...$ (inline) or $$...$$ (block), e.g. $x^2$, "
+    "$\\frac{1}{2}$, $\\sqrt{2}$, $$\\int_0^1 x\\,dx$$. Interpret these as the "
+    "mathematical expressions they render to, not as literal text. When comparing "
+    "a student's answer to the correct/reference answer, treat mathematically "
+    "equivalent expressions as the same answer even if written with different "
+    "notation or formatting (e.g. 1/2 = 0.5 = $\\frac{1}{2}$ = 50%, x=4 = 4, "
+    "2x = x+x). If your feedback needs to show a formula or expression, wrap it "
+    "in the same $...$ / $$...$$ delimiters so it renders correctly for the "
+    "student instead of showing raw LaTeX source. Output valid JSON: inside JSON "
+    "strings, escape every LaTeX backslash as a double backslash (for example "
+    + r'{"explanation": "$\\frac{1}{2}$"}' + "). Do not output bare LaTeX backslashes in JSON."
+)
+
+
 def build_mcq_feedback_prompt(
     question_text: str,
     options: Dict[str, str],
@@ -47,6 +70,8 @@ def build_mcq_feedback_prompt(
     # 1. Base instruction
     prompt_parts.append(f"Analyze this multiple choice question answer and provide {tone} educational feedback.")
     prompt_parts.append(f"Detail level: {detail_level}.")
+    prompt_parts.append("")
+    prompt_parts.append(MATH_NOTATION_NOTE)
     prompt_parts.append("")
 
     # 2. Question context
@@ -237,6 +262,8 @@ def build_text_feedback_prompt(
     # 1. Base instruction
     question_type_label = "short answer" if question_type == "short" else "essay"
     prompt_parts.append(f"Analyze this {question_type_label} response and provide {tone}, {detail_level} educational feedback.")
+    prompt_parts.append("")
+    prompt_parts.append(MATH_NOTATION_NOTE)
     prompt_parts.append("")
 
     # 2. Question context

@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { BookOpen, Users, AlertCircle, CheckCircle } from "lucide-react";
 import Link from "next/link";
-import { apiClient } from "@/lib/auth";
+import { apiClient, auth } from "@/lib/auth";
 import ModuleConsentModal from "@/components/ModuleConsentModal";
 
 export default function JoinModule() {
@@ -74,8 +74,13 @@ export default function JoinModule() {
 
       // Try to join the module (will succeed if already enrolled)
 
-      // Enroll student in module
-      await apiClient.post(`/api/student/join-module?access_code=${encodeURIComponent(formData.accessCode.trim())}&student_id=${encodeURIComponent(formData.bannerId.trim())}&module_id=${module.id}`);
+      // Enroll student in module — returns a signed session token that
+      // every subsequent /api/student/* call needs to authenticate as this
+      // student instead of trusting a client-supplied student_id.
+      const joinResult = await apiClient.post(`/api/student/join-module?access_code=${encodeURIComponent(formData.accessCode.trim())}&student_id=${encodeURIComponent(formData.bannerId.trim())}&module_id=${module.id}`);
+      if (joinResult?.token) {
+        auth.setStudentToken(joinResult.token);
+      }
 
       setSuccess('Successfully joined the module!');
 

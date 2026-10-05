@@ -19,17 +19,36 @@ from app.crud.ai_feedback import (
     reset_feedback_for_retry
 )
 from app.services.ai_feedback import AIFeedbackService
+from app.core.auth import (
+    StudentIdentity,
+    get_current_student,
+    get_current_student_for_module,
+    get_current_student_for_module_from_query_token,
+)
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+@router.get("/worker/queue-stats")
+def get_worker_queue_stats():
+    """
+    Diagnostics: job counts by status, plus (over the last 24h) average/max
+    queue wait and generation time and a breakdown of failures by sanitized
+    error_category. Queue wait and generation time are measured separately
+    so worker delays, model latency, and parsing/auth/rate-limit failures
+    can be told apart before touching MAX_WORKERS.
+    """
+    from app.services.feedback_worker import get_queue_stats
+    return get_queue_stats()
 
 
 @router.get("/stream/{module_id}")
 async def stream_feedback_progress(
     module_id: UUID,
     request: Request,
-    student_id: str = Query(..., description="Student ID"),
     attempt: int = Query(1, description="Attempt number", ge=1),
+    student_id: str = Depends(get_current_student_for_module_from_query_token),
 ):
     """
     SSE endpoint for real-time feedback generation progress.
@@ -49,7 +68,7 @@ async def stream_feedback_progress(
         HEARTBEAT_INTERVAL = 15  # seconds between heartbeats
         start_time = time.time()
         last_heartbeat = start_time
-        last_ready_count = -1
+        last_state = None
 
         try:
             while True:
@@ -63,75 +82,31 @@ async def stream_feedback_progress(
                     yield f"event: timeout\ndata: {json.dumps({'message': 'Stream timeout after 6 minutes'})}\n\n"
                     break
 
-                # Single efficient query: count total, completed, and failed in one pass
-                db = SessionLocal()
-                try:
-                    from sqlalchemy import case, literal_column
-                    from sqlalchemy.orm import aliased
+                # Use the same job-aware state as polling. A saved fallback is
+                # not ready, and an active retry must not terminate the stream.
+                from starlette.concurrency import run_in_threadpool
+                from app.api.routes.student import get_feedback_status
 
-                    # Count total answers
-                    total = (
-                        db.query(func.count(StudentAnswer.id))
-                        .filter(
-                            StudentAnswer.student_id == student_id,
-                            StudentAnswer.module_id == module_id,
-                            StudentAnswer.attempt == attempt,
-                        )
-                        .scalar()
-                    ) or 0
+                def read_status():
+                    with SessionLocal() as db:
+                        return get_feedback_status(module_id, student_id, attempt, db)
 
-                    # Single query: count completed + failed in one pass
-                    status_counts = dict(
-                        db.query(
-                            AIFeedback.generation_status,
-                            func.count(AIFeedback.id)
-                        )
-                        .join(StudentAnswer, AIFeedback.answer_id == StudentAnswer.id)
-                        .filter(
-                            StudentAnswer.student_id == student_id,
-                            StudentAnswer.module_id == module_id,
-                            StudentAnswer.attempt == attempt,
-                        )
-                        .group_by(AIFeedback.generation_status)
-                        .all()
-                    )
-
-                    ready = status_counts.get('completed', 0)
-                    failed = status_counts.get('failed', 0) + status_counts.get('timeout', 0)
-
-                    # Check pending jobs
-                    pending_jobs = (
-                        db.query(func.count(FeedbackJob.id))
-                        .filter(
-                            FeedbackJob.student_id == student_id,
-                            FeedbackJob.module_id == module_id,
-                            FeedbackJob.attempt == attempt,
-                            FeedbackJob.status.in_(["queued", "processing"]),
-                        )
-                        .scalar()
-                    ) or 0
-
-                finally:
-                    db.close()
-
-                percentage = round((ready / total * 100), 1) if total > 0 else 0
-                all_complete = (ready + failed) >= total and total > 0 and pending_jobs == 0
-
-                # Send progress event if count changed
-                if ready != last_ready_count:
-                    last_ready_count = ready
-                    event_data = {
-                        "ready": ready,
-                        "total": total,
-                        "failed": failed,
-                        "percentage": percentage,
-                        "pending_jobs": pending_jobs,
-                    }
+                status = await run_in_threadpool(read_status)
+                event_data = {
+                    **status,
+                    "ready": status["feedback_ready"],
+                    "total": status["total_questions"],
+                    "failed": status.get("feedback_failed", 0),
+                    "percentage": status.get("progress_percentage", 0),
+                    "pending_jobs": status["feedback_pending"],
+                }
+                state = json.dumps(event_data, sort_keys=True)
+                if state != last_state:
+                    last_state = state
                     yield f"event: progress\ndata: {json.dumps(event_data)}\n\n"
 
-                # Send complete event and stop
-                if all_complete:
-                    yield f"event: complete\ndata: {json.dumps({'ready': ready, 'total': total, 'failed': failed})}\n\n"
+                if status["all_complete"]:
+                    yield f"event: complete\ndata: {json.dumps(event_data)}\n\n"
                     break
 
                 # Heartbeat to keep connection alive
@@ -162,6 +137,7 @@ async def stream_feedback_progress(
 @router.get("/{feedback_id}")
 def get_ai_feedback_by_id(
     feedback_id: UUID,
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
@@ -186,6 +162,9 @@ def get_ai_feedback_by_id(
 
     if not answer:
         raise HTTPException(status_code=404, detail="Associated answer not found")
+
+    if answer.student_id != identity.student_id:
+        raise HTTPException(status_code=404, detail="Feedback not found")
 
     # Build response with all necessary fields
     data = feedback.feedback_data or {}
@@ -231,6 +210,7 @@ def get_ai_feedback_by_id(
 @router.get("/status/answer/{answer_id}")
 def get_feedback_status_by_answer(
     answer_id: UUID,
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
@@ -244,6 +224,10 @@ def get_feedback_status_by_answer(
     feedback = get_feedback_by_answer(db, answer_id)
 
     if not feedback:
+        raise HTTPException(status_code=404, detail="Feedback not found - generation may not have started")
+
+    owning_answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first()
+    if not owning_answer or owning_answer.student_id != identity.student_id:
         raise HTTPException(status_code=404, detail="Feedback not found - generation may not have started")
 
     # Check for timeout
@@ -283,6 +267,7 @@ def get_feedback_status_by_answer(
 @router.post("/retry/answer/{answer_id}")
 def retry_feedback_generation(
     answer_id: UUID,
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
@@ -301,6 +286,10 @@ def retry_feedback_generation(
     if not feedback:
         raise HTTPException(status_code=404, detail="Feedback not found")
 
+    owning_answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first()
+    if not owning_answer or owning_answer.student_id != identity.student_id:
+        raise HTTPException(status_code=404, detail="Feedback not found")
+
     # Check if retry is allowed
     if not feedback.can_retry:
         logger.warning(f"❌ Retry blocked for answer {answer_id}: Maximum retries ({feedback.max_retries}) exceeded")
@@ -309,7 +298,16 @@ def retry_feedback_generation(
             detail=f"Maximum retries ({feedback.max_retries}) exceeded. Cannot retry."
         )
 
-    if feedback.generation_status not in ['failed', 'timeout']:
+    # A 'completed' record can still be a fallback (the AI call failed but
+    # generate_instant_feedback caught it internally and saved canned text as
+    # a successful result) — that's just as retry-worthy as failed/timeout.
+    is_stuck_fallback = (
+        feedback.generation_status == 'completed'
+        and bool(feedback.feedback_data)
+        and feedback.feedback_data.get('fallback') is True
+    )
+
+    if feedback.generation_status not in ['failed', 'timeout'] and not is_stuck_fallback:
         logger.warning(f"❌ Retry blocked for answer {answer_id}: Invalid status '{feedback.generation_status}'")
         raise HTTPException(
             status_code=400,
@@ -387,8 +385,8 @@ def retry_feedback_generation(
 @router.post("/retry/module/{module_id}")
 def retry_all_failed_feedback(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
     attempt: int = Query(1, description="Attempt number", ge=1),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """
@@ -474,7 +472,8 @@ def retry_all_failed_feedback(
             logger.info(f"📝 Including answer {answer.id} - no feedback exists, creating pending record")
             # Create pending feedback record so background task can work properly
             from app.crud.ai_feedback import create_pending_feedback
-            create_pending_feedback(db=db, answer_id=answer.id, timeout_seconds=45)
+            from app.services.ai_feedback import GENERATION_TIMEOUT_SECONDS
+            create_pending_feedback(db=db, answer_id=answer.id, timeout_seconds=GENERATION_TIMEOUT_SECONDS)
             failed_answer_ids.append(str(answer.id))
 
         elif feedback.generation_status is None:
@@ -507,6 +506,11 @@ def retry_all_failed_feedback(
                 # Case 4: Status says 'completed' but score/correctness never set (data inconsistency)
                 is_data_missing = True
                 logger.info(f"🔧 Including answer {answer.id} - score and is_correct are NULL (data inconsistency)")
+            elif feedback.feedback_data.get("fallback") is True:
+                # Case 5: 'completed' but it's canned fallback text — the OpenAI call
+                # failed and was caught internally, so it never got marked failed/timeout.
+                is_data_missing = True
+                logger.info(f"🔧 Including answer {answer.id} - feedback_data is a stuck fallback (not real AI feedback)")
 
             if is_data_missing:
                 # Mark as failed and retry
@@ -611,6 +615,68 @@ def get_unreleased_feedback(
         })
 
     return {"unreleased_count": len(result), "feedback": result}
+
+
+@router.get("/teacher/module/{module_id}/released")
+def get_module_feedback_for_teacher(
+    module_id: UUID,
+    student_id: str = Query(None, description="Optional: filter to a single student"),
+    db: Session = Depends(get_db)
+):
+    """
+    Teacher endpoint: released AI feedback for a module, keyed by answer_id.
+    Unlike /api/student/modules/{module_id}/feedback, this isn't scoped to a
+    single student's session token — it's for teacher-side views (roster,
+    grading, student detail) that need to look up any student's feedback
+    using the teacher's own login, not a student join-session token.
+    Pass student_id to scope to one student; omit it for the whole roster.
+    """
+    from app.models.teacher_grade import TeacherGrade
+
+    query = db.query(AIFeedback, StudentAnswer).join(
+        StudentAnswer, AIFeedback.answer_id == StudentAnswer.id
+    ).filter(
+        StudentAnswer.module_id == module_id,
+        StudentAnswer.is_mastery == False,
+        AIFeedback.released == True
+    )
+    if student_id:
+        query = query.filter(StudentAnswer.student_id == student_id)
+    feedback_rows = query.order_by(AIFeedback.generated_at.desc()).all()
+
+    grades_query = db.query(TeacherGrade).filter(TeacherGrade.module_id == module_id)
+    if student_id:
+        grades_query = grades_query.filter(TeacherGrade.student_id == student_id)
+    teacher_grades_by_answer = {tg.answer_id: tg for tg in grades_query.all()}
+
+    result = []
+    for feedback, answer in feedback_rows:
+        teacher_grade = teacher_grades_by_answer.get(feedback.answer_id)
+        data = feedback.feedback_data or {}
+        result.append({
+            "id": str(feedback.id),
+            "answer_id": str(feedback.answer_id),
+            "student_id": answer.student_id,
+            "question_id": str(answer.question_id),
+            "attempt": answer.attempt,
+            "is_correct": feedback.is_correct,
+            "score": feedback.score,
+            "correctness_score": feedback.score,
+            "explanation": data.get("explanation", ""),
+            "points_earned": feedback.points_earned,
+            "points_possible": feedback.points_possible,
+            "generated_at": feedback.generated_at.isoformat() if feedback.generated_at else None,
+            "generation_status": feedback.generation_status,
+            "released": feedback.released,
+            "teacher_grade": {
+                "points_awarded": teacher_grade.points_awarded,
+                "feedback_text": teacher_grade.feedback_text,
+                "graded_at": teacher_grade.graded_at.isoformat() if teacher_grade.graded_at else None
+            } if teacher_grade else None,
+            "is_teacher_graded": teacher_grade is not None,
+        })
+
+    return result
 
 
 @router.post("/teacher/release/{feedback_id}")

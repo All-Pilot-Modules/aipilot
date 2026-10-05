@@ -108,7 +108,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
       // Fetch answers and feedback in parallel
       const [moduleAnswersResponse, feedbackResponse] = await Promise.all([
         apiClient.get(`/api/student-answers/?module_id=${modId}`),
-        apiClient.get(`/api/student/modules/${modId}/feedback`).catch(() => ({ data: [] }))
+        apiClient.get(`/api/ai-feedback/teacher/module/${modId}/released`, { skipAuthLogout: true }).catch(() => ({ data: [] }))
       ]);
 
       const allModuleAnswers = moduleAnswersResponse.data || moduleAnswersResponse || [];
@@ -341,7 +341,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
   const handleStudentHover = useCallback((student) => {
     if (!moduleId) return;
     // Prefetch data that will be cached via SWR on the detail page
-    prefetchAPI(`/api/student/modules/${moduleId}/feedback?student_id=${student.student_id}`);
+    prefetchAPI(`/api/ai-feedback/teacher/module/${moduleId}/released?student_id=${student.student_id}`);
   }, [moduleId]);
 
   const handleDeleteStudent = async () => {
@@ -725,27 +725,27 @@ const StudentsPageContent = memo(function StudentsPageContent() {
 
             {/* Enhanced Stats Cards */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <Card className="border-border bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all">
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-800/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Card className="border-border bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/30 dark:to-blue-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all">
+                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg">
+                    <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg">
                       <Users className="w-6 h-6 text-white" />
                     </div>
-                    <div className="px-2 py-1 bg-gray-200/50 dark:bg-gray-800/50 rounded-full">
-                      <TrendingUp className="w-3 h-3 text-gray-800 dark:text-gray-400" />
+                    <div className="px-2 py-1 bg-blue-200/50 dark:bg-blue-800/50 rounded-full">
+                      <TrendingUp className="w-3 h-3 text-blue-700 dark:text-blue-300" />
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-400 mb-1">Total Students</p>
+                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">Total Students</p>
                     {loadingStudents ? (
                       <Skeleton className="h-9 w-16 mb-1" />
                     ) : (
-                      <p className="text-3xl font-bold text-blue-900 dark:text-gray-400">
+                      <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
                         {students.length}
                       </p>
                     )}
-                    <p className="text-xs text-gray-900/70 dark:text-gray-300/70 mt-1">Enrolled in module</p>
+                    <p className="text-xs text-blue-600/70 dark:text-blue-400/70 mt-1">Enrolled in module</p>
                   </div>
                 </CardContent>
               </Card>
@@ -779,40 +779,40 @@ const StudentsPageContent = memo(function StudentsPageContent() {
                 </CardContent>
               </Card>
 
-              <Card className="border-border bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all">
-                <div className="absolute inset-0 bg-gradient-to-br from-gray-800/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+              <Card className="border-border bg-gradient-to-br from-violet-50 to-violet-100 dark:from-violet-950/30 dark:to-violet-900/30 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all">
+                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
                 <CardContent className="p-6 relative">
                   <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-gray-800 rounded-xl flex items-center justify-center shadow-lg">
+                    <div className="w-12 h-12 bg-violet-500 rounded-xl flex items-center justify-center shadow-lg">
                       <Target className="w-6 h-6 text-white" />
                     </div>
                     <div className={`px-2 py-1 rounded-full ${
                       !loadingStudents && students.length > 0 &&
                       Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= thresholds.goodScore
                         ? 'bg-green-200/50 dark:bg-green-800/50'
-                        : 'bg-gray-200/50 dark:bg-gray-800/50'
+                        : 'bg-violet-200/50 dark:bg-violet-800/50'
                     }`}>
                       <CheckCircle className={`w-3 h-3 ${
                         !loadingStudents && students.length > 0 &&
                         Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= thresholds.goodScore
                           ? 'text-green-700 dark:text-green-300'
-                          : 'text-gray-800 dark:text-gray-400'
+                          : 'text-violet-700 dark:text-violet-300'
                       }`} />
                     </div>
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-800 dark:text-gray-400 mb-1">Avg Score</p>
+                    <p className="text-sm font-medium text-violet-700 dark:text-violet-300 mb-1">Avg Score</p>
                     {loadingStudents ? (
                       <Skeleton className="h-9 w-20 mb-1" />
                     ) : (
-                      <p className="text-3xl font-bold text-gray-900 dark:text-gray-100">
+                      <p className="text-3xl font-bold text-violet-900 dark:text-violet-100">
                         {students.length > 0 ?
                           Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) + '%' :
                           '-'
                         }
                       </p>
                     )}
-                    <p className="text-xs text-gray-700/70 dark:text-gray-400/70 mt-1">Overall performance</p>
+                    <p className="text-xs text-violet-600/70 dark:text-violet-400/70 mt-1">Overall performance</p>
                   </div>
                 </CardContent>
               </Card>

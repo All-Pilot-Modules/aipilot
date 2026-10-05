@@ -137,10 +137,94 @@ class QuestionOut(QuestionBase):
         from_attributes = True
 
 
+class QuestionStudentOut(BaseModel):
+    """
+    Student-facing question view. Deliberately does NOT inherit QuestionBase —
+    correct_answer and correct_option_id must never be reachable here even if
+    a future field gets added to QuestionBase, since hiding the answer in the
+    frontend UI does nothing if the API response still contains it.
+
+    extended_config is scrubbed per-type by sanitize_question_for_student()
+    before this model is ever constructed, since the answer-revealing fields
+    live nested inside it (blanks[].correct_answers, correct_option_ids,
+    sub_questions[].correct_answer/correct_option_id) and response_model
+    field selection only filters top-level fields, not dict contents.
+    """
+    id: UUID
+    module_id: UUID
+    document_id: Optional[UUID] = None
+    type: str
+    text: str
+    slide_number: Optional[int] = None
+    points: float
+    question_order: Optional[int] = None
+    options: Optional[Dict[str, str]] = None
+    extended_config: Optional[Dict[str, Any]] = None
+    learning_outcome: Optional[str] = None
+    bloom_taxonomy: Optional[str] = None
+    image_url: Optional[str] = None
+    has_text_input: Optional[bool] = False
+    allow_critique: Optional[bool] = False
+    status: Optional[str] = "active"
+    is_ai_generated: Optional[bool] = False
+    generated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+def _sanitize_extended_config(qtype: str, extended_config: Optional[Dict[str, Any]]) -> Optional[Dict[str, Any]]:
+    """Strip answer-revealing fields from extended_config while keeping everything the student UI needs to render the question."""
+    if not extended_config:
+        return extended_config
+
+    cfg = dict(extended_config)
+
+    if qtype == 'fill_blank' and isinstance(cfg.get('blanks'), list):
+        cfg['blanks'] = [
+            {k: v for k, v in blank.items() if k != 'correct_answers'}
+            for blank in cfg['blanks']
+        ]
+    elif qtype == 'mcq_multiple':
+        cfg.pop('correct_option_ids', None)
+    elif qtype == 'multi_part' and isinstance(cfg.get('sub_questions'), list):
+        cfg['sub_questions'] = [
+            {k: v for k, v in sub_q.items() if k not in ('correct_option_id', 'correct_answer')}
+            for sub_q in cfg['sub_questions']
+        ]
+
+    return cfg
+
+
+def sanitize_question_for_student(question) -> QuestionStudentOut:
+    """Build the student-safe view of a Question ORM object for any student-facing endpoint."""
+    return QuestionStudentOut(
+        id=question.id,
+        module_id=question.module_id,
+        document_id=question.document_id,
+        type=question.type,
+        text=question.text,
+        slide_number=question.slide_number,
+        points=question.points,
+        question_order=question.question_order,
+        options=question.options,
+        extended_config=_sanitize_extended_config(question.type, question.extended_config),
+        learning_outcome=question.learning_outcome,
+        bloom_taxonomy=question.bloom_taxonomy,
+        image_url=question.image_url,
+        has_text_input=question.has_text_input,
+        allow_critique=question.allow_critique,
+        status=question.status,
+        is_ai_generated=question.is_ai_generated,
+        generated_at=question.generated_at,
+    )
+
+
 # AI Question Generation Schemas
 
 class QuestionGenerationRequest(BaseModel):
     """Request schema for AI question generation"""
+    instructions: str = Field("", max_length=2000, description="Optional teacher guidance for generated questions")
     num_short: int = Field(0, ge=0, le=50, description="Number of short answer questions to generate (0-50)")
     num_long: int = Field(0, ge=0, le=50, description="Number of long answer questions to generate (0-50)")
     num_mcq: int = Field(0, ge=0, le=50, description="Number of multiple choice questions to generate (0-50)")

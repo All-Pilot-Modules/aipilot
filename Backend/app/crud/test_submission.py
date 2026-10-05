@@ -8,9 +8,15 @@ def create_submission(
     student_id: str,
     module_id: UUID,
     attempt: int,
-    questions_count: int
+    questions_count: int,
+    commit: bool = True,
 ) -> TestSubmission:
-    """Create a test submission record"""
+    """
+    Create a test submission record.
+    Pass commit=False to add it within an already-open transaction (e.g. so
+    it lands atomically together with the FeedbackJob rows it triggers) —
+    the caller then owns the final db.commit().
+    """
     submission = TestSubmission(
         student_id=student_id,
         module_id=module_id,
@@ -18,8 +24,11 @@ def create_submission(
         questions_count=questions_count
     )
     db.add(submission)
-    db.commit()
-    db.refresh(submission)
+    if commit:
+        db.commit()
+        db.refresh(submission)
+    else:
+        db.flush()
     return submission
 
 def get_submission(

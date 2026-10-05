@@ -116,7 +116,7 @@ def delete_feedback(db: Session, feedback_id: UUID) -> bool:
 def create_pending_feedback(
     db: Session,
     answer_id: UUID,
-    timeout_seconds: int = 45
+    timeout_seconds: int = 150
 ) -> AIFeedback:
     """
     Create a placeholder feedback row BEFORE generation starts.
@@ -125,7 +125,12 @@ def create_pending_feedback(
     Args:
         db: Database session
         answer_id: UUID of the student answer
-        timeout_seconds: Maximum time allowed for generation (default 45s)
+        timeout_seconds: Maximum time allowed for generation. Default must
+            stay >= app.services.ai_feedback.GENERATION_TIMEOUT_SECONDS (the
+            real source of truth, derived from the OpenAI client's own
+            worst-case retry budget) — can't import that constant here
+            without a circular import, since ai_feedback.py already imports
+            this module.
 
     Returns:
         AIFeedback object with status='pending' and feedback_data=None
@@ -362,6 +367,14 @@ def check_and_mark_timeout(db: Session, answer_id: UUID) -> Optional[bool]:
     if feedback.generation_status not in ['generating', 'pending']:
         return False
 
+    from app.models.feedback_job import FeedbackJob
+    from app.services.feedback_job_state import ACTIVE_JOB_STATUSES
+    if db.query(FeedbackJob.id).filter(
+        FeedbackJob.answer_id == answer_id,
+        FeedbackJob.status.in_(ACTIVE_JOB_STATUSES),
+    ).first():
+        return False  # queue recovery owns timeouts for queued/processing jobs
+
     # Calculate elapsed time
     if not feedback.started_at:
         return False
@@ -419,10 +432,19 @@ def cleanup_stale_feedback(
         AIFeedback.generation_status.in_(['pending', 'generating'])
     ).all()
 
+    from app.models.feedback_job import FeedbackJob
+    from app.services.feedback_job_state import ACTIVE_JOB_STATUSES
+    active_answers = {row[0] for row in db.query(FeedbackJob.answer_id).filter(
+        FeedbackJob.answer_id.in_([fb.answer_id for fb in stale_feedback]),
+        FeedbackJob.status.in_(ACTIVE_JOB_STATUSES),
+    ).all()}
+
     marked_failed = 0
     current_time = datetime.now(timezone.utc)
 
     for feedback in stale_feedback:
+        if feedback.answer_id in active_answers:
+            continue
         should_mark_failed = False
         error_msg = ""
 
@@ -482,7 +504,16 @@ def reset_feedback_for_retry(db: Session, answer_id: UUID) -> Optional[AIFeedbac
         logger.warning(f"⚠️ Cannot retry feedback for answer {answer_id}: max retries exceeded")
         return None
 
-    if feedback.generation_status not in ['failed', 'timeout']:
+    # A 'completed' record can still be a fallback (the OpenAI call failed but
+    # was caught internally and canned text was saved as a successful result)
+    # — treat that the same as failed/timeout for retry purposes.
+    is_stuck_fallback = (
+        feedback.generation_status == 'completed'
+        and bool(feedback.feedback_data)
+        and feedback.feedback_data.get('fallback') is True
+    )
+
+    if feedback.generation_status not in ['failed', 'timeout'] and not is_stuck_fallback:
         logger.warning(f"⚠️ Cannot retry feedback for answer {answer_id}: status is {feedback.generation_status}")
         return None
 

@@ -5,6 +5,7 @@ import { useParams, useSearchParams, useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { MathText } from "@/components/MathText";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
@@ -105,7 +106,8 @@ function StudentDetailPageContent() {
             let response = null;
             try {
               const studentSurveyResponse = await apiClient.get(
-                `/api/student/modules/${module.id}/survey?student_id=${studentId}`
+                `/api/modules/${module.id}/survey/students/${encodeURIComponent(studentId)}`,
+                { skipAuthLogout: true }
               );
               response = studentSurveyResponse.my_response || null;
             } catch { /* No survey response yet */ }
@@ -115,7 +117,7 @@ function StudentDetailPageContent() {
         // Student answers
         apiClient.get(`/api/student-answers?module_id=${module.id}`),
         // AI feedback
-        apiClient.get(`/api/student/modules/${module.id}/feedback?student_id=${studentId}`)
+        apiClient.get(`/api/ai-feedback/teacher/module/${module.id}/released?student_id=${studentId}`, { skipAuthLogout: true })
           .catch(() => ({ data: [] }))
       ]);
 
@@ -934,11 +936,11 @@ function StudentDetailPageContent() {
                 {/* Performance Summary Cards */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                   {/* Score Overview */}
-                  <Card className="border-border bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30 overflow-hidden">
+                  <Card className="border-border bg-card text-card-foreground overflow-hidden">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-400">Score Overview</p>
-                        <Target className="w-5 h-5 text-gray-600" />
+                        <p className="text-sm font-medium text-card-foreground">Score Overview</p>
+                        <Target className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <div className="flex items-center gap-3">
                         {/* Circular Progress */}
@@ -999,14 +1001,14 @@ function StudentDetailPageContent() {
                   </Card>
 
                   {/* Attempts Used */}
-                  <Card className="border-border bg-gray-900 dark:from-gray-800/30 dark:to-gray-900/30 overflow-hidden">
+                  <Card className="border-border bg-card text-card-foreground overflow-hidden">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-gray-800 dark:text-gray-400">Attempts Used</p>
-                        <Activity className="w-5 h-5 text-gray-600" />
+                        <p className="text-sm font-medium text-card-foreground">Attempts Used</p>
+                        <Activity className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <div className="flex items-baseline gap-2 mb-2">
-                        <span className="text-3xl font-bold text-gray-700 dark:text-gray-500">{student?.total_attempts || 1}</span>
+                        <span className="text-3xl font-bold text-card-foreground">{student?.total_attempts || 1}</span>
                         {moduleData?.max_attempts && (
                           <span className="text-lg text-muted-foreground">/ {moduleData.max_attempts}</span>
                         )}
@@ -1059,7 +1061,7 @@ function StudentDetailPageContent() {
                     <Card className="border-border">
                       <CardHeader className="pb-3">
                         <CardTitle className="text-base flex items-center gap-2">
-                          <TrendingUp className="w-5 h-5 text-gray-600" />
+                          <TrendingUp className="w-5 h-5 text-muted-foreground" />
                           Attempt Comparison
                         </CardTitle>
                       </CardHeader>
@@ -1289,7 +1291,7 @@ function StudentDetailPageContent() {
                                     className="border-b border-border/50 hover:bg-muted/30 transition-colors">
                                     <td className="p-3 text-muted-foreground font-mono">{index + 1}</td>
                                     <td className="p-3">
-                                      <p className="truncate max-w-md" title={questionData.question_text}>{questionData.question_text}</p>
+                                      <p className="truncate max-w-md" title={questionData.question_text}><MathText inline>{questionData.question_text}</MathText></p>
                                     </td>
                                     <td className="p-3">
                                       {questionData.student_answer ? (
@@ -1355,7 +1357,7 @@ function StudentDetailPageContent() {
 
                                 {/* Question text */}
                                 <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-foreground leading-relaxed">{questionData.question_text}</p>
+                                  <MathText className="text-sm font-medium text-foreground leading-relaxed">{questionData.question_text}</MathText>
                                   {questionData.image_url && (
                                     <div className="mt-2" style={{ maxHeight: '140px' }}>
                                       <Image
@@ -1442,9 +1444,9 @@ function StudentDetailPageContent() {
                                                   {key}
                                                 </span>
                                                 {/* Text */}
-                                                <span className={`text-sm flex-1 ${
+                                                <MathText inline className={`text-sm flex-1 ${
                                                   isStudentPick || isCorrectOpt ? 'font-medium text-foreground' : 'text-muted-foreground'
-                                                }`}>{text}</span>
+                                                }`}>{text}</MathText>
                                                 {/* Labels */}
                                                 {isStudentCorrect && (
                                                   <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 flex-shrink-0">
@@ -1521,7 +1523,7 @@ function StudentDetailPageContent() {
                                                     : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
                                                 }`}>
                                                   <span className="text-[10px] font-bold text-muted-foreground">Blank {Number(idx) + 1}:</span>
-                                                  <span className="font-medium">{val || '(empty)'}</span>
+                                                  <MathText inline className="font-medium">{val || '(empty)'}</MathText>
                                                 </div>
                                               ))}
                                             </div>
@@ -1532,7 +1534,7 @@ function StudentDetailPageContent() {
                                                   {Object.entries(correctBlanks).sort(([a], [b]) => Number(a) - Number(b)).map(([idx, val]) => (
                                                     <div key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-sm text-emerald-800 dark:text-emerald-200">
                                                       <span className="text-[10px] font-bold text-muted-foreground">Blank {Number(idx) + 1}:</span>
-                                                      <span className="font-medium">{val || '(empty)'}</span>
+                                                      <MathText inline className="font-medium">{val || '(empty)'}</MathText>
                                                     </div>
                                                   ))}
                                                 </div>
@@ -1563,7 +1565,7 @@ function StudentDetailPageContent() {
                                               <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
                                                 <CheckCircle className="w-3 h-3" /> Expected Answer
                                               </p>
-                                              <p className="text-sm text-foreground break-words leading-relaxed">{questionData.correct_answer || 'Not specified'}</p>
+                                              <MathText className="text-sm text-foreground break-words leading-relaxed">{questionData.correct_answer || 'Not specified'}</MathText>
                                             </div>
                                             <div className={`border rounded-lg p-3 ${
                                               isCorrectish
@@ -1575,7 +1577,7 @@ function StudentDetailPageContent() {
                                               }`}>
                                                 <User className="w-3 h-3" /> Student&apos;s Answer
                                               </p>
-                                              <p className="text-sm text-foreground break-words leading-relaxed">{questionData.student_answer}</p>
+                                              <MathText className="text-sm text-foreground break-words leading-relaxed">{questionData.student_answer}</MathText>
                                             </div>
                                           </div>
                                           {/* Result row */}
@@ -1617,7 +1619,7 @@ function StudentDetailPageContent() {
                                           {feedback?.explanation && (
                                             <div className="bg-gray-50 dark:bg-gray-950/20 p-4 rounded-lg">
                                               <p className="text-sm font-medium text-blue-900 dark:text-gray-400 mb-1">Feedback</p>
-                                              <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{feedback.explanation}</p>
+                                              <MathText className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{feedback.explanation}</MathText>
                                             </div>
                                           )}
 
@@ -1627,7 +1629,7 @@ function StudentDetailPageContent() {
                                               <ul className="space-y-1">
                                                 {feedback.strengths.map((s, idx) => (
                                                   <li key={idx} className="text-sm text-green-800 dark:text-green-200 flex items-start gap-2">
-                                                    <span className="mt-1">&bull;</span><span>{s}</span>
+                                                    <span className="mt-1">&bull;</span><MathText inline>{s}</MathText>
                                                   </li>
                                                 ))}
                                               </ul>
@@ -1640,7 +1642,7 @@ function StudentDetailPageContent() {
                                               <ul className="space-y-1">
                                                 {feedback.weaknesses.map((w, idx) => (
                                                   <li key={idx} className="text-sm text-orange-800 dark:text-orange-200 flex items-start gap-2">
-                                                    <span className="mt-1">&bull;</span><span>{w}</span>
+                                                    <span className="mt-1">&bull;</span><MathText inline>{w}</MathText>
                                                   </li>
                                                 ))}
                                               </ul>
@@ -1650,14 +1652,14 @@ function StudentDetailPageContent() {
                                           {feedback?.improvement_hint && (
                                             <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
                                               <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-1">Suggestion</p>
-                                              <p className="text-sm text-yellow-800 dark:text-yellow-200 leading-relaxed">{feedback.improvement_hint}</p>
+                                              <MathText className="text-sm text-yellow-800 dark:text-yellow-200 leading-relaxed">{feedback.improvement_hint}</MathText>
                                             </div>
                                           )}
 
                                           {feedback?.concept_explanation && (
                                             <div className="bg-gray-50 dark:bg-gray-950/20 p-4 rounded-lg">
                                               <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Key concept</p>
-                                              <p className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{feedback.concept_explanation}</p>
+                                              <MathText className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{feedback.concept_explanation}</MathText>
                                             </div>
                                           )}
 

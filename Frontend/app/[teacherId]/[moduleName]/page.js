@@ -14,7 +14,7 @@ import {
   AlertCircle,
   GraduationCap
 } from "lucide-react";
-import { apiClient } from "@/lib/auth";
+import { apiClient, auth } from "@/lib/auth";
 import ModuleConsentModal from "@/components/ModuleConsentModal";
 
 export default function ModuleAccessPage() {
@@ -62,14 +62,20 @@ export default function ModuleAccessPage() {
     setError("");
 
     try {
-      // Use existing backend endpoint to join module with access code and student_id
+      // Use existing backend endpoint to join module with access code and student_id.
+      // Response is { token, module } — token authenticates every subsequent
+      // /api/student/* call as this student instead of trusting a
+      // client-supplied student_id.
       const response = await apiClient.post(`/api/student/join-module?access_code=${encodeURIComponent(accessCode.trim().toUpperCase())}&student_id=${encodeURIComponent(studentId.trim())}`);
-
-      // Handle response - it might be response.data or just response
-      const moduleData = response.data || response;
+      const payload = response.data || response;
+      const moduleData = payload?.module;
 
       if (!moduleData || !moduleData.id) {
         throw new Error('Invalid response from server. Please try again.');
+      }
+
+      if (payload.token) {
+        auth.setStudentToken(payload.token);
       }
 
       // Store module access in sessionStorage with student info
@@ -135,17 +141,27 @@ export default function ModuleAccessPage() {
     } catch (error) {
       console.error('Access code verification failed:', error);
 
-      // Provide user-friendly error messages
-      if (error.response?.status === 404) {
+      // apiClient (lib/auth.js) is fetch-based and throws plain Error
+      // objects — there is no axios-style error.response here, so the
+      // status-code checks that used to live in this block never matched
+      // anything and every failure silently fell through to the generic
+      // "Network connection error" message below, regardless of what
+      // actually went wrong (wrong access code, inactive module, a real
+      // network failure, etc. all looked identical to the student).
+      // error.message is already either the backend's own detail string
+      // (e.g. "Invalid access code") or a clear HTTP/network description —
+      // show it directly, with nicer wording for the cases we can recognize.
+      const message = error?.message || '';
+      if (/invalid access code/i.test(message)) {
         setError("Invalid access code. Please check with your instructor and try again.");
-      } else if (error.response?.status === 400) {
+      } else if (/not.*active/i.test(message)) {
         setError("This module is not currently active. Please contact your instructor.");
-      } else if (error.response?.status === 500) {
+      } else if (/^HTTP 5\d\d/.test(message)) {
         setError("Server error. Please try again in a few moments.");
-      } else if (error.message === 'Network Error' || !error.response) {
+      } else if (/failed to fetch|timed out|network/i.test(message)) {
         setError("Network connection error. Please check your internet connection and try again.");
       } else {
-        setError(error.response?.data?.detail || "Failed to join module. Please try again or contact your instructor.");
+        setError(message || "Failed to join module. Please try again or contact your instructor.");
       }
     } finally {
       setLoading(false);

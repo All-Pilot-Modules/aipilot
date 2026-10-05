@@ -11,6 +11,36 @@ import os
 # In Cloud Run, environment variables are set via deployment config
 load_dotenv()
 
+# === Infisical Secrets Manager ===
+# If INFISICAL_CLIENT_ID/SECRET/PROJECT_ID are set, pull secrets from Infisical and
+# inject them into os.environ (taking priority over .env). Otherwise, fall back to
+# whatever's already in .env / the local environment so local dev keeps working
+# without an Infisical account.
+_INFISICAL_CLIENT_ID = os.getenv("INFISICAL_CLIENT_ID")
+_INFISICAL_CLIENT_SECRET = os.getenv("INFISICAL_CLIENT_SECRET")
+_INFISICAL_PROJECT_ID = os.getenv("INFISICAL_PROJECT_ID")
+_INFISICAL_ENVIRONMENT = os.getenv("INFISICAL_ENVIRONMENT", "dev")
+_INFISICAL_SITE_URL = os.getenv("INFISICAL_SITE_URL", "https://app.infisical.com")
+
+if _INFISICAL_CLIENT_ID and _INFISICAL_CLIENT_SECRET and _INFISICAL_PROJECT_ID:
+    try:
+        from infisical_sdk import InfisicalSDKClient
+
+        _infisical_client = InfisicalSDKClient(host=_INFISICAL_SITE_URL)
+        _infisical_client.auth.universal_auth.login(_INFISICAL_CLIENT_ID, _INFISICAL_CLIENT_SECRET)
+        _infisical_secrets = _infisical_client.secrets.list_secrets(
+            project_id=_INFISICAL_PROJECT_ID,
+            environment_slug=_INFISICAL_ENVIRONMENT,
+            secret_path="/",
+        )
+        for _secret in _infisical_secrets.secrets:
+            os.environ[_secret.secretKey] = _secret.secretValue
+        print(f"🔐 Infisical: loaded {len(_infisical_secrets.secrets)} secrets from '{_INFISICAL_ENVIRONMENT}'")
+    except Exception as e:
+        print(f"⚠️  Infisical fetch failed ({e}), falling back to local .env")
+else:
+    print("ℹ️  Infisical not configured (INFISICAL_CLIENT_ID/SECRET/PROJECT_ID unset), using local .env")
+
 # === Environment Variables ===
 # Support multiple OpenAI keys for rate-limit distribution.
 # Set OPENAI_API_KEY_2, OPENAI_API_KEY_3, etc. in Cloud Run env vars.
@@ -97,6 +127,8 @@ def add_cors(app: FastAPI):
     origins = [
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3001",
     ]
     if FRONTEND_URL and FRONTEND_URL not in origins:
         origins.append(FRONTEND_URL)

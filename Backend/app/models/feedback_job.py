@@ -38,8 +38,18 @@ class FeedbackJob(Base):
     # Worker lock — prevents double-processing
     locked_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
+    # NULL = immediately claimable. Set to NOW() + backoff on retry so a
+    # retrying job actually waits before _claim_next_jobs can see it again,
+    # instead of being requeued instantly or relying on a thread-blocking sleep.
+    available_at = Column(TIMESTAMP(timezone=True), nullable=True)
+
     # Error tracking
     error_message = Column(Text, nullable=True)
+
+    # Sanitized bucket derived from the raw error type — lets failures be
+    # aggregated (timeout vs rate_limit vs auth vs parsing vs data_error vs
+    # unknown) without parsing the free-text error_message.
+    error_category = Column(String(30), nullable=True)
 
     # Optional context for progressive feedback
     previous_feedback_json = Column(JSONB, nullable=True)
@@ -52,6 +62,13 @@ class FeedbackJob(Base):
 
     # Timestamps
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    # Stamped right before the AI call starts (after claiming + the ai_feedback
+    # reset dance). (generation_started_at - created_at) = time a job spent
+    # waiting for a free worker slot; (completed_at - generation_started_at)
+    # = time spent actually generating. Kept separate from locked_at, which
+    # marks claim time and would otherwise conflate the two.
+    generation_started_at = Column(TIMESTAMP(timezone=True), nullable=True)
     completed_at = Column(TIMESTAMP(timezone=True), nullable=True)
 
     __table_args__ = (

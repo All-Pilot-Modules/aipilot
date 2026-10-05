@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AppSidebar } from "@/components/app-sidebar";
@@ -55,7 +56,7 @@ function DocumentsContent() {
   const [isGenerateOpen, setIsGenerateOpen] = useState(false);
   const [selectedDocForGeneration, setSelectedDocForGeneration] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [generationForm, setGenerationForm] = useState({ num_short: 0, num_long: 0, num_mcq: 0 });
+  const [generationForm, setGenerationForm] = useState({ num_short: 0, num_long: 0, num_mcq: 0, instructions: "" });
   const [uploadStage, setUploadStage] = useState(0);
   const [isTestbank, setIsTestbank] = useState(false);
 
@@ -276,7 +277,7 @@ function DocumentsContent() {
       const response = await apiClient.post(`/api/documents/${selectedDocForGeneration.id}/generate-questions`, generationForm);
       setIsGenerateOpen(false);
       setSelectedDocForGeneration(null);
-      setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0 });
+      setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0, instructions: "" });
       alert(`Successfully generated ${response.generated_count} questions! Redirecting to review page...`);
       window.location.href = response.review_url;
     } catch (error) {
@@ -603,7 +604,7 @@ function DocumentsContent() {
                       <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
                         {isEmbedded && (
                           <button
-                            onClick={() => { setSelectedDocForGeneration(doc); setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0 }); setIsGenerateOpen(true); }}
+                            onClick={() => { setSelectedDocForGeneration(doc); setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0, instructions: "" }); setIsGenerateOpen(true); }}
                             title="Generate Questions"
                             className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
                           >
@@ -735,8 +736,17 @@ function DocumentsContent() {
                       <span className="font-normal text-muted-foreground text-xs"> / 100</span>
                     </span>
                   </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="generation-instructions" className="text-sm">Generation instructions <span className="font-normal text-muted-foreground">(optional)</span></Label>
+                    <Textarea id="generation-instructions" rows={2} maxLength={2000}
+                      value={generationForm.instructions}
+                      onChange={(e) => setGenerationForm({ ...generationForm, instructions: e.target.value })}
+                      placeholder="e.g., Focus on integrals, use moderate difficulty, and include practical examples."
+                      className="resize-y text-sm" />
+                    <p className="text-xs text-muted-foreground">Guide the topic or difficulty. Questions will still use this document.</p>
+                  </div>
                   <DialogFooter>
-                    <Button type="button" variant="outline" size="sm" onClick={() => { setIsGenerateOpen(false); setSelectedDocForGeneration(null); setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0 }); }}>
+                    <Button type="button" variant="outline" size="sm" onClick={() => { setIsGenerateOpen(false); setSelectedDocForGeneration(null); setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0, instructions: "" }); }}>
                       Cancel
                     </Button>
                     <Button type="submit" size="sm"

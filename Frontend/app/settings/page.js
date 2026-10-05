@@ -74,7 +74,7 @@ export default function SettingsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-gray-800/30 to-gray-900/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -82,7 +82,7 @@ export default function SettingsPage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-gray-800/30 to-gray-900/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-background">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
             <h1 className="text-xl mb-4">Access Denied</h1>
@@ -157,7 +157,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-800/30 to-gray-900/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-background">
       {/* Top Navigation Bar */}
       <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -214,15 +214,15 @@ export default function SettingsPage() {
       {/* Main Content */}
       <div className="max-w-6xl mx-auto px-6 py-8">
             {/* Profile Hero Card */}
-            <div className="mb-8 relative overflow-hidden rounded-3xl">
-              <div className="absolute inset-0 bg-gray-900 opacity-90"></div>
+            <div className="mb-8 relative overflow-hidden rounded-3xl border border-border shadow-sm">
+              <div className="absolute inset-0 bg-card"></div>
               <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjEiIHN0cm9rZS13aWR0aD0iMSIvPjwvcGF0dGVybj48L2RlZnM+PHJlY3Qgd2lkdGg9IjEwMCUiIGhlaWdodD0iMTAwJSIgZmlsbD0idXJsKCNncmlkKSIvPjwvc3ZnPg==')] opacity-30"></div>
-              <div className="relative p-10 text-white">
+              <div className="relative p-6 sm:p-10 text-card-foreground">
                 <div className="flex flex-col md:flex-row items-center md:items-start gap-8">
                   <div className="relative group">
-                    <Avatar className="w-32 h-32 ring-4 ring-white/30 shadow-2xl">
+                    <Avatar className="w-32 h-32 ring-4 ring-border shadow-sm">
                       <AvatarImage src={user?.profile_image} alt={user?.username} />
-                      <AvatarFallback className="bg-white/20 backdrop-blur-sm text-4xl font-bold text-white">
+                      <AvatarFallback className="bg-muted text-4xl font-bold text-foreground">
                         {user?.username?.charAt(0)?.toUpperCase() || 'U'}
                       </AvatarFallback>
                     </Avatar>
@@ -233,23 +233,23 @@ export default function SettingsPage() {
                   <div className="flex-1 text-center md:text-left">
                     <div className="flex flex-wrap items-center gap-3 justify-center md:justify-start mb-3">
                       <h1 className="text-4xl font-bold">{user?.username || 'User'}</h1>
-                      <Badge className="bg-white/20 backdrop-blur-sm border-white/30 text-white font-semibold px-3 py-1">
+                      <Badge className="bg-muted border-border text-foreground font-semibold px-3 py-1">
                         {user?.role?.toUpperCase() || 'USER'}
                       </Badge>
                       {user?.is_email_verified ? (
-                        <Badge className="bg-emerald-500/30 backdrop-blur-sm border-emerald-300/50 text-white font-semibold px-3 py-1 flex items-center gap-1">
+                        <Badge className="bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold px-3 py-1 flex items-center gap-1">
                           <CheckCircle className="w-4 h-4" />
                           Verified
                         </Badge>
                       ) : (
-                        <Badge className="bg-amber-500/30 backdrop-blur-sm border-amber-300/50 text-white font-semibold px-3 py-1 flex items-center gap-1">
+                        <Badge className="bg-amber-50 dark:bg-amber-950 border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-300 font-semibold px-3 py-1 flex items-center gap-1">
                           <AlertTriangle className="w-4 h-4" />
                           Unverified
                         </Badge>
                       )}
                     </div>
-                    <p className="text-white/90 text-lg mb-2">{user?.email || 'No email set'}</p>
-                    <p className="text-white/70 text-sm">Member for {getAccountAge()}</p>
+                    <p className="text-muted-foreground text-lg mb-2">{user?.email || 'No email set'}</p>
+                    <p className="text-muted-foreground text-sm">Member for {getAccountAge()}</p>
                   </div>
                 </div>
               </div>
@@ -257,53 +257,53 @@ export default function SettingsPage() {
 
             {/* Quick Stats Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-              <div className="relative overflow-hidden rounded-2xl bg-gray-900 p-6 shadow-lg">
+              <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                      <Shield className="w-6 h-6 text-white" />
+                    <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
+                      <Shield className="w-6 h-6 text-foreground" />
                     </div>
                   </div>
-                  <p className="text-sm font-medium text-white/80 mb-1">Account Status</p>
-                  <p className="text-3xl font-bold text-white">{user?.is_active ? 'Active' : 'Inactive'}</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Account Status</p>
+                  <p className="text-3xl font-bold text-foreground">{user?.is_active ? 'Active' : 'Inactive'}</p>
                 </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 p-6 shadow-lg">
+              <div className="relative overflow-hidden rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 p-6 shadow-sm">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
+                    <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
                       {user?.is_email_verified ? (
-                        <CheckCircle className="w-6 h-6 text-white" />
+                        <CheckCircle className="w-6 h-6 text-foreground" />
                       ) : (
-                        <Mail className="w-6 h-6 text-white" />
+                        <Mail className="w-6 h-6 text-foreground" />
                       )}
                     </div>
                   </div>
-                  <p className="text-sm font-medium text-white/80 mb-1">Email Status</p>
-                  <p className="text-3xl font-bold text-white">{user?.is_email_verified ? 'Verified' : 'Not Verified'}</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Email Status</p>
+                  <p className="text-3xl font-bold text-foreground">{user?.is_email_verified ? 'Verified' : 'Not Verified'}</p>
                 </div>
               </div>
 
-              <div className="relative overflow-hidden rounded-2xl bg-gray-900 p-6 shadow-lg">
+              <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm">
                 <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
-                    <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-xl flex items-center justify-center">
-                      <Calendar className="w-6 h-6 text-white" />
+                    <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
+                      <Calendar className="w-6 h-6 text-foreground" />
                     </div>
                   </div>
-                  <p className="text-sm font-medium text-white/80 mb-1">Member Since</p>
-                  <p className="text-3xl font-bold text-white">{getAccountAge()}</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">Member Since</p>
+                  <p className="text-3xl font-bold text-foreground">{getAccountAge()}</p>
                 </div>
               </div>
             </div>
 
             <div className="space-y-6">
               {/* Account Information */}
-              <Card className="border-border bg-card/50 backdrop-blur-sm shadow-lg">
+              <Card className="border-border bg-card shadow-sm">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div>
@@ -453,7 +453,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Security & Password */}
-              <Card className="border-border bg-card/50 backdrop-blur-sm shadow-lg">
+              <Card className="border-border bg-card shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-xl flex items-center gap-2">
                     <Shield className="w-5 h-5 text-primary" />
@@ -565,7 +565,7 @@ export default function SettingsPage() {
               </Card>
 
               {/* Appearance */}
-              <Card className="border-border bg-card/50 backdrop-blur-sm shadow-lg">
+              <Card className="border-border bg-card shadow-sm">
                 <CardHeader>
                   <CardTitle className="text-xl flex items-center gap-2">
                     <Palette className="w-5 h-5 text-primary" />

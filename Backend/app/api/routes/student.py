@@ -10,11 +10,12 @@ from app.core.auth import get_current_active_user
 from app.schemas.student_answer import StudentAnswerCreate, StudentAnswerOut, StudentAnswerUpdate
 from app.schemas.module import ModuleOut
 from app.schemas.document import DocumentOut
-from app.schemas.question import QuestionOut
+from app.schemas.question import QuestionStudentOut, sanitize_question_for_student
 from app.schemas.ai_feedback import AIFeedbackResponse
 from app.crud.student_answer import (
     create_student_answer,
     get_student_answer,
+    get_student_answer_by_id,
     get_student_answers_by_document,
     update_student_answer,
     delete_student_answer,
@@ -26,13 +27,14 @@ from app.models.module import Module
 from app.crud.document import get_documents_by_module, get_documents_by_module_for_students
 from app.database import get_db
 from app.services.feedback_worker import create_feedback_job, create_feedback_jobs_batch
+from app.core.auth import StudentIdentity, get_current_student, get_current_student_for_module, get_current_student_id
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
 # 🔍 Join module with access code
-@router.post("/join-module", response_model=ModuleOut)
+@router.post("/join-module")
 def join_module_with_code(
     access_code: str = Query(..., description="Module access code"),
     student_id: str = Query(None, description="Student Banner ID"),
@@ -41,9 +43,15 @@ def join_module_with_code(
 ):
     """
     Allow students to join a module using access code.
-    Creates an enrollment record if student_id is provided.
+    Creates an enrollment record if student_id is provided, and issues a
+    signed, module-scoped session token — every other student route derives
+    identity from this token rather than trusting a client-supplied
+    student_id (the access code is shared by the whole class, not a secret
+    per student, so anyone who knew a classmate's banner ID could otherwise
+    read or submit as them).
     """
     from app.models.student_enrollment import StudentEnrollment
+    from app.core.auth import create_student_token
     from datetime import datetime, timezone
 
     # Try exact match first
@@ -63,30 +71,35 @@ def join_module_with_code(
     if not module.is_active:
         raise HTTPException(status_code=400, detail="Module is not active")
 
-    # Create enrollment record if student_id is provided
-    if student_id:
-        # Check if already enrolled
-        existing_enrollment = db.query(StudentEnrollment).filter(
-            StudentEnrollment.student_id == student_id,
-            StudentEnrollment.module_id == module.id
-        ).first()
+    if not student_id:
+        raise HTTPException(status_code=400, detail="student_id is required to join")
 
-        if not existing_enrollment:
-            # Create new enrollment
-            enrollment = StudentEnrollment(
-                student_id=student_id,
-                module_id=module.id,
-                access_code_used=access_code.strip().upper(),
-                enrolled_at=datetime.now(timezone.utc)
-            )
-            db.add(enrollment)
-            db.commit()
-            db.refresh(enrollment)
-            logger.debug(f"Created enrollment for student {student_id}")
-        else:
-            logger.debug(f"Student {student_id} already enrolled")
+    # Create enrollment record if not already enrolled
+    existing_enrollment = db.query(StudentEnrollment).filter(
+        StudentEnrollment.student_id == student_id,
+        StudentEnrollment.module_id == module.id
+    ).first()
 
-    return module
+    if not existing_enrollment:
+        enrollment = StudentEnrollment(
+            student_id=student_id,
+            module_id=module.id,
+            access_code_used=access_code.strip().upper(),
+            enrolled_at=datetime.now(timezone.utc)
+        )
+        db.add(enrollment)
+        db.commit()
+        db.refresh(enrollment)
+        logger.debug(f"Created enrollment for student {student_id}")
+    else:
+        logger.debug(f"Student {student_id} already enrolled")
+
+    token = create_student_token(student_id, module.id)
+
+    return {
+        "token": token,
+        "module": ModuleOut.model_validate(module),
+    }
 
 # 📄 Get all documents in a module (for assignments)
 @router.get("/modules/{module_id}/documents", response_model=List[DocumentOut])
@@ -106,40 +119,43 @@ def get_module_documents(
     return documents
 
 # ❓ Get all questions for a module (the assignment)
-@router.get("/modules/{module_id}/questions", response_model=List[QuestionOut])
+@router.get("/modules/{module_id}/questions", response_model=List[QuestionStudentOut])
 def get_module_questions(
     module_id: UUID,
-    include_all: bool = Query(False, description="Include all questions (for teachers viewing critiques)"),
     db: Session = Depends(get_db)
 ):
     """
     Get all ACTIVE questions for a module (this is the assignment).
-    Students only see questions that have been approved by teachers.
-    Use include_all=true to fetch all questions including inactive ones (for teacher views).
+    Student-safe view only: no correct_answer/correct_option_id, and
+    extended_config has its answer-revealing fields stripped (see
+    sanitize_question_for_student) — hiding answers in the UI doesn't help
+    if the API response still contains them.
+
+    No "include all" escape hatch here on purpose — nothing in the frontend
+    calls this with anything but the active-only view, and a bare query flag
+    bypassing the status filter had no auth check on it at all. A teacher
+    view that needs inactive/draft questions belongs on a teacher-authenticated
+    endpoint, not a flag on the student route.
     """
     from app.crud.question import get_questions_by_status
-    from app.models.question import QuestionStatus, Question
+    from app.models.question import QuestionStatus
 
     module = get_module_by_id(db, module_id)
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
 
-    if include_all:
-        questions = db.query(Question).filter(Question.module_id == module_id).all()
-        return questions
-
     questions = get_questions_by_status(db, module_id, QuestionStatus.ACTIVE)
-    return questions
+    return [sanitize_question_for_student(q) for q in questions]
 
 # ❓ Get all questions for a document (assignment)
-@router.get("/documents/{document_id}/questions", response_model=List[QuestionOut])
+@router.get("/documents/{document_id}/questions", response_model=List[QuestionStudentOut])
 def get_assignment_questions(
     document_id: UUID,
     db: Session = Depends(get_db)
 ):
     """
     Get all ACTIVE questions for a specific document/assignment.
-    Students only see questions that have been approved by teachers.
+    Student-safe view only — see sanitize_question_for_student.
     """
     from app.crud.document import get_document_by_id
     from app.models.question import Question, QuestionStatus
@@ -153,36 +169,51 @@ def get_assignment_questions(
         Question.status == QuestionStatus.ACTIVE
     ).order_by(Question.question_order.nulls_last(), Question.id).all()
 
-    return questions
+    return [sanitize_question_for_student(q) for q in questions]
 
 # ✅ Submit answer for a question with instant AI feedback
 @router.post("/submit-answer")
 def submit_student_answer(
     answer_data: StudentAnswerCreate,
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
     Submit student answer for a question. AI feedback is enqueued and delivered async.
+
+    The answer save and its FeedbackJob (when one is needed) commit together
+    in a single transaction: either both land, or neither does. Without
+    that, a crash/error between the two commits would leave an answer
+    durably saved with no job ever created for it, and nothing would ever
+    grade it without a manual bulk-retry.
     """
     from app.crud.question import get_question_by_id
-    
+
+    # answer_data.student_id/module_id still exist in the request body for
+    # backward compatibility, but must never be trusted on their own — verify
+    # they match the signed session before doing anything with them.
+    if answer_data.student_id != identity.student_id or str(answer_data.module_id) != str(identity.module_id):
+        raise HTTPException(status_code=403, detail="Session does not match this submission")
+
     # Check if answer already exists for this attempt
     existing_answer = get_student_answer(
         db, answer_data.student_id, answer_data.question_id, answer_data.attempt
     )
-    
+
     if existing_answer:
-        # Update existing answer
+        # Update existing answer — deferred commit, see final db.commit() below
         update_data = StudentAnswerUpdate(answer=answer_data.answer)
-        updated_answer = update_student_answer(db, existing_answer.id, update_data)
-        created_answer = updated_answer
+        created_answer = update_student_answer(db, existing_answer.id, update_data, commit=False)
     else:
-        # Create new answer
-        created_answer = create_student_answer(db, answer_data)
-    
+        # Create new answer — deferred commit, see final db.commit() below
+        created_answer = create_student_answer(db, answer_data, commit=False)
+
     # Get module settings to determine max attempts
     question = get_question_by_id(db, str(answer_data.question_id))
     if not question:
+        # No job will be created — commit the answer save now.
+        db.commit()
+        db.refresh(created_answer)
         return {
             "success": True,
             "answer": created_answer,
@@ -242,6 +273,8 @@ def submit_student_answer(
         # Enqueue AI grading — returns in <10 ms instead of blocking 2-8 s per request.
         # The feedback_worker (10 threads) picks this up and writes back to AIFeedback.
         # Frontend already polls /feedback-status to show results as they arrive.
+        # commit=False: lands in the SAME transaction as the answer save above —
+        # either both persist or neither does.
         create_feedback_job(
             db=db,
             answer_id=created_answer.id,
@@ -251,7 +284,10 @@ def submit_student_answer(
             priority=2,  # higher priority than batch jobs
             previous_feedback_context=previous_feedback_context,
             is_final_attempt=False,
+            commit=False,
         )
+        db.commit()
+        db.refresh(created_answer)
         logger.info(f"[submit-answer] Queued feedback job for answer {created_answer.id}")
         return {
             "success": True,
@@ -273,6 +309,9 @@ def submit_student_answer(
         }
 
     else:
+        # No job will be created on this branch — commit the answer save now.
+        db.commit()
+        db.refresh(created_answer)
         # For final attempt, return result without feedback
         return {
             "success": True,
@@ -287,28 +326,36 @@ def submit_student_answer(
 @router.get("/documents/{document_id}/my-answers", response_model=List[StudentAnswerOut])
 def get_my_answers(
     document_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
     attempt: int = Query(1, description="Attempt number", ge=1, le=5),
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
     Get student's submitted answers for a document
     """
-    answers = get_student_answers_by_document(db, student_id, document_id, attempt)
+    from app.crud.document import get_document_by_id
+    document = get_document_by_id(db, str(document_id))
+    if not document or str(document.module_id) != str(identity.module_id):
+        raise HTTPException(status_code=403, detail="Session not valid for this document")
+    answers = get_student_answers_by_document(db, identity.student_id, document_id, attempt)
     return answers
 
 # 📈 Get student's progress for a document
 @router.get("/documents/{document_id}/progress")
 def get_assignment_progress(
     document_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
     attempt: int = Query(1, description="Attempt number", ge=1, le=5),
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
     Get student's progress for an assignment
     """
-    progress = get_student_progress(db, student_id, document_id, attempt)
+    from app.crud.document import get_document_by_id
+    document = get_document_by_id(db, str(document_id))
+    if not document or str(document.module_id) != str(identity.module_id):
+        raise HTTPException(status_code=403, detail="Session not valid for this document")
+    progress = get_student_progress(db, identity.student_id, document_id, attempt)
     return progress
 
 # ✏️ Update student answer
@@ -316,44 +363,58 @@ def get_assignment_progress(
 def update_my_answer(
     answer_id: UUID,
     answer_data: StudentAnswerUpdate,
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
     Update student's answer (only if not completed)
     """
+    existing = get_student_answer_by_id(db, answer_id)
+    if not existing or existing.student_id != identity.student_id:
+        raise HTTPException(status_code=404, detail="Answer not found")
+
     updated_answer = update_student_answer(db, answer_id, answer_data)
     if not updated_answer:
         raise HTTPException(status_code=404, detail="Answer not found")
-    
+
     return updated_answer
 
 # 🗑️ Delete student answer
 @router.delete("/answers/{answer_id}")
 def delete_my_answer(
     answer_id: UUID,
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
     Delete student's answer (only if not completed)
     """
+    existing = get_student_answer_by_id(db, answer_id)
+    if not existing or existing.student_id != identity.student_id:
+        raise HTTPException(status_code=404, detail="Answer not found")
+
     deleted_answer = delete_student_answer(db, answer_id)
     if not deleted_answer:
         raise HTTPException(status_code=404, detail="Answer not found")
-    
+
     return {"detail": "Answer deleted successfully"}
 
 # 🎯 Get specific student answer
 @router.get("/questions/{question_id}/my-answer")
 def get_my_answer_for_question(
     question_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
     attempt: int = Query(1, description="Attempt number", ge=1, le=5),
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
     Get student's answer for a specific question
     """
-    answer = get_student_answer(db, student_id, question_id, attempt)
+    from app.crud.question import get_question_by_id
+    question = get_question_by_id(db, str(question_id))
+    if not question or str(question.module_id) != str(identity.module_id):
+        raise HTTPException(status_code=403, detail="Session not valid for this question")
+    answer = get_student_answer(db, identity.student_id, question_id, attempt)
     if not answer:
         return None
     return answer
@@ -362,7 +423,7 @@ def get_my_answer_for_question(
 @router.get("/modules/{module_id}/my-answers", response_model=List[StudentAnswerOut])
 def get_my_module_answers(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
@@ -396,7 +457,7 @@ def get_my_module_answers(
 @router.get("/modules/{module_id}/progress")
 def get_module_progress(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     attempt: int = Query(1, description="Attempt number", ge=1, le=5),
     db: Session = Depends(get_db)
 ):
@@ -412,7 +473,7 @@ def get_module_progress(
 @router.get("/modules/{module_id}/feedback")
 def get_module_feedback(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """
@@ -500,7 +561,11 @@ def get_module_feedback(
             "generation_status": feedback.generation_status,
             "generation_progress": feedback.generation_progress,
             "error_message": feedback.error_message,
-            "can_retry": feedback.can_retry if feedback.generation_status in ['failed', 'timeout'] else False,
+            # A 'completed' record can still be canned fallback text (the OpenAI
+            # call failed but was caught internally and saved as if it succeeded)
+            # — surface that so the frontend can offer regeneration for it too.
+            "fallback": data.get("fallback", False),
+            "can_retry": feedback.can_retry if (feedback.generation_status in ['failed', 'timeout'] or data.get("fallback") is True) else False,
             "released": feedback.released,
             "requires_teacher_review": feedback.requires_teacher_review,
         })
@@ -570,17 +635,22 @@ def get_module_feedback(
 @router.get("/questions/{question_id}/feedback")
 def get_question_feedback(
     question_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
     attempt: int = Query(1, description="Attempt number", ge=1, le=5),
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
     Get AI feedback for a specific student's answer to a question
     """
     from app.crud.ai_feedback import get_feedback_by_answer
+    from app.crud.question import get_question_by_id
+
+    question = get_question_by_id(db, str(question_id))
+    if not question or str(question.module_id) != str(identity.module_id):
+        raise HTTPException(status_code=403, detail="Session not valid for this question")
 
     # First get the student answer
-    answer = get_student_answer(db, student_id, question_id, attempt)
+    answer = get_student_answer(db, identity.student_id, question_id, attempt)
     if not answer:
         raise HTTPException(status_code=404, detail="Answer not found")
 
@@ -603,6 +673,7 @@ def save_student_answer(
         description="If true, also queue a low-priority background grading job "
                      "for this answer (used by the idle-debounce autosave)."
     ),
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
@@ -616,6 +687,11 @@ def save_student_answer(
     so the answer is graded before the student submits. submit-test later
     compares the answer's content hash to decide whether to reuse that result.
     """
+    # answer_data.student_id/module_id still exist in the request body for
+    # backward compatibility, but must never be trusted on their own.
+    if answer_data.student_id != identity.student_id or str(answer_data.module_id) != str(identity.module_id):
+        raise HTTPException(status_code=403, detail="Session does not match this submission")
+
     # SECURITY: Verify question is active before allowing save
     from app.crud.question import get_question_by_id
     from app.models.question import QuestionStatus
@@ -775,7 +851,7 @@ def _maybe_queue_speculative_job(db: Session, answer_id, answer_data: StudentAns
 async def submit_test(
     module_id: UUID,
     request: Request,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     attempt: int = Query(1, description="Attempt number", ge=1),
     db: Session = Depends(get_db)
 ):
@@ -842,13 +918,18 @@ async def submit_test(
             detail="No answers found to submit"
         )
 
-    # Create submission record
+    # Create submission record — deferred commit; see the single final
+    # db.commit() below that lands this together with the reused/bumped
+    # feedback updates and any new FeedbackJob rows. A crash partway through
+    # must never leave a "submitted" test with some answers that will never
+    # get a job and so can never get graded.
     submission = create_submission(
         db=db,
         student_id=student_id,
         module_id=module_id,
         attempt=attempt,
-        questions_count=len(answers)
+        questions_count=len(answers),
+        commit=False,
     )
 
     logger.info(f"Test submitted - {len(answers)} questions")
@@ -927,9 +1008,6 @@ async def submit_test(
 
         answers_needing_new_job.append(answer)
 
-    if reused_count or bumped_count:
-        db.commit()
-
     logger.info(
         f"submit-test: {len(answers)} answers — {reused_count} reused, "
         f"{bumped_count} bumped to urgent, {len(answers_needing_new_job)} new jobs "
@@ -947,10 +1025,18 @@ async def submit_test(
             previous_feedback_context=previous_feedback_context,
             is_final_attempt=is_final,
             content_hashes=current_hashes,
+            commit=False,
         )
-    else:
+
+    # Single commit: the submission record, the reused/bumped feedback
+    # updates, and any new FeedbackJob rows all land together or not at all.
+    db.commit()
+
+    if not answers_needing_new_job:
         # Nothing left in flight for this attempt (fully reused) — the worker
         # will never complete a job to trigger scoring, so do it here.
+        # calculate_test_score opens its own session, so it must run after
+        # the commit above or it won't see what we just wrote.
         calculate_test_score(student_id, str(module_id), attempt)
 
     if needs_review_gate:
@@ -982,7 +1068,7 @@ async def submit_test(
 @router.get("/modules/{module_id}/submission-status")
 def get_submission_status(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """
@@ -1033,7 +1119,7 @@ def get_submission_status(
 @router.get("/modules/{module_id}/feedback-status")
 def get_feedback_status(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     attempt: int = Query(1, description="Attempt number", ge=1),
     db: Session = Depends(get_db)
 ):
@@ -1055,6 +1141,10 @@ def get_feedback_status(
 
     if not answers:
         return {
+            "attempt": attempt,
+            "feedback_failed": 0,
+            "feedback_retrying": 0,
+            "progress_percentage": 0,
             "total_questions": 0,
             "feedback_ready": 0,
             "feedback_pending": 0,
@@ -1076,87 +1166,80 @@ def get_feedback_status(
         FeedbackJob.module_id == module_id,
         FeedbackJob.attempt == attempt,
     ).all()
-    jobs_by_answer = {job.answer_id: job for job in jobs}
+    from app.services.feedback_job_state import current_jobs_by_answer, ACTIVE_JOB_STATUSES
+    jobs_by_answer = current_jobs_by_answer(jobs)
 
     feedback_status = []
-    ready_count = 0
-    queued_count = 0
-
+    ready_count = failed_count = retrying_count = queued_count = 0
     for answer in answers:
         feedback = feedback_by_answer.get(answer.id)
         job = jobs_by_answer.get(answer.id)
+        is_fallback = bool(feedback and (feedback.feedback_data or {}).get('fallback'))
+        is_completed = bool(feedback and feedback.generation_status == 'completed'
+                            and (feedback.feedback_data or {}).get('explanation') and not is_fallback)
+        has_active_job = bool(job and job.status in ACTIVE_JOB_STATUSES)
+        # Older workers marked exhausted fallback jobs done. Do not restart
+        # their retry budget every time the student polls.
+        terminal_failure = bool(job and job.status in ('failed', 'done')
+                                and not has_active_job and not is_completed)
 
-        is_completed = feedback is not None and feedback.generation_status == 'completed'
+        # Recovery for legacy failed feedback without a current queue job.
+        # Never let a historical failure hide an active retry.
+        if (not is_completed and not has_active_job and not terminal_failure
+                and feedback and (is_fallback or feedback.generation_status in ('failed', 'timeout', 'completed'))):
+            job = create_feedback_job(
+                db=db, answer_id=answer.id, student_id=student_id,
+                module_id=str(module_id), attempt=attempt, priority=1,
+            )
+            has_active_job = bool(job and job.status in ACTIVE_JOB_STATUSES)
+            queued_count += int(has_active_job)
 
-        if is_completed:
-            is_fallback = (feedback.feedback_data or {}).get('fallback', False)
-            if is_fallback:
-                has_active_job = job and job.status in ('queued', 'processing')
-                retries_exhausted = job and job.status == 'failed' and job.retry_count >= job.max_retries
-
-                if retries_exhausted:
-                    ready_count += 1
-                elif not has_active_job:
-                    create_feedback_job(
-                        db=db,
-                        answer_id=answer.id,
-                        student_id=student_id,
-                        module_id=str(module_id),
-                        attempt=attempt,
-                        priority=1,
-                    )
-            else:
-                ready_count += 1
-        elif feedback and feedback.generation_status in ['failed', 'timeout']:
-            has_active_job = job and job.status in ('queued', 'processing')
-            retries_exhausted = job and job.status == 'failed' and job.retry_count >= job.max_retries
-
-            if retries_exhausted:
-                ready_count += 1
-            elif not has_active_job:
-                create_feedback_job(
-                    db=db,
-                    answer_id=answer.id,
-                    student_id=student_id,
-                    module_id=str(module_id),
-                    attempt=attempt,
-                    priority=1,
-                )
-                queued_count += 1
-
-        job_status = job.status if job else None
-        is_fallback = is_completed and (feedback.feedback_data or {}).get('fallback', False)
-
+        is_ready = is_completed and not has_active_job
+        is_retrying = has_active_job and bool(
+            job.retry_count or is_fallback
+            or (feedback and feedback.generation_status in ('failed', 'timeout'))
+            or any(j.answer_id == answer.id and j.status == 'failed' for j in jobs)
+        )
+        ready_count += int(is_ready)
+        failed_count += int(terminal_failure)
+        retrying_count += int(is_retrying)
         feedback_status.append({
             "question_id": str(answer.question_id),
             "answer_id": str(answer.id),
             "has_feedback": feedback is not None,
-            "is_completed": is_completed and not is_fallback,
+            "is_completed": is_ready,
             "is_fallback": is_fallback,
             "generation_status": feedback.generation_status if feedback else None,
-            "job_status": job_status,
+            "job_status": job.status if job else None,
             "feedback_id": str(feedback.id) if feedback else None,
+            "is_retrying": is_retrying,
+            "is_failed": terminal_failure,
+            "retry_count": job.retry_count if job else 0,
+            "max_retries": job.max_retries if job else None,
+            "error_category": job.error_category if terminal_failure else None,
         })
 
     total = len(answers)
-    pending = total - ready_count
-    all_complete = ready_count == total
-
+    finished = ready_count + failed_count
     return {
+        "attempt": attempt,
         "total_questions": total,
         "feedback_ready": ready_count,
-        "feedback_pending": pending,
-        "progress_percentage": int((ready_count / total) * 100) if total > 0 else 0,
-        "all_complete": all_complete,
+        "feedback_failed": failed_count,
+        "feedback_retrying": retrying_count,
+        "feedback_pending": total - finished,
+        "progress_percentage": int((ready_count / total) * 100) if total else 0,
+        "all_complete": finished == total,
         "auto_retried": queued_count,
         "questions": feedback_status,
     }
+
 
 # 🧹 Cleanup stale feedback (called by frontend after timeout)
 @router.post("/modules/{module_id}/cleanup-feedback")
 def cleanup_stale_module_feedback(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """
@@ -1188,11 +1271,18 @@ def cleanup_stale_module_feedback(
     ).all()
     feedback_by_answer = {fb.answer_id: fb for fb in all_feedback}
 
+    from app.models.feedback_job import FeedbackJob
+    from app.services.feedback_job_state import ACTIVE_JOB_STATUSES
+    active_answers = {row[0] for row in db.query(FeedbackJob.answer_id).filter(
+        FeedbackJob.answer_id.in_(answer_ids),
+        FeedbackJob.status.in_(ACTIVE_JOB_STATUSES),
+    ).all()}
+
     # Check which answers have feedback
     missing_feedback = []
     for answer in answers:
         feedback = feedback_by_answer.get(answer.id)
-        if not feedback:
+        if not feedback and answer.id not in active_answers:
             missing_feedback.append(answer.id)
             logger.warning(f"⚠️ Answer {answer.id} has no feedback row - creating failed placeholder")
             # Create a failed feedback row
@@ -1241,7 +1331,7 @@ def cleanup_stale_module_feedback(
 @router.post("/modules/{module_id}/regenerate-all-feedback")
 def regenerate_all_failed_feedback(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     attempt: int = Query(..., description="Attempt number"),
     db: Session = Depends(get_db)
 ):
@@ -1338,10 +1428,10 @@ def regenerate_all_failed_feedback(
 @router.post("/feedback/{feedback_id}/critique")
 def create_or_update_feedback_critique(
     feedback_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
     rating: int = Query(..., description="Rating from 1-5", ge=1, le=5),
     comment: str = Query(None, description="Optional comment"),
     feedback_type: str = Query(None, description="Category: helpful, not_helpful, incorrect, too_vague, too_harsh"),
+    identity: StudentIdentity = Depends(get_current_student),
     db: Session = Depends(get_db)
 ):
     """
@@ -1351,11 +1441,18 @@ def create_or_update_feedback_critique(
     """
     from app.models.feedback_critique import FeedbackCritique
     from app.models.ai_feedback import AIFeedback
+    from app.models.student_answer import StudentAnswer
 
-    # Verify feedback exists
+    # Verify feedback exists and belongs to this student's own answer
     feedback = db.query(AIFeedback).filter(AIFeedback.id == feedback_id).first()
     if not feedback:
         raise HTTPException(status_code=404, detail="Feedback not found")
+
+    owning_answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first()
+    if not owning_answer or owning_answer.student_id != identity.student_id:
+        raise HTTPException(status_code=403, detail="This feedback does not belong to your session")
+
+    student_id = identity.student_id
 
     # Check if student has already critiqued this feedback
     existing_critique = db.query(FeedbackCritique).filter(
@@ -1423,7 +1520,7 @@ def create_or_update_feedback_critique(
 @router.get("/feedback/{feedback_id}/critique")
 def get_feedback_critique(
     feedback_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_id),
     db: Session = Depends(get_db)
 ):
     """
@@ -1586,7 +1683,7 @@ def get_module_feedback_critiques(
 @router.get("/modules/{module_id}/mastery/state")
 def get_mastery_state(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """
@@ -1763,7 +1860,7 @@ def mastery_submit_answer(
 @router.post("/modules/{module_id}/mastery/reset")
 def reset_mastery_queue(
     module_id: UUID,
-    student_id: str = Query(..., description="Student ID"),
+    student_id: str = Depends(get_current_student_for_module),
     db: Session = Depends(get_db)
 ):
     """

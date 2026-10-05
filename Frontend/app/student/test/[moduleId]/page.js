@@ -8,8 +8,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { MathText } from "@/components/MathText";
+import { StudentAnswerField as EquationField } from "@/components/StudentAnswerField";
 import {
   ArrowLeft,
   ArrowRight,
@@ -1444,7 +1445,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                   {/* Question Text - Only show for non-fill_blank types */}
                   {currentQ?.type !== 'fill_blank' && (
                     <div className="prose dark:prose-invert max-w-none" id={`question-text-${currentQ.id}`}>
-                      <p className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ?.text}</p>
+                      <MathText className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ?.text}</MathText>
                     </div>
                   )}
 
@@ -1455,7 +1456,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                         <Target className="w-4 h-4 text-blue-600 mt-1" />
                         <div>
                           <h4 className="font-medium text-blue-900 dark:text-blue-100">Learning Outcome</h4>
-                          <p className="text-sm text-blue-700 dark:text-blue-300">{currentQ.learning_outcome}</p>
+                          <p className="text-sm text-blue-700 dark:text-blue-300"><MathText inline>{currentQ.learning_outcome}</MathText></p>
                         </div>
                       </div>
                     </div>
@@ -1531,7 +1532,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                                 className="flex-1 cursor-pointer text-base leading-relaxed"
                               >
                                 <span className="font-semibold mr-3 text-blue-600">{key}.</span>
-                                <span className={`whitespace-pre-wrap ${isSelected ? 'text-blue-900 dark:text-blue-100' : ''}`}>{option}</span>
+                                <MathText inline className={`whitespace-pre-wrap ${isSelected ? 'text-blue-900 dark:text-blue-100' : ''}`}>{option}</MathText>
                               </Label>
                             </div>
                           );
@@ -1577,7 +1578,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                                   className="flex-1 cursor-pointer text-base leading-relaxed"
                                 >
                                   <span className="font-semibold mr-3 text-green-600">{key}.</span>
-                                  <span className={`whitespace-pre-wrap ${isSelected ? 'text-green-900 dark:text-green-100' : ''}`}>{option}</span>
+                                  <MathText inline className={`whitespace-pre-wrap ${isSelected ? 'text-green-900 dark:text-green-100' : ''}`}>{option}</MathText>
                                 </Label>
                               </div>
                             );
@@ -1597,7 +1598,7 @@ const StudentTestPage = memo(function StudentTestPage() {
 
                               return parts.map((part, index) => (
                                 <span key={index}>
-                                  {part}
+                                  <MathText inline>{part}</MathText>
                                   {index < parts.length - 1 && (
                                     <span className="inline-flex items-center mx-1 px-3 py-1 bg-blue-100 dark:bg-blue-900/40 border border-blue-300 dark:border-blue-700 rounded font-medium text-blue-900 dark:text-blue-100">
                                       {currentBlanks[blanks[index]?.position] || `___${index + 1}___`}
@@ -1656,7 +1657,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                                   <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded font-medium text-sm">
                                     {subQ.id}
                                   </span>
-                                  <p className="mt-2 text-base">{subQ.text}</p>
+                                  <MathText className="mt-2 text-base">{subQ.text}</MathText>
                                 </div>
                                 {subQ.type === 'mcq' ? (
                                   <div className="space-y-2">
@@ -1683,32 +1684,31 @@ const StudentTestPage = memo(function StudentTestPage() {
                                           />
                                           <Label className="flex-1 cursor-pointer text-sm">
                                             <span className="font-semibold mr-2">{key}.</span>
-                                            {option}
+                                            <MathText inline>{option}</MathText>
                                           </Label>
                                         </div>
                                       );
                                     })}
                                   </div>
                                 ) : subQ.type === 'short' ? (
-                                  <Input
+                                  <EquationField
                                     value={currentSubAnswers[subQ.id] || ''}
-                                    onChange={(e) => {
-                                      const newSubAnswers = {...currentSubAnswers, [subQ.id]: e.target.value};
+                                    onChange={(v) => {
+                                      const newSubAnswers = {...currentSubAnswers, [subQ.id]: v};
                                       updateAnswer(currentQ.id, newSubAnswers);
                                     }}
-                                    placeholder="Your answer..."
-                                    className="text-sm"
+                                    placeholder="Your answer... use $x^2$ for math"
+                                    rows={1}
                                   />
                                 ) : (
-                                  <Textarea
+                                  <EquationField
                                     value={currentSubAnswers[subQ.id] || ''}
-                                    onChange={(e) => {
-                                      const newSubAnswers = {...currentSubAnswers, [subQ.id]: e.target.value};
+                                    onChange={(v) => {
+                                      const newSubAnswers = {...currentSubAnswers, [subQ.id]: v};
                                       updateAnswer(currentQ.id, newSubAnswers);
                                     }}
-                                    placeholder="Write your detailed answer..."
+                                    placeholder="Write your detailed answer... use $x^2$ for inline math or $$x^2$$ for a block equation"
                                     rows={4}
-                                    className="text-sm"
                                   />
                                 )}
                               </div>
@@ -1719,26 +1719,23 @@ const StudentTestPage = memo(function StudentTestPage() {
                     ) : currentQ?.type === 'short' ? (
                       <div>
                         <Label htmlFor={`answer-${currentQ.id}`} className="sr-only">Your short answer</Label>
-                        <Input
+                        <EquationField
                           id={`answer-${currentQ.id}`}
                           value={answers[currentQ.id] || ''}
-                          onChange={(e) => updateAnswer(currentQ.id, e.target.value)}
-                          placeholder="Enter your short answer..."
-                          className="text-base"
-                          aria-describedby={`question-text-${currentQ.id}`}
+                          onChange={(v) => updateAnswer(currentQ.id, v)}
+                          placeholder="Enter your short answer... use $x^2$ for math"
+                          rows={1}
                         />
                       </div>
                     ) : (
                       <div>
                         <Label htmlFor={`answer-${currentQ.id}`} className="sr-only">Your detailed answer</Label>
-                        <Textarea
+                        <EquationField
                           id={`answer-${currentQ.id}`}
                           value={answers[currentQ.id] || ''}
-                          onChange={(e) => updateAnswer(currentQ.id, e.target.value)}
-                          placeholder="Write your detailed response here..."
+                          onChange={(v) => updateAnswer(currentQ.id, v)}
+                          placeholder="Write your detailed response here... use $x^2$ for inline math or $$x^2$$ for a block equation"
                           rows={8}
-                          className="text-base"
-                          aria-describedby={`question-text-${currentQ.id}`}
                         />
                       </div>
                     )}
@@ -1864,9 +1861,9 @@ const StudentTestPage = memo(function StudentTestPage() {
                     <Badge variant="outline" className="bg-white dark:bg-gray-900 shrink-0">
                       Q{questions.findIndex(qu => qu.id === q.id) + 1}
                     </Badge>
-                    <p className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                    <MathText className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
                       {q.text}
-                    </p>
+                    </MathText>
                   </div>
                 </div>
               ))}
