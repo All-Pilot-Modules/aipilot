@@ -410,7 +410,7 @@ export default function MyModules() {
                                 title="Copy access code" aria-label="Copy access code"
                               >
                                 {copiedItems[`${module.id}-code`] ? (
-                                  <Check className="w-4 h-4 text-green-600" />
+                                  <Check className="w-4 h-4 text-green-600 dark:text-green-300" />
                                 ) : (
                                   <Copy className="w-4 h-4" />
                                 )}
@@ -443,7 +443,7 @@ export default function MyModules() {
                               >
                                 {copiedItems[`${module.id}-url`] ? (
                                   <>
-                                    <Check className="w-3.5 h-3.5 mr-2 text-green-600" />
+                                    <Check className="w-3.5 h-3.5 mr-2 text-green-600 dark:text-green-300" />
                                     <span className="text-sm font-medium">Copied</span>
                                   </>
                                 ) : (

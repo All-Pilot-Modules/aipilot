@@ -163,16 +163,16 @@ export default function JoinModule() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-muted/50 dark:bg-card">
       <div className="max-w-md mx-auto px-6 py-12">
         <div className="text-center mb-8">
           <div className="w-16 h-16 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center mx-auto mb-4">
             <Users className="w-8 h-8 text-blue-600 dark:text-blue-400" />
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900 dark:text-white mb-2">
+          <h1 className="text-2xl font-semibold text-gray-900 dark:text-foreground mb-2">
             Join a Module
           </h1>
-          <p className="text-gray-600 dark:text-gray-400">
+          <p className="text-gray-600 dark:text-muted-foreground">
             Enter your Banner ID and access code to join a learning module
           </p>
         </div>
@@ -198,7 +198,7 @@ export default function JoinModule() {
                   className="mt-1"
                   disabled={loading}
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1">
                   This is your institutional student ID
                 </p>
               </div>
@@ -215,7 +215,7 @@ export default function JoinModule() {
                   className="mt-1"
                   disabled={loading}
                 />
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                <p className="text-xs text-gray-500 dark:text-muted-foreground mt-1">
                   Get this from your instructor or course materials
                 </p>
               </div>
@@ -253,7 +253,7 @@ export default function JoinModule() {
         </Card>
 
         <div className="text-center mt-6 space-y-2">
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-muted-foreground">
             Do not have an access code? Contact your instructor.
           </p>
           <Button variant="outline" asChild>

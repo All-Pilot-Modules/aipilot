@@ -59,7 +59,7 @@ const BROKEN_LATEX = {
 function Case({ title, form }) {
   return (
     <div className="mb-16">
-      <div className="sticky top-0 z-20 bg-yellow-200 px-3 py-1 text-sm font-bold text-black">{title}</div>
+      <div className="sticky top-0 z-20 bg-yellow-200 dark:bg-yellow-950/40 px-3 py-1 text-sm font-bold text-foreground">{title}</div>
       <div className="relative flex h-[1000px] w-full flex-col border-4 border-dashed border-red-400">
         <MathQuestionEditorBody questionForm={form} setQuestionForm={() => {}} onDone={() => {}} asDialog={false} />
       </div>
@@ -117,7 +117,7 @@ function InteractiveHarness() {
 export default function DevMathTest() {
   const [studentAnswer, setStudentAnswer] = useState("");
   return (
-    <div className="bg-neutral-100 py-8">
+    <div className="bg-muted py-8">
       <section className="mx-auto mb-8 max-w-3xl rounded-xl bg-background p-6">
         <h2 className="mb-4 text-lg font-semibold">Student equation editor</h2>
         <StudentAnswerField value={studentAnswer} onChange={setStudentAnswer} />

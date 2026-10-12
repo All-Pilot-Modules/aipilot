@@ -43,7 +43,7 @@ export const ErrorAlert = memo(({ error, onRetry, className = "" }) => {
                 onClick={onRetry}
                 variant="outline"
                 size="sm"
-                className="bg-white dark:bg-gray-800 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
+                className="bg-card dark:bg-muted border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/30"
               >
                 <RefreshCw className="w-4 h-4 mr-2" />
                 {retrySuggestion.message}
@@ -98,7 +98,7 @@ export const EmptyStateError = memo(({ error, onRetry, title = "Nothing to show"
 
   return (
     <div className={`text-center py-12 ${className}`}>
-      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-800 mb-4">
+      <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-muted mb-4">
         {error ? (
           <AlertCircle className="w-8 h-8 text-red-500" />
         ) : (
@@ -106,12 +106,12 @@ export const EmptyStateError = memo(({ error, onRetry, title = "Nothing to show"
         )}
       </div>
 
-      <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-2">
+      <h3 className="text-lg font-semibold text-gray-900 dark:text-foreground mb-2">
         {title}
       </h3>
 
       {message && (
-        <p className="text-sm text-gray-600 dark:text-gray-400 mb-4 max-w-md mx-auto">
+        <p className="text-sm text-gray-600 dark:text-muted-foreground mb-4 max-w-md mx-auto">
           {message}
         </p>
       )}

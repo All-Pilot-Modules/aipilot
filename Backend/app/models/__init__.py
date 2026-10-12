@@ -23,3 +23,5 @@ from app.models.chat_message import ChatMessage  # noqa: F401
 from app.models.enrollment_claim import EnrollmentClaim  # noqa: F401
 from app.models.module_batch import ModuleBatch  # noqa: F401
 from app.models.module_collaborator import ModuleCollaborator  # noqa: F401
+
+from app.models.learning_memory import LearningMemory  # noqa: F401

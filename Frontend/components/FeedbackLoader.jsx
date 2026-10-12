@@ -25,11 +25,11 @@ export function FeedbackGeneratingBanner({ feedbackStatus, pollCount }) {
             {/* Header */}
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <h3 className="text-xl font-bold text-gray-900 dark:text-foreground flex items-center gap-2">
                   <Sparkles className="w-5 h-5 text-yellow-500 animate-pulse" />
                   AI is Analyzing Your Answers
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1">
                   Generating personalized feedback for each question...
                 </p>
               </div>
@@ -37,7 +37,7 @@ export function FeedbackGeneratingBanner({ feedbackStatus, pollCount }) {
                 <div className="text-3xl font-bold text-blue-600 dark:text-blue-400">
                   {ready}/{total}
                 </div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">
+                <div className="text-xs text-gray-500 dark:text-muted-foreground">
                   questions analyzed
                 </div>
               </div>
@@ -47,7 +47,7 @@ export function FeedbackGeneratingBanner({ feedbackStatus, pollCount }) {
             <div className="space-y-2">
               <Progress value={progress} className="h-3" />
               <div className="flex items-center justify-between text-sm">
-                <span className="text-gray-600 dark:text-gray-400">
+                <span className="text-gray-600 dark:text-muted-foreground">
                   {progress}% complete
                 </span>
                 {pollCount > 20 && (
@@ -61,19 +61,19 @@ export function FeedbackGeneratingBanner({ feedbackStatus, pollCount }) {
 
             {/* Status Messages */}
             {progress < 30 && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+              <p className="text-xs text-gray-500 dark:text-muted-foreground flex items-center gap-2">
                 <span className="w-2 h-2 bg-blue-500 rounded-full animate-ping inline-block"></span>
                 Reviewing your responses and comparing with learning materials...
               </p>
             )}
             {progress >= 30 && progress < 70 && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+              <p className="text-xs text-gray-500 dark:text-muted-foreground flex items-center gap-2">
                 <span className="w-2 h-2 bg-indigo-500 rounded-full animate-ping inline-block"></span>
                 Analyzing answer quality and identifying strengths...
               </p>
             )}
             {progress >= 70 && (
-              <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-2">
+              <p className="text-xs text-gray-500 dark:text-muted-foreground flex items-center gap-2">
                 <span className="w-2 h-2 bg-purple-500 rounded-full animate-ping inline-block"></span>
                 Generating improvement suggestions and final scores...
               </p>
@@ -92,14 +92,14 @@ export function FeedbackSkeletonCard() {
         {/* Header Skeleton */}
         <div className="flex items-center justify-between">
           <div className="space-y-2 flex-1">
-            <div className="h-6 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
-            <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/2"></div>
+            <div className="h-6 bg-muted rounded w-3/4"></div>
+            <div className="h-4 bg-muted rounded w-1/2"></div>
           </div>
-          <div className="h-16 w-16 bg-gray-200 dark:bg-gray-700 rounded-lg"></div>
+          <div className="h-16 w-16 bg-muted rounded-lg"></div>
         </div>
 
         {/* Score Skeleton */}
-        <div className="h-20 bg-gradient-to-r from-gray-100 to-gray-200 dark:from-gray-800 dark:to-gray-700 rounded-lg"></div>
+        <div className="h-20 bg-gradient-to-r from-muted to-muted rounded-lg"></div>
 
         {/* Feedback Sections */}
         <div className="space-y-3">
@@ -115,9 +115,9 @@ export function FeedbackSkeletonCard() {
 export function QuestionFeedbackLoader({ questionNumber, isAnswered }) {
   if (!isAnswered) {
     return (
-      <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg text-center">
+      <div className="bg-muted/50 dark:bg-muted p-6 rounded-lg text-center">
         <div className="text-gray-400 mb-2">Question {questionNumber}</div>
-        <p className="text-gray-600 dark:text-gray-400 font-medium">
+        <p className="text-gray-600 dark:text-muted-foreground font-medium">
           No answer provided
         </p>
       </div>
@@ -153,7 +153,7 @@ export function QuestionFeedbackLoader({ questionNumber, isAnswered }) {
         <div className="w-2 h-2 bg-purple-500 rounded-full animate-bounce" style={{ animationDelay: '0.4s' }}></div>
       </div>
 
-      <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
+      <p className="text-xs text-gray-500 dark:text-muted-foreground mt-4">
         This may take 10-30 seconds per question
       </p>
     </div>
@@ -176,14 +176,14 @@ export function AllQuestionsLoader({ totalQuestions }) {
       </div>
 
       <div className="space-y-2">
-        <h3 className="text-2xl font-bold text-gray-900 dark:text-white flex items-center justify-center gap-2">
+        <h3 className="text-2xl font-bold text-gray-900 dark:text-foreground flex items-center justify-center gap-2">
           <Sparkles className="w-6 h-6 text-yellow-500 animate-pulse" />
           Generating Your Feedback
         </h3>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600 dark:text-muted-foreground">
           Please wait while we analyze your {totalQuestions} answers
         </p>
-        <p className="text-sm text-gray-500 dark:text-gray-500">
+        <p className="text-sm text-gray-500 dark:text-muted-foreground">
           This may take a few moments...
         </p>
       </div>

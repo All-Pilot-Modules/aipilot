@@ -71,7 +71,7 @@ export default function PrefillControlPanel({
         <div className="flex items-center justify-between">
           <div className="flex-1">
             <CardTitle className="text-lg flex items-center gap-2">
-              <RotateCcw className="w-5 h-5 text-blue-600" />
+              <RotateCcw className="w-5 h-5 text-blue-600 dark:text-blue-300" />
               Prefill from Previous Attempt
             </CardTitle>
             <CardDescription className="mt-1">
@@ -99,7 +99,7 @@ export default function PrefillControlPanel({
                 id="attempt-select"
                 value={selectedPrefillAttempt}
                 onChange={(e) => setSelectedPrefillAttempt(Number(e.target.value))}
-                className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="px-3 py-1.5 border border-border rounded-md bg-card dark:bg-muted text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
                 {previousAttempts.map(attempt => (
                   <option key={attempt.attemptNumber} value={attempt.attemptNumber}>
@@ -119,7 +119,7 @@ export default function PrefillControlPanel({
           {/* Prefill All Button */}
           <Button
             onClick={() => prefillAllAnswers(selectedPrefillAttempt)}
-            className="bg-blue-600 hover:bg-blue-700"
+            className="bg-blue-600 hover:bg-blue-700 text-white"
             size="sm"
             disabled={currentAttemptData && Object.keys(currentAttemptData.answers).length === 0}
           >
@@ -178,7 +178,7 @@ export default function PrefillControlPanel({
                       flex items-start gap-3 p-3 rounded-lg border transition-all cursor-pointer
                       ${isSelected
                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+                        : 'border-border hover:border-border hover:bg-muted/50 dark:hover:bg-muted'
                       }
                     `}
                     onClick={() => toggleQuestionSelection(question.id)}
@@ -188,7 +188,7 @@ export default function PrefillControlPanel({
                       type="checkbox"
                       checked={isSelected}
                       onChange={() => {}}
-                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded cursor-pointer"
+                      className="mt-1 h-4 w-4 text-blue-600 dark:text-blue-300 focus:ring-blue-500 border-border rounded cursor-pointer"
                     />
 
                     {/* Content */}
@@ -196,7 +196,7 @@ export default function PrefillControlPanel({
                       <div className="flex items-start justify-between gap-2 mb-1">
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                            <span className="text-sm font-semibold text-gray-900 dark:text-foreground">
                               Q{index + 1}
                             </span>
                             {feedbackData && (
@@ -204,8 +204,8 @@ export default function PrefillControlPanel({
                                 variant={isCorrect ? "default" : "destructive"}
                                 className={`text-xs ${
                                   isCorrect
-                                    ? 'bg-green-600 hover:bg-green-700'
-                                    : 'bg-red-600 hover:bg-red-700'
+                                    ? 'bg-green-700 hover:bg-green-700 text-white'
+                                    : 'bg-red-600 hover:bg-red-700 text-white'
                                 }`}
                               >
                                 {isCorrect ? (
@@ -225,14 +225,14 @@ export default function PrefillControlPanel({
                               {question.type === 'mcq' ? 'MCQ' : question.type === 'short' ? 'Short' : 'Essay'}
                             </Badge>
                           </div>
-                          <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">
+                          <p className="text-xs text-gray-600 dark:text-muted-foreground mb-2">
                             {getQuestionText(question.id)}
                           </p>
-                          <div className="bg-gray-100 dark:bg-gray-800 p-2 rounded text-xs">
-                            <span className="font-medium text-gray-700 dark:text-gray-300">
+                          <div className="bg-muted p-2 rounded text-xs">
+                            <span className="font-medium text-gray-700 dark:text-foreground">
                               Previous answer:{" "}
                             </span>
-                            <span className="text-gray-600 dark:text-gray-400">
+                            <span className="text-gray-600 dark:text-muted-foreground">
                               {getAnswerPreview(question.id, answerData.value)}
                             </span>
                           </div>
@@ -244,7 +244,7 @@ export default function PrefillControlPanel({
               })}
 
               {Object.keys(currentAttemptData.answers).length === 0 && (
-                <div className="text-center py-6 text-gray-500 dark:text-gray-400">
+                <div className="text-center py-6 text-gray-500 dark:text-muted-foreground">
                   <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
                   <p className="text-sm">No answers found in this attempt</p>
                 </div>
@@ -255,12 +255,12 @@ export default function PrefillControlPanel({
           {/* Apply Selected Button */}
           {isExpanded && selectedQuestionsForPrefill.size > 0 && (
             <div className="pt-3 border-t flex items-center justify-between">
-              <span className="text-sm text-gray-600 dark:text-gray-400">
+              <span className="text-sm text-gray-600 dark:text-muted-foreground">
                 {selectedQuestionsForPrefill.size} question{selectedQuestionsForPrefill.size !== 1 ? 's' : ''} selected
               </span>
               <Button
                 onClick={prefillSelectedQuestions}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
                 size="sm"
               >
                 <CheckCircle className="w-4 h-4 mr-2" />

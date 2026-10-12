@@ -131,7 +131,7 @@ function ChatbotSettingsContent() {
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-800/30 to-gray-900/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+          <div className="min-h-screen bg-gradient-to-br from-muted/50 via-gray-800/30 to-gray-900/20 dark:from-card dark:via-muted dark:to-card">
             <div className="max-w-5xl mx-auto px-6 py-8">
               {/* Breadcrumb Skeleton */}
               <div className="mb-6">
@@ -174,7 +174,7 @@ function ChatbotSettingsContent() {
               <CardContent className="p-6 text-center">
                 <AlertCircle className="w-16 h-16 text-red-500 mx-auto mb-4" />
                 <h3 className="text-lg font-semibold mb-2">Module Not Found</h3>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-muted-foreground">
                   Please select a module from the dashboard.
                 </p>
               </CardContent>
@@ -193,12 +193,12 @@ function ChatbotSettingsContent() {
       <AppSidebar />
       <SidebarInset>
         <SiteHeader />
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-gray-800/30 to-gray-900/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+        <div className="min-h-screen bg-gradient-to-br from-muted/50 via-gray-800/30 to-gray-900/20 dark:from-card dark:via-muted dark:to-card">
           <div className="max-w-5xl mx-auto px-6 py-8">
         {/* Breadcrumb Navigation */}
         <div className="mb-6">
-          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-3">
-            <Link href="/dashboard" className="hover:text-gray-900 dark:hover:text-gray-100">
+          <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-muted-foreground mb-3">
+            <Link href="/dashboard" className="hover:text-gray-900 dark:hover:text-foreground">
               Dashboard
             </Link>
             <span>/</span>
@@ -206,14 +206,14 @@ function ChatbotSettingsContent() {
               <>
                 <Link
                   href={`/dashboard?module=${encodeURIComponent(moduleName)}`}
-                  className="hover:text-gray-900 dark:hover:text-gray-100"
+                  className="hover:text-gray-900 dark:hover:text-foreground"
                 >
                   {moduleName}
                 </Link>
                 <span>/</span>
               </>
             )}
-            <span className="text-gray-900 dark:text-gray-100">Chatbot Settings</span>
+            <span className="text-gray-900 dark:text-foreground">Chatbot Settings</span>
           </div>
           <Button
             variant="outline"
@@ -229,14 +229,14 @@ function ChatbotSettingsContent() {
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
-            <div className="w-12 h-12 bg-gray-900 rounded-xl flex items-center justify-center">
-              <Brain className="w-6 h-6 text-white" />
+            <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center text-primary-foreground">
+              <Brain className="w-6 h-6 text-primary-foreground" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground">
                 AI Chatbot Settings
               </h1>
-              <p className="text-gray-600 dark:text-gray-400">
+              <p className="text-gray-600 dark:text-muted-foreground">
                 Customize how the AI tutor responds to students
               </p>
             </div>
@@ -249,7 +249,7 @@ function ChatbotSettingsContent() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold mb-1">{moduleData.module_name}</h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-600 dark:text-muted-foreground">
                   Module ID: {moduleData.module_id}
                 </p>
               </div>
@@ -258,7 +258,7 @@ function ChatbotSettingsContent() {
                   {moduleData.chatbot_enabled ? "Chatbot Enabled" : "Chatbot Disabled"}
                 </Badge>
                 {isCustom && (
-                  <Badge variant="outline" className="bg-gray-50 dark:bg-gray-950">
+                  <Badge variant="outline" className="bg-muted/50 dark:bg-background">
                     <Sparkles className="w-3 h-3 mr-1" />
                     Custom Instructions
                   </Badge>
@@ -283,11 +283,11 @@ function ChatbotSettingsContent() {
                   value={instructions}
                   onChange={(e) => setInstructions(e.target.value)}
                   disabled={!moduleData.chatbot_enabled}
-                  className="w-full h-96 px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="w-full h-96 px-4 py-3 border border-border rounded-lg bg-card dark:bg-muted text-gray-900 dark:text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter custom instructions for the chatbot..."
                 />
                 <div className="flex justify-between items-center mt-2">
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-muted-foreground">
                     {chatCharCount} / {maxChars} characters
                   </p>
                   {chatCharCount > maxChars && (
@@ -341,7 +341,7 @@ function ChatbotSettingsContent() {
                 <Button
                   onClick={handleSave}
                   disabled={!moduleData.chatbot_enabled || saving || chatCharCount > maxChars || !instructions.trim()}
-                  className="bg-gray-900 hover:bg-gray-900"
+                  className="bg-primary hover:bg-primary/90 text-primary-foreground"
                 >
                   {saving ? (
                     <>
@@ -372,33 +372,33 @@ function ChatbotSettingsContent() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-gray-700" />
+              <Sparkles className="w-5 h-5 text-foreground" />
               Tips for Writing Instructions
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             <div>
               <h4 className="font-semibold mb-2">Response Style</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600 dark:text-muted-foreground">
                 Define the tone (formal, casual, encouraging), complexity level, and whether to use technical jargon.
               </p>
             </div>
             <div>
               <h4 className="font-semibold mb-2">Teaching Philosophy</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600 dark:text-muted-foreground">
                 Specify if the chatbot should give direct answers or guide students to discover answers themselves.
               </p>
             </div>
             <div>
               <h4 className="font-semibold mb-2">Content Boundaries</h4>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <p className="text-sm text-gray-600 dark:text-muted-foreground">
                 Set guidelines on what topics the chatbot should or shouldn&apos;t discuss with students.
               </p>
             </div>
             <div>
               <h4 className="font-semibold mb-2">Example Format</h4>
-              <div className="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-sm font-mono mt-2">
-                <pre className="whitespace-pre-wrap text-gray-700 dark:text-gray-300">
+              <div className="bg-muted p-4 rounded-lg text-sm font-mono mt-2">
+                <pre className="whitespace-pre-wrap text-gray-700 dark:text-foreground">
 You are a supportive AI tutor for an introductory biology course.
 
 Response Style:

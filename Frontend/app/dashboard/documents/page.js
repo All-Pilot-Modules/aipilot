@@ -399,8 +399,8 @@ function DocumentsContent() {
                         {uploadStageLabels.map((step, i) => (
                           <div key={step} className="flex items-center gap-2">
                             <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
-                              uploadStage > i ? 'bg-emerald-500 text-white' :
-                              uploadStage === i ? (isTestbank ? 'bg-violet-500' : 'bg-primary') + ' text-white' :
+                              uploadStage > i ? 'bg-emerald-700 text-white' :
+                              uploadStage === i ? (isTestbank ? 'bg-violet-700 text-white' : 'bg-primary text-primary-foreground') :
                               'bg-muted text-muted-foreground'
                             }`}>
                               {uploadStage > i ? '✓' : i + 1}
@@ -606,7 +606,7 @@ function DocumentsContent() {
                           <button
                             onClick={() => { setSelectedDocForGeneration(doc); setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0, instructions: "" }); setIsGenerateOpen(true); }}
                             title="Generate Questions"
-                            className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg text-violet-600 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
+                            className="flex items-center gap-1 px-2 py-1.5 text-xs font-medium rounded-lg text-violet-600 dark:text-violet-300 hover:bg-violet-50 dark:hover:bg-violet-900/20 transition-colors"
                           >
                             <Sparkles className="w-3.5 h-3.5" />
                             <span className="hidden sm:inline">Generate</span>

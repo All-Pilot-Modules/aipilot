@@ -41,7 +41,7 @@ const testimonials = [
 
 export default function TestimonialsSection() {
   return (
-    <section className="py-24 bg-white overflow-hidden">
+    <section className="py-24 bg-card overflow-hidden">
       <div className="max-w-7xl mx-auto px-6">
         
         {/* Header - High Contrast Podia Style */}
@@ -49,7 +49,7 @@ export default function TestimonialsSection() {
           <h2 className="text-4xl md:text-7xl font-black text-[#1a212c] tracking-tighter leading-[1.05] mb-6">
             Trusted by the lots of <br />students & educators.
           </h2>
-          <p className="text-xl text-slate-500 font-medium max-w-2xl mx-auto">
+          <p className="text-xl text-muted-foreground font-medium max-w-2xl mx-auto">
             Join thousands of teachers who have automated their admin work and focused back on their students.
           </p>
         </FadeIn>
@@ -68,7 +68,7 @@ export default function TestimonialsSection() {
                     className="object-cover mix-blend-multiply opacity-90 grayscale group-hover:grayscale-0 transition-all duration-700"
                   />
                   {/* Floating Quote Icon */}
-                  <div className="absolute bottom-6 left-6 bg-white rounded-2xl p-4 shadow-xl max-w-[80%] opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
+                  <div className="absolute bottom-6 left-6 bg-card rounded-2xl p-4 shadow-xl max-w-[80%] opacity-0 group-hover:opacity-100 translate-y-4 group-hover:translate-y-0 transition-all duration-500">
                     <p className="text-xs font-bold text-[#1a212c] leading-tight italic">
                       "{t.quote}"
                     </p>
@@ -82,7 +82,7 @@ export default function TestimonialsSection() {
                   </p>
                   <h3 className="text-2xl font-bold text-[#1a212c] flex items-center gap-2 group-hover:gap-4 transition-all">
                     {t.name}
-                    <ArrowRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-all text-emerald-600" />
+                    <ArrowRight className="w-5 h-5 opacity-0 group-hover:opacity-100 transition-all text-emerald-600 dark:text-emerald-300" />
                   </h3>
                 </div>
               </div>

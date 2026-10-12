@@ -108,7 +108,7 @@ export function FeedbackCritique({ feedbackId, studentId, onSubmitSuccess }) {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center p-4 text-sm text-gray-500">
+      <div className="flex items-center justify-center p-4 text-sm text-muted-foreground">
         <Loader2 className="w-4 h-4 animate-spin mr-2" />
         Loading...
       </div>
@@ -129,7 +129,7 @@ export function FeedbackCritique({ feedbackId, studentId, onSubmitSuccess }) {
   return (
     <div className="space-y-4 border-t pt-4 mt-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium text-gray-700 dark:text-gray-300">
+        <h4 className="text-sm font-medium text-gray-700 dark:text-foreground">
           How helpful was this feedback?
         </h4>
         {existingCritique && (
@@ -157,12 +157,12 @@ export function FeedbackCritique({ feedbackId, studentId, onSubmitSuccess }) {
                 className={`w-6 h-6 transition-colors ${
                   (hoverRating || rating) >= star
                     ? 'fill-yellow-400 text-yellow-400'
-                    : 'text-gray-300 dark:text-gray-600'
+                    : 'text-gray-300 dark:text-muted-foreground'
                 }`}
               />
             </button>
           ))}
-          <span className="ml-2 text-sm font-medium text-gray-600 dark:text-gray-400">
+          <span className="ml-2 text-sm font-medium text-gray-600 dark:text-muted-foreground">
             {getRatingText(hoverRating || rating)}
           </span>
         </div>
@@ -170,7 +170,7 @@ export function FeedbackCritique({ feedbackId, studentId, onSubmitSuccess }) {
 
       {/* Feedback Categories */}
       <div className="space-y-2">
-        <Label className="text-xs text-gray-600 dark:text-gray-400">
+        <Label className="text-xs text-gray-600 dark:text-muted-foreground">
           What type of feedback was this? (Optional)
         </Label>
         <div className="flex flex-wrap gap-2">
@@ -188,7 +188,7 @@ export function FeedbackCritique({ feedbackId, studentId, onSubmitSuccess }) {
                   border transition-all
                   ${isSelected
                     ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-400 dark:border-blue-600 text-blue-700 dark:text-blue-300'
-                    : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-gray-400 dark:hover:border-gray-500'
+                    : 'bg-card dark:bg-muted border-border text-gray-700 dark:text-foreground hover:border-gray-400 dark:hover:border-gray-500'
                   }
                 `}
               >
@@ -202,7 +202,7 @@ export function FeedbackCritique({ feedbackId, studentId, onSubmitSuccess }) {
 
       {/* Comment */}
       <div className="space-y-2">
-        <Label htmlFor={`critique-comment-${feedbackId}`} className="text-xs text-gray-600 dark:text-gray-400">
+        <Label htmlFor={`critique-comment-${feedbackId}`} className="text-xs text-gray-600 dark:text-muted-foreground">
           Add your thoughts (Optional)
         </Label>
         <Textarea
@@ -213,7 +213,7 @@ export function FeedbackCritique({ feedbackId, studentId, onSubmitSuccess }) {
           rows={3}
           className="text-sm resize-none"
         />
-        <p className="text-xs text-gray-500 dark:text-gray-400">
+        <p className="text-xs text-gray-500 dark:text-muted-foreground">
           Your feedback helps us improve the AI. Your comments will be reviewed by instructors.
         </p>
       </div>
@@ -243,7 +243,7 @@ export function FeedbackCritique({ feedbackId, studentId, onSubmitSuccess }) {
           onClick={handleSubmit}
           disabled={submitting || rating === 0}
           size="sm"
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-blue-600 hover:bg-blue-700 text-white"
         >
           {submitting ? (
             <>

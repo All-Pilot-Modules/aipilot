@@ -256,7 +256,7 @@ const MasteryPage = memo(function MasteryPage() {
                   disabled ? "opacity-60 cursor-not-allowed" :
                   isSelected
                     ? "border-purple-500 bg-purple-50 dark:bg-purple-950/20"
-                    : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    : "border-border hover:border-border hover:bg-muted/50 dark:hover:bg-muted"
                 }`}
                 onClick={() => !disabled && setAnswer(key)}
               >
@@ -266,10 +266,10 @@ const MasteryPage = memo(function MasteryPage() {
                   checked={isSelected}
                   onChange={() => {}}
                   disabled={disabled}
-                  className="h-5 w-5 text-purple-600 focus:ring-purple-500 border-gray-300 cursor-pointer"
+                  className="h-5 w-5 text-purple-600 dark:text-purple-300 focus:ring-purple-500 border-border cursor-pointer"
                 />
                 <Label className="flex-1 cursor-pointer text-base leading-relaxed">
-                  <span className="font-semibold mr-3 text-purple-600">{key}.</span>
+                  <span className="font-semibold mr-3 text-purple-600 dark:text-purple-300">{key}.</span>
                   <MathText inline className={`whitespace-pre-wrap ${isSelected ? "text-purple-900 dark:text-purple-100" : ""}`}>{option}</MathText>
                 </Label>
               </div>
@@ -283,7 +283,7 @@ const MasteryPage = memo(function MasteryPage() {
       return (
         <fieldset className="space-y-2">
           <legend className="sr-only">Select all correct answers</legend>
-          <p className="text-sm text-gray-500 mb-2">Select all correct answers</p>
+          <p className="text-sm text-muted-foreground mb-2">Select all correct answers</p>
           {question.options && Object.entries(question.options).map(([key, option]) => {
             const selections = answer || [];
             const isSelected = selections.includes(key);
@@ -292,7 +292,7 @@ const MasteryPage = memo(function MasteryPage() {
                 key={key}
                 className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-all ${
                   disabled ? "opacity-60 cursor-not-allowed" :
-                  isSelected ? "border-purple-500 bg-purple-50 dark:bg-purple-950/20" : "border-gray-200 dark:border-gray-700 hover:border-gray-300 hover:bg-gray-50"
+                  isSelected ? "border-purple-500 bg-purple-50 dark:bg-purple-950/20" : "border-border hover:border-border hover:bg-muted/50"
                 }`}
                 onClick={() => {
                   if (disabled) return;
@@ -305,10 +305,10 @@ const MasteryPage = memo(function MasteryPage() {
                   checked={isSelected}
                   onChange={() => {}}
                   disabled={disabled}
-                  className="h-5 w-5 text-purple-600 border-gray-300 cursor-pointer"
+                  className="h-5 w-5 text-purple-600 dark:text-purple-300 border-border cursor-pointer"
                 />
                 <Label className="flex-1 cursor-pointer text-base">
-                  <span className="font-semibold mr-3 text-purple-600">{key}.</span>
+                  <span className="font-semibold mr-3 text-purple-600 dark:text-purple-300">{key}.</span>
                   <MathText inline>{option}</MathText>
                 </Label>
               </div>
@@ -324,7 +324,7 @@ const MasteryPage = memo(function MasteryPage() {
       const textParts = (question.text || "").split("_____");
       return (
         <div className="space-y-4">
-          <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg text-lg leading-relaxed">
+          <div className="p-4 bg-muted/50 dark:bg-card/50 border border-border rounded-lg text-lg leading-relaxed">
             {textParts.map((part, i) => (
               <span key={i}>
                 <MathText inline>{part}</MathText>
@@ -339,7 +339,7 @@ const MasteryPage = memo(function MasteryPage() {
           <div className="space-y-2">
             {blanks.map((blank, i) => (
               <div key={i} className="flex items-center gap-3">
-                <div className="w-7 h-7 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-sm font-semibold flex-shrink-0">
+                <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-sm font-semibold flex-shrink-0">
                   {i + 1}
                 </div>
                 <Input
@@ -362,9 +362,9 @@ const MasteryPage = memo(function MasteryPage() {
       return (
         <div className="space-y-4">
           {subQuestions.map((subQ, i) => (
-            <div key={i} className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+            <div key={i} className="p-4 border rounded-lg bg-muted/50 dark:bg-muted">
               <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded text-sm font-medium">{subQ.id}</span>
-              <MathText className="mt-2 mb-3 text-base">{subQ.text}</MathText>
+              <MathText embedLinks className="mt-2 mb-3 text-base">{subQ.text}</MathText>
               {subQ.type === "mcq" ? (
                 <div className="space-y-2">
                   {subQ.options && Object.entries(subQ.options).map(([key, opt]) => {
@@ -374,11 +374,11 @@ const MasteryPage = memo(function MasteryPage() {
                         key={key}
                         className={`flex items-center space-x-3 p-2 rounded-md border cursor-pointer ${
                           disabled ? "opacity-60 cursor-not-allowed" :
-                          isSel ? "border-purple-500 bg-purple-50 dark:bg-purple-950/20" : "border-gray-200 hover:border-gray-300"
+                          isSel ? "border-purple-500 bg-purple-50 dark:bg-purple-950/20" : "border-border hover:border-border"
                         }`}
                         onClick={() => !disabled && setAnswer({ ...subAnswers, [subQ.id]: key })}
                       >
-                        <input type="radio" checked={isSel} onChange={() => {}} disabled={disabled} className="h-4 w-4 text-purple-600" />
+                        <input type="radio" checked={isSel} onChange={() => {}} disabled={disabled} className="h-4 w-4 text-purple-600 dark:text-purple-300" />
                         <Label className="flex-1 cursor-pointer text-sm"><span className="font-semibold mr-2">{key}.</span><MathText inline>{opt}</MathText></Label>
                       </div>
                     );
@@ -436,10 +436,10 @@ const MasteryPage = memo(function MasteryPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-muted/50 dark:bg-card flex items-center justify-center">
         <div className="text-center space-y-3">
           <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-purple-600 mx-auto" />
-          <p className="text-gray-600 dark:text-gray-400">Loading mastery session...</p>
+          <p className="text-gray-600 dark:text-muted-foreground">Loading mastery session...</p>
         </div>
       </div>
     );
@@ -447,12 +447,12 @@ const MasteryPage = memo(function MasteryPage() {
 
   if (error && !currentQuestionId) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-muted/50 dark:bg-card flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Something went wrong</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+            <p className="text-gray-600 dark:text-muted-foreground mb-4">{error}</p>
             <Button onClick={() => router.push(`/student/module/${moduleId}`)}>Back to Module</Button>
           </CardContent>
         </Card>
@@ -487,12 +487,12 @@ const MasteryPage = memo(function MasteryPage() {
   // ── Completion screen ────────────────────────────────────────────
   if (isCompleted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-gray-900 dark:to-purple-900/20 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50 dark:from-card dark:to-purple-900/20 flex items-center justify-center p-4">
         <Card className="w-full max-w-md text-center border-2 border-purple-200 dark:border-purple-800 shadow-xl">
           <CardContent className="p-8 space-y-4">
             <Trophy className="w-16 h-16 text-yellow-500 mx-auto" />
             <h2 className="text-2xl font-bold text-purple-900 dark:text-purple-100">Mastered!</h2>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600 dark:text-muted-foreground">
               You&apos;ve achieved mastery on all {progress.total} question{progress.total !== 1 ? "s" : ""} in this module.
             </p>
             <div className="flex justify-center gap-2 flex-wrap">
@@ -528,7 +528,7 @@ const MasteryPage = memo(function MasteryPage() {
 
   if (!currentQ) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-muted/50 dark:bg-card flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
             <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
@@ -553,9 +553,9 @@ const MasteryPage = memo(function MasteryPage() {
 
   // ── Main render ─────────────────────────────────────────────────
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-muted/50 dark:bg-card">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b shadow-sm sticky top-0 z-10">
+      <div className="bg-card dark:bg-muted border-b shadow-sm sticky top-0 z-10">
         <div className="max-w-3xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
@@ -569,14 +569,14 @@ const MasteryPage = memo(function MasteryPage() {
                 Exit
               </Button>
               <div className="flex items-center gap-2">
-                <Target className="w-5 h-5 text-purple-600" />
+                <Target className="w-5 h-5 text-purple-600 dark:text-purple-300" />
                 <span className="font-semibold text-sm sm:text-base">{moduleAccess?.moduleName} — Mastery</span>
               </div>
             </div>
 
             <div className="flex items-center gap-3">
               {/* Progress */}
-              <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <div className="hidden sm:flex items-center gap-2 text-sm text-gray-600 dark:text-muted-foreground">
                 <span className="font-medium text-purple-700 dark:text-purple-300">
                   {progress.mastered}/{progress.total}
                 </span>
@@ -603,8 +603,8 @@ const MasteryPage = memo(function MasteryPage() {
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <Zap className="w-4 h-4 text-purple-500" />
-            <span className="text-sm text-gray-600 dark:text-gray-400">
-              Streak: <span className="font-semibold text-purple-600">{currentQueueEntry?.streak_count || 0}</span>/{streakRequired}
+            <span className="text-sm text-gray-600 dark:text-muted-foreground">
+              Streak: <span className="font-semibold text-purple-600 dark:text-purple-300">{currentQueueEntry?.streak_count || 0}</span>/{streakRequired}
             </span>
             <StreakDots current={currentQueueEntry?.streak_count || 0} required={streakRequired} />
           </div>
@@ -621,7 +621,7 @@ const MasteryPage = memo(function MasteryPage() {
         )}
 
         {/* Question card */}
-        <Card className="border-2 border-slate-200 dark:border-slate-700">
+        <Card className="border-2 border-border ">
           <CardHeader className="bg-gradient-to-r from-purple-50 to-indigo-50/30 dark:from-purple-900/20 dark:to-indigo-900/10 border-b">
             <div className="flex items-start justify-between gap-3">
               <div className="space-y-1">
@@ -636,7 +636,7 @@ const MasteryPage = memo(function MasteryPage() {
                     </Badge>
                   )}
                   {currentQ.slide_number && (
-                    <span className="text-xs text-gray-500">Slide {currentQ.slide_number}</span>
+                    <span className="text-xs text-muted-foreground">Slide {currentQ.slide_number}</span>
                   )}
                 </div>
               </div>
@@ -647,7 +647,7 @@ const MasteryPage = memo(function MasteryPage() {
             {/* Question text (skip for fill_blank — shown inline) */}
             {currentQ.type !== "fill_blank" && (
               <div className="prose dark:prose-invert max-w-none">
-                <MathText className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ.text}</MathText>
+                <MathText embedLinks className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ.text}</MathText>
               </div>
             )}
 
@@ -655,7 +655,7 @@ const MasteryPage = memo(function MasteryPage() {
             {currentQ.learning_outcome && (
               <div className="bg-blue-50 dark:bg-blue-950/20 p-3 rounded-lg border border-blue-200 dark:border-blue-800">
                 <div className="flex items-start gap-2">
-                  <Target className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                  <Target className="w-4 h-4 text-blue-600 dark:text-blue-300 mt-0.5 flex-shrink-0" />
                   <div>
                     <p className="text-xs font-medium text-blue-900 dark:text-blue-100">Learning Outcome</p>
                     <p className="text-xs text-blue-700 dark:text-blue-300"><MathText inline>{currentQ.learning_outcome}</MathText></p>
@@ -666,7 +666,7 @@ const MasteryPage = memo(function MasteryPage() {
 
             {/* Question image */}
             {currentQ.image_url && (
-              <div className="bg-gray-50 dark:bg-gray-800 border rounded-lg p-3">
+              <div className="bg-muted/50 dark:bg-muted border rounded-lg p-3">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={currentQ.image_url}
@@ -687,12 +687,12 @@ const MasteryPage = memo(function MasteryPage() {
             {showFeedback && wrongFeedback && (
               <div className="border-2 border-red-200 dark:border-red-800 rounded-lg overflow-hidden">
                 <div className="flex items-center gap-2 px-4 py-2 bg-red-50 dark:bg-red-950/20 border-b border-red-200 dark:border-red-800">
-                  <XCircle className="w-4 h-4 text-red-600" />
+                  <XCircle className="w-4 h-4 text-red-600 dark:text-red-300" />
                   <span className="text-sm font-semibold text-red-700 dark:text-red-300">Not quite — here&apos;s a hint</span>
                 </div>
                 <div className="p-4 space-y-3">
                   {wrongFeedback.explanation && (
-                    <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed"><MathText inline>{wrongFeedback.explanation}</MathText></p>
+                    <p className="text-sm text-gray-700 dark:text-foreground leading-relaxed"><MathText inline>{wrongFeedback.explanation}</MathText></p>
                   )}
                   {wrongFeedback.improvement_hint && (
                     <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800">
@@ -708,7 +708,7 @@ const MasteryPage = memo(function MasteryPage() {
                   )}
                   <Button
                     onClick={handleContinue}
-                    className="w-full bg-gray-800 hover:bg-gray-900 dark:bg-gray-700 dark:hover:bg-gray-600 text-white mt-2"
+                    className="w-full bg-primary hover:bg-primary/90 dark:bg-muted dark:hover:bg-gray-600 text-primary-foreground mt-2"
                   >
                     Got it, continue
                     <ArrowRight className="w-4 h-4 ml-2" />
@@ -741,9 +741,9 @@ const MasteryPage = memo(function MasteryPage() {
         </Card>
 
         {/* Queue overview (collapsed summary) */}
-        <Card className="border border-slate-200 dark:border-slate-700">
+        <Card className="border border-border ">
           <CardContent className="p-4">
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 font-medium uppercase tracking-wide">Progress Overview</p>
+            <p className="text-xs text-gray-500 dark:text-muted-foreground mb-2 font-medium uppercase tracking-wide">Progress Overview</p>
             <div className="flex flex-wrap gap-1.5">
               {queueState.map((entry, i) => {
                 const isCurrent = entry.question_id === currentQuestionId;
@@ -755,8 +755,8 @@ const MasteryPage = memo(function MasteryPage() {
                       entry.is_mastered
                         ? "bg-purple-100 border-purple-400 text-purple-700 dark:bg-purple-900/40 dark:border-purple-600 dark:text-purple-300"
                         : isCurrent
-                        ? "bg-blue-100 border-blue-500 text-blue-700 dark:bg-blue-900/40 dark:border-blue-500 dark:text-blue-300 ring-2 ring-blue-300"
-                        : "bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400"
+                        ? "bg-blue-100 border-blue-500 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 ring-2 ring-blue-300"
+                        : "bg-muted border-border text-gray-500 dark:text-muted-foreground"
                     }`}
                   >
                     {entry.is_mastered ? "✓" : i + 1}

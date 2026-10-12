@@ -80,7 +80,7 @@ function AnalyticsContent() {
                           <p className="text-2xl font-bold">-</p>
                           <p className="text-xs text-muted-foreground">No data yet</p>
                         </div>
-                        <TrendingUp className="w-8 h-8 text-green-600" />
+                        <TrendingUp className="w-8 h-8 text-green-600 dark:text-green-300" />
                       </div>
                     </CardContent>
                   </Card>
@@ -92,7 +92,7 @@ function AnalyticsContent() {
                           <p className="text-2xl font-bold">-</p>
                           <p className="text-xs text-muted-foreground">No submissions</p>
                         </div>
-                        <BarChart3 className="w-8 h-8 text-blue-600" />
+                        <BarChart3 className="w-8 h-8 text-blue-600 dark:text-blue-300" />
                       </div>
                     </CardContent>
                   </Card>
@@ -104,7 +104,7 @@ function AnalyticsContent() {
                           <p className="text-2xl font-bold">0</p>
                           <p className="text-xs text-muted-foreground">This week</p>
                         </div>
-                        <Users className="w-8 h-8 text-purple-600" />
+                        <Users className="w-8 h-8 text-purple-600 dark:text-purple-300" />
                       </div>
                     </CardContent>
                   </Card>
@@ -116,7 +116,7 @@ function AnalyticsContent() {
                           <p className="text-2xl font-bold">-</p>
                           <p className="text-xs text-muted-foreground">Per test</p>
                         </div>
-                        <Clock className="w-8 h-8 text-orange-600" />
+                        <Clock className="w-8 h-8 text-orange-600 dark:text-orange-300" />
                       </div>
                     </CardContent>
                   </Card>

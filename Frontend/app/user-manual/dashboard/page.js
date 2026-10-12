@@ -20,9 +20,9 @@ export default function DashboardPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
             <LayoutDashboard className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Dashboard</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Dashboard</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Your central hub for managing modules, viewing stats, and accessing all features.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Your central hub for managing modules, viewing stats, and accessing all features.</p>
       </div>
 
       {/* Dashboard Layout */}
@@ -33,7 +33,7 @@ export default function DashboardPage() {
             Dashboard Layout
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The dashboard is divided into several key areas:</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {[
@@ -44,11 +44,11 @@ export default function DashboardPage() {
             ].map((item) => {
               const Icon = item.icon;
               return (
-                <div key={item.title} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <div key={item.title} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
                   <Icon className={`w-5 h-5 text-${item.color}-600 dark:text-${item.color}-400 flex-shrink-0 mt-0.5`} />
                   <div>
-                    <h4 className="font-medium text-gray-900 dark:text-white text-sm">{item.title}</h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                    <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">{item.title}</h4>
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground">{item.description}</p>
                   </div>
                 </div>
               );
@@ -61,11 +61,11 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <PieChart className="w-5 h-5 text-indigo-600" />
+            <PieChart className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
             Statistics Cards
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>At the top of your dashboard, you&apos;ll see summary statistics:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
@@ -92,11 +92,11 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-emerald-600" />
+            <Plus className="w-5 h-5 text-emerald-600 dark:text-emerald-300" />
             Quick Actions
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>From the dashboard you can quickly:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li>Create a new module using the <strong>&quot;Create Module&quot;</strong> button</li>
@@ -111,11 +111,11 @@ export default function DashboardPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-teal-600" />
+            <Users className="w-5 h-5 text-teal-600 dark:text-teal-300" />
             Sidebar Navigation
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The left sidebar provides access to all sections:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>Dashboard</strong> - Return to the main overview</li>

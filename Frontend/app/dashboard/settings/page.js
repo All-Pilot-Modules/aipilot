@@ -63,7 +63,7 @@ const GRADING_MODES = [
 // A horizontal settings row — label/desc on left, control on right
 function Row({ label, description, children, noBorder = false }) {
   return (
-    <div className={`py-5 flex items-start gap-8 ${noBorder ? '' : 'border-b border-gray-100 dark:border-border'}`}>
+    <div className={`py-5 flex items-start gap-8 ${noBorder ? '' : 'border-b border-border '}`}>
       <div className="w-64 shrink-0">
         <p className="text-sm font-medium text-gray-900 dark:text-foreground">{label}</p>
         {description && <p className="text-sm text-gray-500 dark:text-muted-foreground mt-0.5 leading-snug">{description}</p>}
@@ -87,7 +87,7 @@ function SectionHeading({ children }) {
 function SaveStatus({ state }) {
   if (!state) return null;
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs ${state === 'error' ? 'text-red-500' : state === 'saved' ? 'text-emerald-600' : 'text-gray-400'}`}>
+    <span className={`inline-flex items-center gap-1.5 text-xs ${state === 'error' ? 'text-red-500' : state === 'saved' ? 'text-emerald-600 dark:text-emerald-300' : 'text-gray-400'}`}>
       {state === 'saving' && <Loader2 className="w-3 h-3 animate-spin" />}
       {state === 'saved'  && <Check className="w-3 h-3" />}
       {state === 'error'  && <AlertCircle className="w-3 h-3" />}
@@ -252,10 +252,10 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
     <div>
       {/* ── Segmented section selector ── */}
       <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-1 p-1 bg-gray-100 dark:bg-muted rounded-lg">
+        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
           {GRADING_SECTIONS.map(s => (
             <button key={s.id} onClick={() => setSection(s.id)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${section === s.id ? 'bg-white dark:bg-card shadow-sm text-gray-900 dark:text-foreground' : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground'}`}>
+              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${section === s.id ? 'bg-card shadow-sm text-gray-900 dark:text-foreground' : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground'}`}>
               {s.label}
             </button>
           ))}
@@ -271,7 +271,7 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
               </Button>
             )}
             <Button size="sm" onClick={handleRubricSave} disabled={rubricSaving || !rubricHasChanges}
-              className="h-8 text-xs bg-gray-900 hover:bg-gray-800 text-white">
+              className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground">
               {rubricSaving ? <><Loader2 className="w-3 h-3 animate-spin mr-1" />Saving…</> : 'Save rubric'}
             </Button>
           </div>
@@ -284,16 +284,16 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
           <p className="text-sm text-gray-500 dark:text-muted-foreground mb-5">
             Select how student responses will be evaluated for this module.
           </p>
-          <div className="divide-y divide-gray-100 dark:divide-border">
+          <div className="divide-y divide-border ">
             {GRADING_MODES.map(({ value, label, description, icon: Icon }) => {
               const active = gradingMode === value;
               return (
                 <button key={value} type="button" onClick={() => setGradingMode(value)}
-                  className="w-full flex items-center gap-4 py-4 text-left hover:bg-gray-50 dark:hover:bg-muted/20 transition-colors -mx-6 px-6">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${active ? 'border-gray-900 dark:border-gray-300' : 'border-gray-300 dark:border-border'}`}>
-                    {active && <div className="w-2 h-2 rounded-full bg-gray-900 dark:bg-gray-400" />}
+                  className="w-full flex items-center gap-4 py-4 text-left hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors -mx-6 px-6">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${active ? 'border-gray-900 dark:border-gray-300' : 'border-border '}`}>
+                    {active && <div className="w-2 h-2 rounded-full bg-primary dark:bg-gray-400 text-primary-foreground" />}
                   </div>
-                  <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-gray-900 dark:text-gray-300' : 'text-gray-400 dark:text-muted-foreground'}`} />
+                  <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-gray-900 dark:text-foreground' : 'text-gray-400 dark:text-muted-foreground'}`} />
                   <div className="min-w-0">
                     <p className={`text-sm font-medium ${active ? 'text-gray-900 dark:text-foreground' : 'text-gray-700 dark:text-foreground'}`}>{label}</p>
                     <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{description}</p>
@@ -348,32 +348,32 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
                       <BarChart3 className="w-3 h-3" />Equal weights
                     </Button>
                   )}
-                  <Button size="sm" onClick={addCriterion} className="h-8 text-xs gap-1 bg-gray-900 dark:bg-foreground text-white dark:text-background hover:bg-gray-700 dark:hover:bg-foreground/90">
+                  <Button size="sm" onClick={addCriterion} className="h-8 text-xs gap-1 bg-primary dark:bg-foreground text-primary-foreground dark:text-background hover:bg-primary/90 dark:hover:bg-foreground/90">
                     <Plus className="w-3 h-3" />Add criterion
                   </Button>
                 </div>
               </div>
 
               {Object.keys(criteria).length === 0 ? (
-                <div className="text-center py-14 border border-dashed border-gray-200 dark:border-border rounded-lg">
+                <div className="text-center py-14 border border-dashed border-border rounded-lg">
                   <p className="text-sm text-gray-400 dark:text-muted-foreground mb-3">No criteria defined yet</p>
                   <Button variant="outline" size="sm" onClick={addCriterion} className="text-xs gap-1">
                     <Plus className="w-3 h-3" />Add first criterion
                   </Button>
                 </div>
               ) : (
-                <div className="border border-gray-100 dark:border-border rounded-lg overflow-hidden">
-                  <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-gray-50 dark:bg-muted/20 text-xs font-medium text-gray-400 dark:text-muted-foreground border-b border-gray-100 dark:border-border">
+                <div className="border border-border rounded-lg overflow-hidden">
+                  <div className="grid grid-cols-12 gap-4 px-4 py-2 bg-muted/50 dark:bg-muted/20 text-xs font-medium text-gray-400 dark:text-muted-foreground border-b border-border ">
                     <div className="col-span-3">Name</div>
                     <div className="col-span-5">Description</div>
                     <div className="col-span-3">Weight</div>
                     <div className="col-span-1" />
                   </div>
-                  <div className="divide-y divide-gray-100 dark:divide-border">
+                  <div className="divide-y divide-border ">
                     {Object.entries(criteria).map(([key, c]) => (
                       <div key={key}>
                         {editingCriterion === key ? (
-                          <div className="p-4 bg-gray-50/40 dark:bg-muted/20/10 space-y-3">
+                          <div className="p-4 bg-muted/40 dark:bg-muted/10 space-y-3">
                             <div className="grid grid-cols-2 gap-3">
                               <div>
                                 <Label className="text-xs text-gray-500 dark:text-muted-foreground mb-1.5 block">Name</Label>
@@ -393,7 +393,7 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
                             </div>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-gray-50 dark:hover:bg-muted/10 transition-colors">
+                          <div className="grid grid-cols-12 gap-4 px-4 py-3 items-center hover:bg-muted/50 dark:hover:bg-muted/10 transition-colors">
                             <div className="col-span-3">
                               <p className="text-sm font-medium text-gray-800 dark:text-foreground truncate">{c.name || key}</p>
                             </div>
@@ -405,7 +405,7 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
                               <span className="text-xs font-medium text-gray-500 dark:text-muted-foreground w-8 text-right shrink-0">{c.weight || 0}%</span>
                             </div>
                             <div className="col-span-1 flex items-center justify-end gap-0.5">
-                              <button onClick={() => setEditingCriterion(key)} className="p-1.5 rounded hover:bg-gray-100 dark:hover:bg-muted text-gray-300 hover:text-gray-600 dark:hover:text-foreground transition-colors">
+                              <button onClick={() => setEditingCriterion(key)} className="p-1.5 rounded hover:bg-muted text-gray-300 hover:text-gray-600 dark:hover:text-foreground transition-colors">
                                 <Pencil className="w-3.5 h-3.5" />
                               </button>
                               <button onClick={() => deleteCriterion(key)} className="p-1.5 rounded hover:bg-red-50 dark:hover:bg-red-950/20 text-gray-300 hover:text-red-400 transition-colors">
@@ -426,10 +426,10 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
           {section === 'feedback' && (
             <div>
               <Row label="Feedback tone" description="How the AI communicates with students.">
-                <div className="flex items-center gap-0.5 p-0.5 bg-gray-100 dark:bg-muted rounded-lg w-fit">
+                <div className="flex items-center gap-0.5 p-0.5 bg-muted rounded-lg w-fit">
                   {TONES.map(t => (
                     <button key={t.value} onClick={() => setFeedbackTone(t.value)}
-                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${selectedTone === t.value ? 'bg-white dark:bg-card shadow-sm text-gray-900 dark:text-foreground' : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground'}`}>
+                      className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${selectedTone === t.value ? 'bg-card shadow-sm text-gray-900 dark:text-foreground' : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground'}`}>
                       {t.label}
                     </button>
                   ))}
@@ -499,23 +499,23 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
 
 function Stepper({ value, min = 1, max = 10, onChange }) {
   return (
-    <div className="flex items-center gap-0 border border-gray-200 dark:border-border rounded-lg overflow-hidden w-fit">
+    <div className="flex items-center gap-0 border border-border rounded-lg overflow-hidden w-fit">
       <button
         type="button"
         onClick={() => onChange(Math.max(min, value - 1))}
         disabled={value <= min}
-        className="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg leading-none"
+        className="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-muted-foreground hover:bg-muted/50 dark:hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg leading-none"
       >
         −
       </button>
-      <span className="w-8 text-center text-sm font-semibold text-gray-800 dark:text-foreground border-x border-gray-200 dark:border-border h-8 flex items-center justify-center">
+      <span className="w-8 text-center text-sm font-semibold text-gray-800 dark:text-foreground border-x border-border h-8 flex items-center justify-center">
         {value}
       </span>
       <button
         type="button"
         onClick={() => onChange(Math.min(max, value + 1))}
         disabled={value >= max}
-        className="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-muted-foreground hover:bg-gray-50 dark:hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg leading-none"
+        className="w-8 h-8 flex items-center justify-center text-gray-500 dark:text-muted-foreground hover:bg-muted/50 dark:hover:bg-muted disabled:opacity-30 disabled:cursor-not-allowed transition-colors text-lg leading-none"
       >
         +
       </button>
@@ -560,7 +560,7 @@ function FeaturesTab({ formData, setFeature }) {
         </div>
       </Row>
       {feat.chatbot_feedback?.enabled && (
-        <div className="pb-4 border-b border-gray-100 dark:border-border -mt-1">
+        <div className="pb-4 border-b border-border -mt-1">
           <p className="text-xs text-gray-400 dark:text-muted-foreground pl-0">
             Customize tone and instructions in the <strong className="text-gray-600 dark:text-foreground">Chatbot</strong> tab.
           </p>
@@ -624,7 +624,7 @@ function StandaloneHeader({ title, description, saveState, hasChanges, isSaving,
           </Button>
         )}
         <Button size="sm" onClick={onSave} disabled={isSaving || !hasChanges}
-          className="h-8 text-xs bg-gray-900 hover:bg-gray-800 text-white">
+          className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground">
           {isSaving ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Saving…</> : 'Save changes'}
         </Button>
       </div>
@@ -683,7 +683,7 @@ function ChatbotTab({ moduleId }) {
         isSaving={saving}
         onSave={handleSave}
         extraActions={
-          isCustom && <span className="text-xs font-medium px-2 py-0.5 rounded border border-gray-200 dark:border-border bg-gray-50 dark:bg-muted/20/20 text-gray-700 dark:text-gray-400">Custom</span>
+          isCustom && <span className="text-xs font-medium px-2 py-0.5 rounded border border-border bg-muted/50 dark:bg-muted/20 text-gray-700 dark:text-muted-foreground">Custom</span>
         }
       />
 
@@ -701,7 +701,7 @@ function ChatbotTab({ moduleId }) {
         onChange={e => setInstructions(e.target.value)}
         disabled={!data?.chatbot_enabled}
         rows={16}
-        className="w-full px-4 py-3 border border-gray-200 dark:border-border rounded-lg bg-white dark:bg-background text-sm font-mono text-gray-800 dark:text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed resize-none"
+        className="w-full px-4 py-3 border border-border rounded-lg bg-card dark:bg-background text-sm font-mono text-gray-800 dark:text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed resize-none"
         placeholder="You are a supportive AI tutor for this module…"
       />
       <div className="flex items-center justify-between mt-2">
@@ -711,7 +711,7 @@ function ChatbotTab({ moduleId }) {
         </button>
       </div>
 
-      <div className="mt-6 border-t border-gray-100 dark:border-border pt-4 grid grid-cols-3 gap-4">
+      <div className="mt-6 border-t border-border pt-4 grid grid-cols-3 gap-4">
         {[
           { title: 'Response style', body: 'Define the tone (formal, casual, encouraging) and complexity level.' },
           { title: 'Teaching philosophy', body: 'Specify if the chatbot should give direct answers or guide discovery.' },
@@ -793,7 +793,7 @@ function SurveyTab({ moduleId }) {
       )}
 
       {surveyQuestions.length === 0 ? (
-        <div className="text-center py-16 border-2 border-dashed border-gray-200 dark:border-border rounded-xl">
+        <div className="text-center py-16 border-2 border-dashed border-border rounded-xl">
           <ClipboardList className="w-8 h-8 text-gray-200 dark:text-muted-foreground mx-auto mb-3" />
           <p className="text-sm font-medium text-gray-500 dark:text-foreground mb-1">No survey questions yet</p>
           <p className="text-xs text-gray-400 dark:text-muted-foreground mb-4">Create questions to gather student feedback</p>
@@ -804,8 +804,8 @@ function SurveyTab({ moduleId }) {
       ) : (
         <div className="space-y-3">
           {surveyQuestions.map((q, i) => (
-            <div key={i} className="border border-gray-200 dark:border-border rounded-xl overflow-hidden">
-              <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-muted/20 border-b border-gray-100 dark:border-border">
+            <div key={i} className="border border-border rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 bg-muted/50 dark:bg-muted/20 border-b border-border ">
                 <span className="text-xs font-medium text-gray-500 dark:text-muted-foreground">Question {i + 1}</span>
                 <button onClick={() => handleRemove(i)} className="text-gray-300 hover:text-red-400 transition-colors">
                   <Trash2 className="w-3.5 h-3.5" />
@@ -816,7 +816,7 @@ function SurveyTab({ moduleId }) {
                 <Input value={q.placeholder || ''} onChange={e => handleChange(i, 'placeholder', e.target.value)} placeholder="Placeholder hint for students (optional)" className="text-sm h-9" />
                 <div className="flex items-center gap-4">
                   <select value={q.type} onChange={e => handleChange(i, 'type', e.target.value)}
-                    className="h-8 px-2 border border-gray-200 dark:border-border rounded-md bg-white dark:bg-background text-xs text-gray-700 dark:text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    className="h-8 px-2 border border-border rounded-md bg-card dark:bg-background text-xs text-gray-700 dark:text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500">
                     <option value="short">Short answer</option>
                     <option value="long">Long answer</option>
                   </select>
@@ -892,7 +892,7 @@ function AccessCodePanel({ moduleData, moduleId, onRegenerated }) {
       <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-muted-foreground mb-4">Student Access</p>
 
       {/* Code display */}
-      <div className="rounded-xl border border-gray-100 dark:border-border bg-gray-50 dark:bg-muted/20 p-4 mb-3 text-center">
+      <div className="rounded-xl border border-border bg-muted/50 dark:bg-muted/20 p-4 mb-3 text-center">
         <p className="text-[11px] text-gray-400 dark:text-muted-foreground mb-2 uppercase tracking-wider">Access code</p>
         <p className="text-2xl font-mono font-bold tracking-[0.25em] text-gray-900 dark:text-foreground">{accessCode}</p>
         <p className="text-[11px] text-gray-400 dark:text-muted-foreground mt-2">For student enrollment</p>
@@ -901,14 +901,14 @@ function AccessCodePanel({ moduleData, moduleId, onRegenerated }) {
       {/* Actions */}
       <div className="space-y-1.5">
         <button onClick={() => copy('code')}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-foreground rounded-lg border border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/20 transition-colors">
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-foreground rounded-lg border border-border hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors">
           {copied === 'code'
             ? <Check className="w-4 h-4 text-emerald-500 shrink-0" />
             : <Copy className="w-4 h-4 text-gray-400 shrink-0" />}
           <span className="text-sm">{copied === 'code' ? 'Copied!' : 'Copy code'}</span>
         </button>
         <button onClick={() => copy('link')}
-          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-foreground rounded-lg border border-gray-200 dark:border-border hover:bg-gray-50 dark:hover:bg-muted/20 transition-colors">
+          className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-700 dark:text-foreground rounded-lg border border-border hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors">
           {copied === 'link'
             ? <Check className="w-4 h-4 text-emerald-500 shrink-0" />
             : <Link2 className="w-4 h-4 text-gray-400 shrink-0" />}
@@ -917,7 +917,7 @@ function AccessCodePanel({ moduleData, moduleId, onRegenerated }) {
 
         {!confirmRegen ? (
           <button onClick={() => setConfirmRegen(true)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-400 dark:text-muted-foreground rounded-lg border border-gray-200 dark:border-border hover:text-amber-600 hover:border-amber-200 dark:hover:text-amber-400 dark:hover:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/10 transition-colors">
+            className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-gray-400 dark:text-muted-foreground rounded-lg border border-border hover:text-amber-600 hover:border-amber-200 dark:hover:text-amber-400 dark:hover:border-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/10 transition-colors">
             <RotateCcw className="w-4 h-4 shrink-0" />
             Regenerate
           </button>
@@ -928,11 +928,11 @@ function AccessCodePanel({ moduleData, moduleId, onRegenerated }) {
             </p>
             <div className="flex gap-2">
               <button onClick={regenerate} disabled={regenerating}
-                className="flex-1 flex items-center justify-center gap-1.5 h-7 text-xs font-medium bg-amber-600 hover:bg-amber-700 text-white rounded-md transition-colors disabled:opacity-50">
+                className="flex-1 flex items-center justify-center gap-1.5 h-7 text-xs font-medium bg-amber-700 hover:bg-amber-700 text-white rounded-md transition-colors disabled:opacity-50">
                 {regenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Yes, regenerate'}
               </button>
               <button onClick={() => setConfirmRegen(false)}
-                className="px-3 h-7 text-xs font-medium border border-gray-200 dark:border-border rounded-md hover:bg-gray-50 dark:hover:bg-muted/20 transition-colors text-gray-600 dark:text-foreground">
+                className="px-3 h-7 text-xs font-medium border border-border rounded-md hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors text-gray-600 dark:text-foreground">
                 Cancel
               </button>
             </div>
@@ -1077,10 +1077,10 @@ function SettingsPageContent() {
       <SidebarInset>
         <SiteHeader />
 
-        <div className="flex flex-1 flex-col bg-white dark:bg-background min-h-screen">
+        <div className="flex flex-1 flex-col bg-card dark:bg-background min-h-screen">
 
           {/* ── Page top: title + tabs ────────────────────────────────────── */}
-          <div className="border-b border-gray-200 dark:border-border bg-white dark:bg-card">
+          <div className="border-b border-border bg-card ">
             <div className="px-6">
 
               {/* Breadcrumb */}
@@ -1096,7 +1096,7 @@ function SettingsPageContent() {
               <div className="flex items-center justify-between mt-2 pb-4">
                 <div className="flex items-center gap-3">
                   <h1 className="text-xl font-semibold text-gray-900 dark:text-foreground tracking-tight">Settings</h1>
-                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${formData.is_active ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'border-gray-200 dark:border-border bg-gray-100 dark:bg-muted text-gray-400'}`}>
+                  <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-full border ${formData.is_active ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400' : 'border-border bg-muted text-gray-400'}`}>
                     {formData.is_active ? 'Active' : 'Inactive'}
                   </span>
                 </div>
@@ -1136,7 +1136,7 @@ function SettingsPageContent() {
 
             {/* Right panel — access code */}
             {moduleData?.access_code && (
-              <aside className="w-64 shrink-0 border-l border-gray-200 dark:border-border px-5 py-6">
+              <aside className="w-64 shrink-0 border-l border-border px-5 py-6">
                 <AccessCodePanel
                   moduleData={moduleData}
                   moduleId={moduleId}
@@ -1148,14 +1148,14 @@ function SettingsPageContent() {
 
           {/* ── Sticky bottom action bar — only for shared-save tabs ──── */}
           {isSharedTab && (
-            <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-gray-200 dark:border-border bg-white/95 dark:bg-card/95 backdrop-blur-sm">
+            <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-card/95 backdrop-blur-sm">
               {/* match the sidebar offset so the bar doesn't overlap it */}
               <div className="flex items-center justify-end gap-3 px-6 py-3">
                 <SaveStatus state={saveState} />
                 <Button variant="outline" size="sm" onClick={() => { if (originalFormData) { setFormData(originalFormData); setHasChanges(false); } }} disabled={!hasChanges || isSaving} className="h-8 text-sm">
                   Cancel
                 </Button>
-                <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving} className="h-8 text-sm bg-gray-900 hover:bg-gray-800 text-white">
+                <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving} className="h-8 text-sm bg-primary hover:bg-primary/90 text-primary-foreground">
                   {isSaving ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Saving…</> : 'Save changes'}
                 </Button>
               </div>
@@ -1171,7 +1171,7 @@ function SettingsPageContent() {
 export default function SettingsPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-background">
+      <div className="min-h-screen flex items-center justify-center bg-card dark:bg-background">
         <Loader2 className="w-5 h-5 animate-spin text-gray-300" />
       </div>
     }>

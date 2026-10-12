@@ -85,7 +85,7 @@ function TestsPageContent() {
                           <p className="text-sm text-muted-foreground">Total Tests</p>
                           <p className="text-2xl font-bold">{tests.length}</p>
                         </div>
-                        <FileText className="w-8 h-8 text-gray-700" />
+                        <FileText className="w-8 h-8 text-foreground" />
                       </div>
                     </CardContent>
                   </Card>
@@ -96,7 +96,7 @@ function TestsPageContent() {
                           <p className="text-sm text-muted-foreground">Active Tests</p>
                           <p className="text-2xl font-bold">0</p>
                         </div>
-                        <Clock className="w-8 h-8 text-green-600" />
+                        <Clock className="w-8 h-8 text-green-600 dark:text-green-300" />
                       </div>
                     </CardContent>
                   </Card>
@@ -107,7 +107,7 @@ function TestsPageContent() {
                           <p className="text-sm text-muted-foreground">Total Submissions</p>
                           <p className="text-2xl font-bold">0</p>
                         </div>
-                        <Users className="w-8 h-8 text-gray-700" />
+                        <Users className="w-8 h-8 text-foreground" />
                       </div>
                     </CardContent>
                   </Card>
@@ -118,7 +118,7 @@ function TestsPageContent() {
                           <p className="text-sm text-muted-foreground">Avg Score</p>
                           <p className="text-2xl font-bold">-</p>
                         </div>
-                        <BarChart3 className="w-8 h-8 text-orange-600" />
+                        <BarChart3 className="w-8 h-8 text-orange-600 dark:text-orange-300" />
                       </div>
                     </CardContent>
                   </Card>

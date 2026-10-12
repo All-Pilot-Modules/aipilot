@@ -19,23 +19,23 @@ export default function ExportPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-slate-500 to-gray-600 flex items-center justify-center">
             <Download className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Data Export</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Data Export</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Export grades, submissions, and other data for external analysis or records.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Export grades, submissions, and other data for external analysis or records.</p>
       </div>
 
       {/* Export Overview */}
-      <Card className="border-2 border-slate-200 dark:border-slate-700">
+      <Card className="border-2 border-border ">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+          <CardTitle className="flex items-center gap-2 text-slate-700 dark:text-foreground">
             <Download className="w-5 h-5" />
             Export Overview
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Export your module data for use in spreadsheets, learning management systems, or your own records.</p>
-          <div className="bg-slate-50 dark:bg-slate-900/20 border border-slate-200 dark:border-slate-700 rounded-lg p-4">
-            <p className="text-sm text-slate-700 dark:text-slate-300">
+          <div className="bg-muted/50 dark:bg-card/20 border border-border rounded-lg p-4">
+            <p className="text-sm text-slate-700 dark:text-foreground">
               <strong>Access exports:</strong> Navigate to the module settings or analytics page and look for the &quot;Export&quot; button.
             </p>
           </div>
@@ -46,11 +46,11 @@ export default function ExportPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileSpreadsheet className="w-5 h-5 text-green-600" />
+            <FileSpreadsheet className="w-5 h-5 text-green-600 dark:text-green-300" />
             Export Formats
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Available export formats:</p>
           <div className="space-y-3 mt-3">
             <div className="flex items-center gap-3">
@@ -73,15 +73,15 @@ export default function ExportPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Database className="w-5 h-5 text-blue-600" />
+            <Database className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             What Can Be Exported
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>You can export the following data:</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             <div className="space-y-2">
-              <h4 className="font-medium text-gray-900 dark:text-white">Student Data</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Student Data</h4>
               <ul className="space-y-1 text-sm">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-3 h-3 text-green-500" />
@@ -98,7 +98,7 @@ export default function ExportPage() {
               </ul>
             </div>
             <div className="space-y-2">
-              <h4 className="font-medium text-gray-900 dark:text-white">Grades & Submissions</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Grades & Submissions</h4>
               <ul className="space-y-1 text-sm">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-3 h-3 text-green-500" />
@@ -115,7 +115,7 @@ export default function ExportPage() {
               </ul>
             </div>
             <div className="space-y-2">
-              <h4 className="font-medium text-gray-900 dark:text-white">Questions</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Questions</h4>
               <ul className="space-y-1 text-sm">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-3 h-3 text-green-500" />
@@ -132,7 +132,7 @@ export default function ExportPage() {
               </ul>
             </div>
             <div className="space-y-2">
-              <h4 className="font-medium text-gray-900 dark:text-white">Analytics</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Analytics</h4>
               <ul className="space-y-1 text-sm">
                 <li className="flex items-center gap-2">
                   <CheckCircle className="w-3 h-3 text-green-500" />
@@ -156,11 +156,11 @@ export default function ExportPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-purple-600" />
+            <FileText className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             How to Export
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>To export your data:</p>
           <ol className="space-y-2 list-decimal list-inside">
             <li>Navigate to the section you want to export (Grading, Students, Analytics)</li>
@@ -176,10 +176,10 @@ export default function ExportPage() {
       <Card className="border border-amber-200 dark:border-amber-800/50">
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+            <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-300 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Privacy Reminder</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <h3 className="font-semibold text-gray-900 dark:text-foreground mb-1">Privacy Reminder</h3>
+              <p className="text-sm text-gray-600 dark:text-muted-foreground">
                 Exported data contains student information. Handle it according to your institution&apos;s data privacy policies and applicable regulations (FERPA, GDPR, etc.).
               </p>
             </div>

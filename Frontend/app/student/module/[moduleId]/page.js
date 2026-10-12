@@ -47,16 +47,9 @@ import {
   AllQuestionsLoader
 } from '@/components/FeedbackLoader';
 
-// Dynamically import heavy components for better code splitting
-const ChatTab = dynamic(() => import('./ChatTab'), {
-  loading: () => <div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>,
-  ssr: false
-});
-
-const SurveyTab = dynamic(() => import('./SurveyTab'), {
-  loading: () => <div className="flex items-center justify-center p-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>,
-  ssr: false
-});
+// Keep the lightweight student tabs in the page bundle so they update together.
+import ChatTab from './ChatTab';
+import SurveyTab from './SurveyTab';
 
 const ModuleConsentModal = dynamic(() => import('@/components/ModuleConsentModal'), {
   loading: () => null,
@@ -138,9 +131,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       mcq: { label: 'Multiple Choice', color: 'bg-green-500' },
       mcq_multiple: { label: 'MCQ (Multiple)', color: 'bg-emerald-500' },
       short: { label: 'Short Answer', color: 'bg-yellow-500' },
-      long: { label: 'Long Answer', color: 'bg-purple-500' },
-      fill_blank: { label: 'Fill in Blanks', color: 'bg-blue-500' },
-      multi_part: { label: 'Multi-Part', color: 'bg-pink-500' },
+      long: { label: 'Long Answer', color: 'bg-teal-500' },
+      fill_blank: { label: 'Fill in Blanks', color: 'bg-teal-500' },
+      multi_part: { label: 'Multi-Part', color: 'bg-teal-500' },
     };
     return Object.entries(counts)
       .filter(([type]) => typeConfig[type])
@@ -299,7 +292,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       try {
         // Fetch answers for the selected attempt only
         const answersResponse = await apiClient.get(
-          `/api/student/modules/${moduleId}/my-answers?student_id=${moduleAccess.studentId}&attempt=${selectedAttempt}`
+          `/api/student/modules/${moduleId}/my-answers?student_id=${encodeURIComponent(moduleAccess.studentId)}&attempt=${selectedAttempt}`
         );
         const submittedAnswers = answersResponse?.data || answersResponse || [];
 
@@ -506,7 +499,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       // Cleanup stale jobs from previous sessions
       try {
         await apiClient.post(
-          `/api/student/modules/${moduleId}/cleanup-feedback?student_id=${moduleAccess.studentId}`
+          `/api/student/modules/${moduleId}/cleanup-feedback?student_id=${encodeURIComponent(moduleAccess.studentId)}`
         );
       } catch (error) {
         console.warn('Cleanup failed (non-fatal):', error.message);
@@ -518,7 +511,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       // Check whether generation is still in progress
       try {
         const response = await apiClient.get(
-          `/api/student/modules/${moduleId}/feedback-status?student_id=${moduleAccess.studentId}&attempt=${currentAttempt - 1}`
+          `/api/student/modules/${moduleId}/feedback-status?student_id=${encodeURIComponent(moduleAccess.studentId)}&attempt=${currentAttempt - 1}`
         );
         const status = response?.data || response || {};
         setFeedbackStatus(status);
@@ -793,8 +786,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       return;
     }
 
-    const access = JSON.parse(accessData);
-    if (String(access.moduleId) !== String(moduleId)) {
+    let access;
+    try { access = JSON.parse(accessData); } catch {
+      router.replace('/join');
+      return;
+    }
+    if (!access || String(access.moduleId) !== String(moduleId) ||
+        !auth.hasStudentSession(moduleId, access.studentId)) {
       router.push('/join');
       return;
     }
@@ -1003,7 +1001,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       setMasteryLoading(true);
       try {
         const res = await apiClient.get(
-          `/api/student/modules/${moduleId}/mastery/state?student_id=${moduleAccess.studentId}`
+          `/api/student/modules/${moduleId}/mastery/state?student_id=${encodeURIComponent(moduleAccess.studentId)}`
         );
         setMasteryState(res?.data || res || null);
       } catch {
@@ -1022,7 +1020,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
     try {
       console.log('🧹 Manual cleanup triggered...');
       const response = await apiClient.post(
-        `/api/student/modules/${moduleId}/cleanup-feedback?student_id=${moduleAccess.studentId}`
+        `/api/student/modules/${moduleId}/cleanup-feedback?student_id=${encodeURIComponent(moduleAccess.studentId)}`
       );
 
       const result = response?.data || response || {};
@@ -1064,7 +1062,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       console.log(`🔄 Regenerating all failed feedback for attempt ${currentAttempt}...`);
 
       const response = await apiClient.post(
-        `/api/ai-feedback/retry/module/${moduleId}?student_id=${moduleAccess.studentId}&attempt=${currentAttempt}`
+        `/api/ai-feedback/retry/module/${moduleId}?student_id=${encodeURIComponent(moduleAccess.studentId)}&attempt=${currentAttempt}`
       );
 
       const result = response?.data || response || {};
@@ -1123,13 +1121,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen bg-muted/50 dark:bg-card">
         {/* Header Skeleton */}
-        <div className="bg-white dark:bg-gray-800 border-b shadow-sm">
+        <div className="bg-card dark:bg-muted border-b shadow-sm">
           <div className="max-w-7xl mx-auto px-4 py-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
+                <div className="w-12 h-12 bg-teal-600 rounded-lg flex items-center justify-center">
                   <BookOpen className="w-6 h-6 text-white animate-pulse" />
                 </div>
                 <div className="space-y-2 min-w-0">
@@ -1150,10 +1148,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
         </div>
 
         {/* Content Skeleton */}
-        <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
           {/* Tabs Skeleton */}
           <div className="mb-6">
-            <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700 pb-2">
+            <div className="flex gap-2 border-b border-border pb-2">
               {Array.from({ length: 6 }).map((_, i) => (
                 <Skeleton key={i} className="h-10 w-24 rounded-lg" />
               ))}
@@ -1163,7 +1161,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
           {/* Question Cards Skeleton */}
           <div className="space-y-4">
             {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="bg-white dark:bg-slate-900 border-2 border-slate-200 dark:border-slate-700 rounded-xl p-6 shadow-sm">
+              <div key={i} className="bg-card border border-border rounded-xl p-6 shadow-sm">
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-start gap-4 flex-1">
                     <Skeleton className="w-12 h-12 rounded-lg" />
@@ -1195,7 +1193,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-muted/50 dark:bg-card flex items-center justify-center p-4">
         <Card className="w-full max-w-md">
           <CardContent className="p-6">
             <ErrorAlert
@@ -1224,77 +1222,39 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-indigo-50/20 dark:from-slate-950 dark:via-slate-900 dark:to-slate-900">
-      {/* Professional Header with Gradient */}
-      <div className="relative bg-gradient-to-r from-slate-900 via-blue-900 to-indigo-900 dark:from-slate-950 dark:via-blue-950 dark:to-indigo-950 border-b-2 border-blue-600/20 shadow-xl">
-        {/* Background Pattern */}
-        <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjAiIGhlaWdodD0iNjAiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGRlZnM+PHBhdHRlcm4gaWQ9ImdyaWQiIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgcGF0dGVyblVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+PHBhdGggZD0iTSAxMCAwIEwgMCAwIDAgMTAiIGZpbGw9Im5vbmUiIHN0cm9rZT0id2hpdGUiIHN0cm9rZS1vcGFjaXR5PSIwLjAzIiBzdHJva2Utd2lkdGg9IjEiLz48L3BhdHRlcm4+PC9kZWZzPjxyZWN0IHdpZHRoPSIxMDAlIiBoZWlnaHQ9IjEwMCUiIGZpbGw9InVybCgjZ3JpZCkiLz48L3N2Zz4=')] opacity-40"></div>
-
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 relative">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-4 flex-1 min-w-0">
-              <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg ring-2 ring-white/20">
-                <BookOpen className="w-7 h-7 text-white" />
-              </div>
-              <div className="min-w-0 flex-1">
-                <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold text-white truncate mb-1.5 tracking-tight">
-                  {moduleAccess?.moduleName || 'Module'}
-                </h1>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:gap-4 gap-1.5 text-sm text-blue-100">
-                  <span className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center">
-                      <User className="w-3 h-3 flex-shrink-0" />
-                    </div>
-                    <span className="truncate font-medium">{moduleData?.teacher_name || moduleAccess?.teacherName || 'Instructor'}</span>
-                  </span>
-                  <span className="hidden sm:block text-blue-300">•</span>
-                  <span className="flex items-center gap-1.5">
-                    <div className="w-5 h-5 rounded-full bg-white/10 flex items-center justify-center">
-                      <Calendar className="w-3 h-3 flex-shrink-0" />
-                    </div>
-                    <span className="whitespace-nowrap font-medium">Accessed {new Date(moduleAccess?.accessTime || '').toLocaleDateString()}</span>
-                  </span>
-                </div>
-              </div>
+    <div className="min-h-screen bg-background text-foreground">
+      <header className="border-b border-border bg-muted/70 dark:bg-card/60">
+        <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <p className="mb-2 text-xs text-muted-foreground">Your learning space</p>
+              <h1 className="break-words text-2xl font-semibold tracking-tight text-zinc-700 dark:text-foreground sm:text-3xl">{moduleAccess?.moduleName || 'Module'}</h1>
+              <p className="mt-2 break-words text-sm text-zinc-500 dark:text-muted-foreground">{moduleData?.teacher_name || moduleAccess?.teacherName || 'Instructor'}</p>
             </div>
-
-            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
-              {moduleAccess?.studentId && (
-                <Badge className="bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-bold font-mono text-sm px-4 py-2 shadow-lg border-0 whitespace-nowrap ring-2 ring-white/20">
-                  ID: {maskStudentId(moduleAccess.studentId)}
-                </Badge>
-              )}
-              <Badge className="bg-gradient-to-r from-emerald-500 to-green-600 text-white font-semibold whitespace-nowrap px-3 py-2 shadow-lg border-0 ring-2 ring-white/20">
-                <div className="w-1.5 h-1.5 rounded-full bg-white mr-2 animate-pulse"></div>
-                Active
-              </Badge>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  sessionStorage.removeItem('student_module_access');
-                  router.push('/join');
-                }}
-                className="whitespace-nowrap bg-white/10 hover:bg-white/20 text-white border-white/30 hover:border-white/50 backdrop-blur-sm font-medium shadow-lg"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Exit Module
-              </Button>
-            </div>
+            <Button variant="ghost" onClick={() => {
+              sessionStorage.removeItem('student_module_access');
+              router.push('/join');
+            }} className="rounded-lg text-muted-foreground"><ArrowLeft className="mr-2 h-4 w-4" />Exit module</Button>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
+            {moduleAccess?.studentId && <span>Student ID <span className="ml-1 font-mono">{maskStudentId(moduleAccess.studentId)}</span></span>}
+            {moduleAccess?.accessTime && !Number.isNaN(new Date(moduleAccess.accessTime).getTime()) && <span>Joined {new Date(moduleAccess.accessTime).toLocaleDateString()}</span>}
+            <span className="inline-flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />Active</span>
           </div>
         </div>
-      </div>
+      </header>
 
       {/* Main Content */}
-      <main id="main-content" className="max-w-7xl mx-auto px-4 py-8">
+      <main id="main-content" className="max-w-7xl mx-auto px-4 py-6 sm:px-6 lg:px-8">
         {/* Teacher Graded Notification Banner */}
         {hasTeacherGrades && activeTab !== 'feedback' && (
-          <Card className="mb-6 relative overflow-hidden border-2 border-emerald-300 dark:border-emerald-700 shadow-xl">
-            <div className="absolute inset-0 bg-gradient-to-r from-emerald-50 via-teal-50 to-cyan-50 dark:from-emerald-950/30 dark:via-teal-950/30 dark:to-cyan-950/30"></div>
-            <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500"></div>
+          <Card className="mb-6 relative overflow-hidden border border-emerald-300 dark:border-emerald-700 shadow-sm">
+            <div className="absolute inset-0  bg-emerald-50   dark:bg-emerald-950/30  "></div>
+
             <CardContent className="p-5 sm:p-7 relative">
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                 <div className="flex items-start gap-4 flex-1">
-                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center flex-shrink-0 shadow-lg ring-2 ring-emerald-600/20">
+                  <div className="w-14 h-14 sm:w-16 sm:h-16 rounded-xl  bg-emerald-600  flex items-center justify-center flex-shrink-0 shadow-sm ring-2 ring-emerald-600/20">
                     <User className="w-7 h-7 sm:w-8 sm:h-8 text-white" />
                   </div>
                   <div className="flex-1">
@@ -1313,7 +1273,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                     router.replace(`/student/module/${moduleId}?tab=feedback`, { scroll: false });
                   }}
                   size="lg"
-                  className="bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-semibold shadow-lg flex-shrink-0 w-full sm:w-auto ring-2 ring-emerald-600/20"
+                  className=" bg-emerald-700  hover:bg-emerald-700  text-white font-semibold shadow-sm flex-shrink-0 w-full sm:w-auto ring-2 ring-emerald-600/20"
                 >
                   <Eye className="w-5 h-5 mr-2" />
                   View Grade
@@ -1324,52 +1284,52 @@ const StudentModuleContent = memo(function StudentModuleContent() {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-          {/* Professional Tabs with Glassmorphism */}
-          <div className="sticky top-0 z-10 bg-white/80 dark:bg-slate-900/80 backdrop-blur-lg border border-slate-200 dark:border-slate-700 rounded-xl shadow-lg mb-6 p-1.5">
-            <TabsList className="w-full flex md:grid md:grid-cols-6 overflow-x-auto scrollbar-hide bg-transparent gap-1">
+          {/* Module navigation */}
+          <div className="sticky top-0 z-10 border-b border-border bg-background mb-6">
+            <TabsList className="flex h-auto w-full justify-start gap-1 overflow-x-auto rounded-none bg-transparent p-0">
               <TabsTrigger
                 value="assignments"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-indigo-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground shadow-none transition-colors data-[state=active]:border-teal-600 data-[state=active]:bg-teal-50/50 dark:data-[state=active]:bg-teal-950/20 data-[state=active]:text-teal-800 dark:data-[state=active]:text-teal-200 data-[state=active]:shadow-none"
               >
                 <HelpCircle className="w-4 h-4 flex-shrink-0" />
                 <span>Test</span>
               </TabsTrigger>
               <TabsTrigger
                 value="feedback"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-purple-600 data-[state=active]:to-pink-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground shadow-none transition-colors data-[state=active]:border-teal-600 data-[state=active]:bg-teal-50/50 dark:data-[state=active]:bg-teal-950/20 data-[state=active]:text-teal-800 dark:data-[state=active]:text-teal-200 data-[state=active]:shadow-none"
               >
                 <Brain className="w-4 h-4 flex-shrink-0" />
                 <span>Feedback</span>
                 {Object.keys(feedbackData).length > 0 && (
-                  <Badge variant="secondary" className="ml-0.5 text-xs bg-white/20 text-inherit border-0 px-1.5 py-0">
+                  <Badge variant="secondary" className="ml-0.5 text-xs bg-card/20 text-inherit border-0 px-1.5 py-0">
                     {Object.keys(feedbackData).length}
                   </Badge>
                 )}
               </TabsTrigger>
               <TabsTrigger
                 value="chat"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-600 data-[state=active]:to-teal-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground shadow-none transition-colors data-[state=active]:border-teal-600 data-[state=active]:bg-teal-50/50 dark:data-[state=active]:bg-teal-950/20 data-[state=active]:text-teal-800 dark:data-[state=active]:text-teal-200 data-[state=active]:shadow-none"
               >
                 <MessageSquare className="w-4 h-4 flex-shrink-0" />
                 <span>Chat</span>
               </TabsTrigger>
               <TabsTrigger
                 value="materials"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-600 data-[state=active]:to-orange-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground shadow-none transition-colors data-[state=active]:border-teal-600 data-[state=active]:bg-teal-50/50 dark:data-[state=active]:bg-teal-950/20 data-[state=active]:text-teal-800 dark:data-[state=active]:text-teal-200 data-[state=active]:shadow-none"
               >
                 <FileText className="w-4 h-4 flex-shrink-0" />
                 <span>Materials</span>
               </TabsTrigger>
               <TabsTrigger
                 value="progress"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-cyan-600 data-[state=active]:to-blue-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground shadow-none transition-colors data-[state=active]:border-teal-600 data-[state=active]:bg-teal-50/50 dark:data-[state=active]:bg-teal-950/20 data-[state=active]:text-teal-800 dark:data-[state=active]:text-teal-200 data-[state=active]:shadow-none"
               >
                 <CheckCircle className="w-4 h-4 flex-shrink-0" />
                 <span>Progress</span>
               </TabsTrigger>
               <TabsTrigger
                 value="survey"
-                className="flex items-center gap-2 whitespace-nowrap flex-shrink-0 data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-600 data-[state=active]:to-purple-600 data-[state=active]:text-white data-[state=active]:shadow-md transition-all px-3 py-2.5 rounded-lg font-medium text-sm"
+                className="flex shrink-0 items-center gap-2 whitespace-nowrap rounded-none border-b-2 border-transparent px-4 py-3 text-sm font-medium text-muted-foreground shadow-none transition-colors data-[state=active]:border-teal-600 data-[state=active]:bg-teal-50/50 dark:data-[state=active]:bg-teal-950/20 data-[state=active]:text-teal-800 dark:data-[state=active]:text-teal-200 data-[state=active]:shadow-none"
               >
                 <ClipboardList className="w-4 h-4 flex-shrink-0" />
                 <span>Survey</span>
@@ -1381,117 +1341,29 @@ const StudentModuleContent = memo(function StudentModuleContent() {
           <TabsContent value="assignments" className="space-y-6 data-[state=inactive]:hidden" forceMount>
             {questions.length > 0 ? (
               <>
-                {/* Survey Completion Prompt - Show if student hasn't submitted survey */}
-                {!surveySubmitted && (submissionStatus?.submission_count > 0) && (
-                  <Card className="relative overflow-hidden border-2 border-blue-300 dark:border-blue-700 shadow-lg">
-                    <div className="absolute inset-0 bg-gradient-to-r from-blue-50 via-indigo-50 to-purple-50 dark:from-blue-950/30 dark:via-indigo-950/30 dark:to-purple-950/30"></div>
-                    <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-indigo-500 to-purple-500"></div>
-                    <CardContent className="p-5 sm:p-6 relative">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                        <div className="w-13 h-13 rounded-xl bg-gradient-to-br from-blue-600 to-purple-600 flex items-center justify-center flex-shrink-0 shadow-lg ring-2 ring-blue-600/20">
-                          <ClipboardList className="w-6 h-6 text-white" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h2 className="text-base sm:text-lg font-bold text-gray-900 dark:text-white flex flex-wrap items-center gap-2 mb-1.5">
-                            Share Your Feedback
-                            {surveyRequired && (
-                              <Badge variant="destructive" className="text-xs font-semibold">Required</Badge>
-                            )}
-                          </h2>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed">
-                            Help us improve! Take a moment to complete the feedback survey about your learning experience.
-                          </p>
-                        </div>
-                        <Button
-                          onClick={() => {
-                            setActiveTab('survey');
-                            router.replace(`/student/module/${moduleId}?tab=survey`, { scroll: false });
-                          }}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold flex-shrink-0 w-full sm:w-auto shadow-lg ring-2 ring-blue-600/20"
-                        >
-                          <ClipboardList className="w-4 h-4 mr-2" />
-                          Complete Survey
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </Card>
+                {Object.keys(feedbackData).length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200/70 bg-emerald-50/60 px-5 py-4 dark:border-emerald-900 dark:bg-emerald-950/20">
+                    <div className="flex items-center gap-3">
+                      <CheckCircle className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      <div><h2 className="text-sm font-semibold text-foreground">{submissionStatus?.all_attempts_done ? 'All attempts complete' : 'Test submitted'}</h2><p className="mt-0.5 text-xs text-muted-foreground">Review your feedback before your next step.</p></div>
+                    </div>
+                    <Button variant="ghost" size="sm" onClick={() => {
+                      setActiveTab('feedback');
+                      router.replace(`/student/module/${moduleId}?tab=feedback`, { scroll: false });
+                    }} className="text-teal-700 hover:bg-teal-100/60 dark:text-teal-300 dark:hover:bg-teal-950">View feedback<ArrowRight className="ml-2 h-3.5 w-3.5" /></Button>
+                  </div>
                 )}
 
-                {/* If test is completed, show appropriate banner */}
-                {(() => {
-                  const hasFeedback = Object.keys(feedbackData).length > 0;
-                  const allAttemptsDone = submissionStatus?.all_attempts_done || false;
+                <Card className="relative overflow-hidden border border-border/70 bg-background shadow-sm">
 
-                  if (!hasFeedback) return null;
-
-                  // If all attempts are done (attempt 2 completed)
-                  if (allAttemptsDone) {
-                    return (
-                      <Card className="relative overflow-hidden border-2 border-purple-300 dark:border-purple-700 shadow-lg">
-                        <div className="absolute inset-0 bg-gradient-to-r from-purple-50 via-fuchsia-50 to-pink-50 dark:from-purple-950/30 dark:via-fuchsia-950/30 dark:to-pink-950/30"></div>
-                        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 via-fuchsia-500 to-pink-500"></div>
-                        <CardContent className="p-6 relative">
-                          <div className="flex items-start gap-4">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center shadow-lg ring-2 ring-purple-600/20 flex-shrink-0">
-                              <CheckCircle className="w-7 h-7 text-white" />
-                            </div>
-                            <div className="flex-1">
-                              <h2 className="text-xl font-bold text-purple-900 dark:text-purple-100 mb-2">All Attempts Complete!</h2>
-                              <p className="text-sm text-purple-800 dark:text-purple-200 leading-relaxed">
-                                You have successfully completed all your attempts. You can review and learn from the feedback in the Feedback tab.
-                              </p>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  }
-
-                  // Otherwise show first attempt completion banner
-                  return (
-                    <Card className="relative overflow-hidden border-2 border-green-300 dark:border-green-700 shadow-lg">
-                      <div className="absolute inset-0 bg-gradient-to-r from-green-50 via-emerald-50 to-teal-50 dark:from-green-950/30 dark:via-emerald-950/30 dark:to-teal-950/30"></div>
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-green-500 via-emerald-500 to-teal-500"></div>
-                      <CardContent className="p-6 relative">
-                        <div className="flex flex-col sm:flex-row items-start justify-between gap-4">
-                          <div className="flex items-start gap-4 flex-1">
-                            <div className="w-14 h-14 rounded-xl bg-gradient-to-br from-green-600 to-emerald-600 flex items-center justify-center shadow-lg ring-2 ring-green-600/20 flex-shrink-0">
-                              <CheckCircle className="w-7 h-7 text-white" />
-                            </div>
-                            <div className="flex-1">
-                              <h2 className="text-xl font-bold text-green-900 dark:text-green-100 mb-2">Test Submitted!</h2>
-                              <p className="text-sm text-green-800 dark:text-green-200 leading-relaxed">
-                                Your AI feedback is ready. Review it and see if you want to improve your score.
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            onClick={() => {
-                              setActiveTab('feedback');
-                              router.replace(`/student/module/${moduleId}?tab=feedback`, { scroll: false });
-                            }}
-                            className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-semibold shadow-lg ring-2 ring-blue-600/20 flex-shrink-0 w-full sm:w-auto"
-                            size="lg"
-                          >
-                            <Brain className="w-5 h-5 mr-2" />
-                            View Feedback
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })()}
-
-                <Card className="hover:shadow-xl transition-all duration-300 border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden">
-                  <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600"></div>
                   <CardHeader className="relative">
                     <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
                       <div className="flex items-start gap-4 flex-1">
-                        <div className="w-14 h-14 bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl flex items-center justify-center shadow-lg ring-2 ring-blue-600/20 flex-shrink-0">
-                          <HelpCircle className="w-7 h-7 text-white" />
+                        <div className="w-11 h-11 bg-teal-50 dark:bg-teal-950/40 rounded-xl flex items-center justify-center flex-shrink-0">
+                          <HelpCircle className="w-5 h-5 text-teal-700 dark:text-teal-300" />
                         </div>
                         <div className="flex-1">
-                          <CardTitle className="text-xl lg:text-2xl mb-2 font-bold text-slate-900 dark:text-white">
+                          <CardTitle className="text-xl lg:text-2xl mb-2 font-semibold text-slate-900 dark:text-foreground">
                             {moduleAccess?.moduleName} Test
                           </CardTitle>
                           <CardDescription className="text-base">
@@ -1500,13 +1372,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                         </div>
                       </div>
                       <div className="flex flex-col items-start lg:items-end gap-2.5">
-                        <Badge variant="outline" className="font-semibold text-sm border-2 border-slate-300 dark:border-slate-600 px-3 py-1.5">
+                        <Badge variant="outline" className="font-medium text-xs border-border bg-muted/30 text-muted-foreground px-3 py-1.5">
                           {submissionStatus?.submission_count || 0} / {submissionStatus?.max_attempts || 2} attempts used
                         </Badge>
                         <div className="w-full lg:w-32">
-                          <div className="bg-slate-200 dark:bg-slate-700 rounded-full h-2.5 overflow-hidden">
+                          <div className="bg-muted rounded-full h-2.5 overflow-hidden">
                             <div
-                              className="bg-gradient-to-r from-blue-600 to-indigo-600 h-2.5 rounded-full transition-all duration-500 ease-out"
+                              className="bg-teal-600 h-2.5 rounded-full transition-all duration-500 ease-out"
                               style={{
                                 width: `${submissionStatus ? ((submissionStatus.submission_count || 0) / (submissionStatus.max_attempts || 2)) * 100 : 0}%`
                               }}
@@ -1528,14 +1400,14 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       </div>
 
                       {moduleData?.instructions && (
-                        <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                          <h4 className="font-medium text-blue-900 dark:text-blue-100 mb-2">Instructions</h4>
-                          <p className="text-sm text-blue-700 dark:text-blue-300">{moduleData.instructions}</p>
+                        <div className="bg-teal-50 dark:bg-teal-950/20 p-4 rounded-lg border border-teal-200 dark:border-teal-800">
+                          <h4 className="font-medium text-teal-900 dark:text-teal-100 mb-2">Instructions</h4>
+                          <p className="text-sm text-teal-700 dark:text-teal-300">{moduleData.instructions}</p>
                         </div>
                       )}
 
-                      <div className="flex items-center justify-between pt-4">
-                        <div className="text-sm text-gray-600 dark:text-gray-400">
+                      <div className="flex flex-wrap items-center justify-between gap-4 border-t border-border/60 pt-5">
+                        <div className="text-sm text-gray-600 dark:text-muted-foreground">
                           {(() => {
                             const hasFeedback = Object.keys(feedbackData).length > 0;
                             const allAttemptsDone = submissionStatus?.all_attempts_done || false;
@@ -1562,8 +1434,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                           // Don't show button if feedback is being generated
                           if (isPolling) {
                             return (
-                              <div className="flex items-center gap-2 text-sm text-blue-600">
-                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                              <div className="flex items-center gap-2 text-sm text-teal-600 dark:text-teal-300">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
                                 <span>Feedback is being generated...</span>
                               </div>
                             );
@@ -1577,8 +1449,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                   className={(() => {
                                     const currentAttempt = submissionStatus?.current_attempt || 1;
                                     return currentAttempt > 1
-                                      ? "bg-orange-600 hover:bg-orange-700"
-                                      : "bg-blue-600 hover:bg-blue-700";
+                                      ? "bg-teal-700 hover:bg-teal-800 text-white"
+                                      : "bg-teal-700 hover:bg-teal-800 text-white";
                                   })()}
                                   size="lg"
                                 >
@@ -1605,7 +1477,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 <Button
                                   onClick={() => handleStartMastery()}
                                   size="lg"
-                                  className="bg-purple-600 hover:bg-purple-700 text-white"
+                                  className="bg-teal-700 hover:bg-teal-700 text-white"
                                 >
                                   <Target className="w-4 h-4 mr-2" />
                                   Start Mastery Practice
@@ -1618,15 +1490,24 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                     </div>
                   </CardContent>
                 </Card>
+                {!surveySubmitted && submissionStatus?.submission_count > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 px-1 py-2 text-sm">
+                    <div className="flex items-center gap-2 text-muted-foreground"><ClipboardList className="h-4 w-4" /><span>Share your learning experience{surveyRequired ? ' · Required survey' : ''}</span></div>
+                    <Button variant="outline" size="sm" className="rounded-lg border-border text-foreground shadow-none" onClick={() => {
+                      setActiveTab('survey');
+                      router.replace(`/student/module/${moduleId}?tab=survey`, { scroll: false });
+                    }}>Complete survey</Button>
+                  </div>
+                )}
               </>
             ) : (
               <Card className="text-center py-12">
                 <CardContent>
                   <HelpCircle className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-foreground mb-2">
                     No Test Available
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400">
+                  <p className="text-gray-600 dark:text-muted-foreground">
                     Your instructor has not posted the test yet. Check back later!
                   </p>
                 </CardContent>
@@ -1639,17 +1520,17 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
             {/* ── Mastery Learning Progress Card ── */}
             {isMasteryEnabled && (
-              <Card className="border-2 border-purple-200 dark:border-purple-800 bg-gradient-to-r from-purple-50 to-indigo-50/30 dark:from-purple-950/20 dark:to-indigo-950/10">
+              <Card className="border border-teal-200 dark:border-teal-800  bg-teal-50  dark:bg-teal-950/20 ">
                 <CardContent className="p-5">
                   <div className="flex items-center justify-between mb-3">
                     <div className="flex items-center gap-2">
-                      <Target className="w-5 h-5 text-purple-600" />
-                      <h3 className="font-semibold text-purple-900 dark:text-purple-100">Mastery Learning</h3>
+                      <Target className="w-5 h-5 text-teal-600 dark:text-teal-300" />
+                      <h3 className="font-semibold text-teal-900 dark:text-teal-100">Mastery Learning</h3>
                     </div>
                     <Button
                       onClick={() => handleStartMastery()}
                       size="sm"
-                      className="bg-purple-600 hover:bg-purple-700 text-white"
+                      className="bg-teal-700 hover:bg-teal-700 text-white"
                     >
                       <Target className="w-4 h-4 mr-1" />
                       {masteryState?.progress?.all_mastered ? 'Review' : 'Practice'}
@@ -1657,8 +1538,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                   </div>
 
                   {masteryLoading ? (
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-purple-500" />
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-teal-500" />
                       Loading progress...
                     </div>
                   ) : masteryState ? (
@@ -1666,18 +1547,18 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       {/* Progress bar */}
                       <div className="space-y-1">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600 dark:text-gray-400">
+                          <span className="text-gray-600 dark:text-muted-foreground">
                             {masteryState.progress?.mastered ?? 0} / {masteryState.progress?.total ?? 0} questions mastered
                           </span>
-                          <span className="font-semibold text-purple-700 dark:text-purple-300">
+                          <span className="font-semibold text-teal-700 dark:text-teal-300">
                             {masteryState.progress?.total > 0
                               ? Math.round((masteryState.progress.mastered / masteryState.progress.total) * 100)
                               : 0}%
                           </span>
                         </div>
-                        <div className="w-full h-2 bg-purple-100 dark:bg-purple-900/40 rounded-full overflow-hidden">
+                        <div className="w-full h-2 bg-teal-100 dark:bg-teal-900/40 rounded-full overflow-hidden">
                           <div
-                            className="h-full bg-purple-500 rounded-full transition-all"
+                            className="h-full bg-teal-500 rounded-full transition-all"
                             style={{
                               width: masteryState.progress?.total > 0
                                 ? `${(masteryState.progress.mastered / masteryState.progress.total) * 100}%`
@@ -1696,10 +1577,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                               title={`Q${i + 1}: streak ${entry.streak_count}/${masteryState.streak_required}`}
                               className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-semibold border transition-all ${
                                 entry.is_mastered
-                                  ? 'bg-purple-100 border-purple-400 text-purple-700 dark:bg-purple-900/40 dark:border-purple-600 dark:text-purple-300'
+                                  ? 'bg-teal-100 border-teal-400 text-teal-700 dark:bg-teal-900/40 dark:border-teal-600 dark:text-teal-300'
                                   : entry.streak_count > 0
                                   ? 'bg-amber-50 border-amber-300 text-amber-700 dark:bg-amber-900/20 dark:border-amber-600 dark:text-amber-300'
-                                  : 'bg-gray-100 border-gray-300 text-gray-500 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-400'
+                                  : 'bg-muted border-border text-gray-500 dark:text-muted-foreground'
                               }`}
                             >
                               {entry.is_mastered ? '✓' : entry.streak_count > 0 ? entry.streak_count : i + 1}
@@ -1709,14 +1590,14 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       )}
 
                       {masteryState.progress?.all_mastered && (
-                        <div className="flex items-center gap-2 text-sm font-medium text-purple-700 dark:text-purple-300">
+                        <div className="flex items-center gap-2 text-sm font-medium text-teal-700 dark:text-teal-300">
                           <CheckCircle className="w-4 h-4" />
                           All questions mastered!
                         </div>
                       )}
                     </div>
                   ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    <p className="text-sm text-gray-500 dark:text-muted-foreground">
                       You haven&apos;t started mastery practice yet. Click <strong>Practice</strong> to begin.
                     </p>
                   )}
@@ -1743,7 +1624,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                 {/* Attempt Selector - Only show attempts that have AI feedback OR teacher grades */}
                 {visibleAttempts.length > 1 && (
                     <div className="flex items-center gap-2 mb-4">
-                      <span className="text-sm font-medium text-gray-700 dark:text-gray-300">View Attempt:</span>
+                      <span className="text-sm font-medium text-gray-700 dark:text-foreground">View Attempt:</span>
                       <div className="flex gap-2">
                         {visibleAttempts.map(attemptNum => (
                           <Button
@@ -1751,7 +1632,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                             onClick={() => setSelectedAttempt(Number(attemptNum))}
                             variant={selectedAttempt === Number(attemptNum) ? "default" : "outline"}
                             size="sm"
-                            className={selectedAttempt === Number(attemptNum) ? "bg-blue-600 hover:bg-blue-700" : ""}
+                            className={selectedAttempt === Number(attemptNum) ? "bg-teal-700 hover:bg-teal-700 text-white" : ""}
                           >
                             Attempt {attemptNum}
                           </Button>
@@ -1778,7 +1659,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                   // Show banner if teacher grades exist but student is viewing a different attempt
                   if (hasTeacherGrades && attemptWithGrades && selectedAttempt !== attemptWithGrades) {
                     return (
-                      <Card className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-2 border-emerald-300 dark:border-emerald-700 mb-4">
+                      <Card className=" bg-emerald-50  dark:bg-emerald-950/20  border border-emerald-300 dark:border-emerald-700 mb-4">
                         <CardContent className="p-4">
                           <div className="flex items-center gap-3">
                             <User className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
@@ -1793,7 +1674,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                             <Button
                               onClick={() => setSelectedAttempt(attemptWithGrades)}
                               size="sm"
-                              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                              className="bg-emerald-700 hover:bg-emerald-700 text-white"
                             >
                               View Attempt {attemptWithGrades}
                             </Button>
@@ -1813,20 +1694,20 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                   if (isFinalAttempt && !hasTeacherGradeInThisAttempt) {
                     return (
-                      <Card className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-950/20 dark:to-pink-950/20 border-2 border-purple-300 dark:border-purple-700">
+                      <Card className=" bg-teal-50  dark:bg-teal-950/20  border border-teal-300 dark:border-teal-700">
                         <CardContent className="p-8 text-center">
                           <div className="flex flex-col items-center gap-4">
-                            <div className="w-20 h-20 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                              <User className="w-10 h-10 text-purple-600 dark:text-purple-400" />
+                            <div className="w-20 h-20 rounded-full bg-teal-100 dark:bg-teal-900/30 flex items-center justify-center">
+                              <User className="w-10 h-10 text-teal-600 dark:text-teal-400" />
                             </div>
                             <div>
-                              <h3 className="text-2xl font-bold text-purple-900 dark:text-purple-100 mb-2">
+                              <h3 className="text-2xl font-bold text-teal-900 dark:text-teal-100 mb-2">
                                 Final Attempt - Teacher Grading Only
                               </h3>
-                              <p className="text-purple-700 dark:text-purple-300 mb-1">
+                              <p className="text-teal-700 dark:text-teal-300 mb-1">
                                 This is your final attempt and is reserved for manual grading by your teacher. AI feedback is only available for attempts 1-{maxAttempts - 1}.
                               </p>
-                              <p className="text-sm text-purple-600 dark:text-purple-400 mt-4">
+                              <p className="text-sm text-teal-600 dark:text-teal-400 mt-4">
                                 Your teacher will manually grade this attempt. Check back later for feedback.
                               </p>
                             </div>
@@ -1850,27 +1731,27 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                   }
 
                   return (
-                    <Card className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-950/20 dark:to-blue-900/20 border-blue-200 dark:border-blue-800">
+                    <Card className=" bg-teal-50  dark:bg-teal-950/20  border-teal-200 dark:border-teal-800">
                       <CardContent className="p-6">
                         <div className="flex items-center justify-between mb-4">
                           <div className="flex items-center gap-4">
-                            <div className="w-16 h-16 rounded-full bg-blue-600 flex items-center justify-center">
+                            <div className="w-16 h-16 rounded-full bg-teal-600 flex items-center justify-center">
                               <Brain className="w-8 h-8 text-white" />
                             </div>
                             <div>
-                              <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
+                              <h3 className="text-2xl font-bold text-gray-900 dark:text-foreground">
                                 Feedback for Attempt {selectedAttempt}
                               </h3>
-                              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                              <p className="text-sm text-gray-600 dark:text-muted-foreground mt-1">
                             {`${feedbackStats.correctCount} out of ${feedbackStats.total} correct`}
                           </p>
                         </div>
                       </div>
                       <div className="text-right">
-                        <div className="text-4xl font-bold text-blue-600">
+                        <div className="text-4xl font-bold text-teal-600 dark:text-teal-300">
                           {feedbackStats.percentage}%
                         </div>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                        <p className="text-sm text-gray-600 dark:text-muted-foreground">
                           {feedbackStats.pointsEarned} / {feedbackStats.pointsPossible} pts
                         </p>
                       </div>
@@ -1878,14 +1759,14 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                     {/* Show message for final attempt (teacher grading only, no AI feedback) */}
                     {selectedAttempt >= (submissionStatus?.max_attempts || 2) && (
-                      <div className="mt-4 p-4 bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+                      <div className="mt-4 p-4 bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-lg">
                         <div className="flex items-start gap-3">
-                          <User className="h-5 w-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                          <User className="h-5 w-5 text-teal-600 dark:text-teal-300 mt-0.5 flex-shrink-0" />
                           <div className="flex-1">
-                            <p className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                            <p className="text-sm font-medium text-teal-900 dark:text-teal-100">
                               Final Attempt - Teacher Grading Only
                             </p>
-                            <p className="text-xs text-purple-700 dark:text-purple-300 mt-1">
+                            <p className="text-xs text-teal-700 dark:text-teal-300 mt-1">
                               This is your final attempt and is reserved for manual grading by your teacher. AI feedback is only available for attempts 1-{(submissionStatus?.max_attempts || 2) - 1}.
                             </p>
                           </div>
@@ -1898,7 +1779,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       const { failed: failedCount, retrying: retryingCount } = feedbackCounts(feedbackStatus, selectedAttempt);
                       if (retryingCount > 0) {
                         return (
-                          <div role="status" className="mt-4 rounded-lg border border-blue-200 bg-blue-50 p-4 text-blue-900 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-100">
+                          <div role="status" className="mt-4 rounded-lg border border-teal-200 bg-teal-50 p-4 text-teal-900 dark:border-teal-800 dark:bg-teal-950/20 dark:text-teal-100">
                             <p className="font-medium">Retrying automatically ({retryingCount})</p>
                             <p className="mt-1 text-sm">Your answers are saved. We’re trying again to generate your feedback.</p>
                           </div>
@@ -1968,13 +1849,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       const nextAttemptNumber = currentAttempt;
 
                       return (
-                        <div className="mt-6 pt-6 border-t border-blue-300 dark:border-blue-700">
-                          <div className="flex items-center justify-between">
+                        <div className="mt-6 pt-6 border-t border-teal-300 dark:border-teal-700">
+                          <div className="flex flex-wrap items-center justify-between gap-4">
                             <div>
-                              <p className="font-medium text-gray-900 dark:text-white text-lg">
+                              <p className="font-medium text-gray-900 dark:text-foreground text-lg">
                                 Ready for attempt {nextAttemptNumber}?
                               </p>
-                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                              <p className="text-sm text-gray-600 dark:text-muted-foreground">
                                 {isPolling
                                   ? "Please wait for feedback generation to complete before starting the next attempt"
                                   : "Review the feedback below, then start fresh with empty answers to improve your score"
@@ -1986,7 +1867,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 <Button
                                   onClick={() => router.push(`/student/test/${moduleId}`)}
                                   disabled={isPolling}
-                                  className="bg-orange-600 hover:bg-orange-700 text-white px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="bg-teal-700 hover:bg-teal-800 text-white px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                                   size="lg"
                                 >
                                   {isPolling ? (
@@ -2006,7 +1887,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 <Button
                                   onClick={() => handleStartMastery()}
                                   disabled={isPolling}
-                                  className="bg-purple-600 hover:bg-purple-700 text-white px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                                  className="bg-teal-700 hover:bg-teal-700 text-white px-6 disabled:opacity-50 disabled:cursor-not-allowed"
                                   size="lg"
                                 >
                                   <Target className="w-4 h-4 mr-2" />
@@ -2034,11 +1915,11 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       if (!allCorrect) return null;
 
                       return (
-                        <div className="mt-6 pt-6 border-t border-blue-300 dark:border-blue-700">
+                        <div className="mt-6 pt-6 border-t border-teal-300 dark:border-teal-700">
                           <div className="text-center">
                             <div className="text-6xl mb-2">🎉</div>
-                            <p className="text-xl font-bold text-gray-900 dark:text-white">Perfect!</p>
-                            <p className="text-sm text-gray-600 dark:text-gray-400">
+                            <p className="text-xl font-bold text-gray-900 dark:text-foreground">Perfect!</p>
+                            <p className="text-sm text-gray-600 dark:text-muted-foreground">
                               Great job! You got all questions correct on attempt {selectedAttempt}.
                             </p>
                           </div>
@@ -2083,7 +1964,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 className={`
                                   w-12 h-12 rounded-lg text-sm font-bold border-2 transition-colors relative flex items-center justify-center
                                   ${!isAnswered
-                                    ? 'border-gray-300 dark:border-gray-600 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'
+                                    ? 'border-border bg-muted text-gray-500 dark:text-muted-foreground'
                                     : feedback
                                     ? feedback.teacher_grade
                                       ? feedback.teacher_grade.points_awarded >= feedback.points_possible
@@ -2093,9 +1974,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30'
                                       : 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/30'
                                     : hasTeacherGradesInAttempt
-                                    ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                    ? 'border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400'
                                     : isPolling
-                                    ? 'border-blue-400 dark:border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400'
+                                    ? 'border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400'
                                     : 'border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400'
                                   }
                                 `}
@@ -2124,7 +2005,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                   </div>
                                 ) : isPolling ? (
                                   <div className="flex items-center justify-center">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600 dark:border-teal-400"></div>
                                   </div>
                                 ) : (
                                   <span className="text-base font-bold">{index + 1}</span>
@@ -2147,7 +2028,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                         <Card
                           key={question.id}
                           id={`feedback-question-${question.id}`}
-                          className="hover:shadow-lg transition-shadow scroll-mt-6"
+                          className="border-border/70 shadow-none scroll-mt-6"
                         >
                           <CardHeader className="pb-4">
                             <div className="flex items-start justify-between gap-4">
@@ -2159,7 +2040,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                                     if (!isAnswered) {
                                       return (
-                                        <Badge variant="secondary" className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                        <Badge variant="secondary" className="bg-muted text-gray-600 dark:text-muted-foreground">
                                           Not Answered
                                         </Badge>
                                       );
@@ -2170,7 +2051,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       const maxAttempts = submissionStatus?.max_attempts || 2;
                                       if (selectedAttempt >= maxAttempts) {
                                         return (
-                                          <Badge variant="secondary" className="bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                                          <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                                             <User className="w-3 h-3 mr-1" />
                                             Awaiting Teacher Grading
                                           </Badge>
@@ -2180,7 +2061,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       // If there are teacher grades in this attempt, show waiting badge
                                       if (hasTeacherGradesInAttempt) {
                                         return (
-                                          <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                          <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                                             <User className="w-3 h-3 mr-1" />
                                             Awaiting Teacher Grading
                                           </Badge>
@@ -2190,9 +2071,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       // Otherwise show AI generation status (only for non-final attempts)
                                       if (isPolling) {
                                         return (
-                                          <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                          <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                                             <div className="flex items-center gap-2">
-                                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-teal-600 dark:border-teal-400"></div>
                                               Generating feedback...
                                             </div>
                                           </Badge>
@@ -2214,7 +2095,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       {feedback.teacher_grade ? (
                                         // Show teacher graded badge
                                         <>
-                                          <User className="w-5 h-5 text-emerald-600" />
+                                          <User className="w-5 h-5 text-emerald-600 dark:text-emerald-300" />
                                           <Badge variant="default" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
                                             Teacher Graded
                                           </Badge>
@@ -2223,9 +2104,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                         // Show AI feedback badge
                                         <>
                                           {feedback.is_correct ? (
-                                            <CheckCircle className="w-5 h-5 text-green-600" />
+                                            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300" />
                                           ) : (
-                                            <XCircle className="w-5 h-5 text-orange-600" />
+                                            <XCircle className="w-5 h-5 text-orange-600 dark:text-orange-300" />
                                           )}
                                           <Badge variant={feedback.is_correct ? "default" : "secondary"} className={
                                             feedback.is_correct
@@ -2238,14 +2119,14 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                       ) : null}
                                     </>
                                   ) : isAnswered ? (
-                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                                    <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
                                       <div className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600 dark:border-blue-400"></div>
+                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-teal-600 dark:border-teal-400"></div>
                                         Loading feedback...
                                       </div>
                                     </Badge>
                                   ) : (
-                                    <Badge variant="secondary" className="bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+                                    <Badge variant="secondary" className="bg-muted text-gray-600 dark:text-muted-foreground">
                                       Not Answered
                                     </Badge>
                                   )}
@@ -2253,7 +2134,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                     Question {index + 1} of {questions.length}
                                   </Badge>
                                 </div>
-                                <MathText className="text-base text-gray-900 dark:text-gray-100 leading-relaxed whitespace-pre-wrap">
+                                <MathText embedLinks className="text-base text-gray-900 dark:text-foreground leading-relaxed whitespace-pre-wrap">
                                   {question.text}
                                 </MathText>
                                 {question.image_url && (
@@ -2262,7 +2143,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                     <img
                                       src={question.image_url}
                                       alt={`Visual content for Question ${index + 1}: ${question.question_text?.substring(0, 100)}${question.question_text?.length > 100 ? '...' : ''}`}
-                                      className="max-w-full h-auto rounded-lg border border-gray-200 dark:border-gray-700"
+                                      className="max-w-full h-auto rounded-lg border border-border "
                                       loading="lazy"
                                     />
                                   </div>
@@ -2295,12 +2176,12 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                             {/* IMPORTANT: Show feedback as soon as it's ready, even if still polling for other questions */}
                             {/* Only show loader if feedback is genuinely not ready yet (pending/generating/missing) */}
                             {!isAnswered ? (
-                              <div className="bg-gray-50 dark:bg-gray-800 p-6 rounded-lg text-center">
+                              <div className="bg-muted/50 dark:bg-muted p-6 rounded-lg text-center">
                                 <AlertCircle className="w-12 h-12 text-gray-400 mx-auto mb-3" />
-                                <p className="text-gray-600 dark:text-gray-400 font-medium">
+                                <p className="text-gray-600 dark:text-muted-foreground font-medium">
                                   No answer provided for this question
                                 </p>
-                                <p className="text-sm text-gray-500 dark:text-gray-500 mt-1">
+                                <p className="text-sm text-gray-500 dark:text-muted-foreground mt-1">
                                   You did not submit an answer for this question in your attempt.
                                 </p>
                               </div>
@@ -2313,12 +2194,12 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                               // and "AI Grading" mode releases automatically with no teacher
                               // grade at all, so gating on teacher_grade hid already-released
                               // feedback behind this panel forever.
-                              <div className="bg-purple-50 dark:bg-purple-950/20 border border-purple-200 dark:border-purple-800 rounded-lg p-6 text-center">
-                                <User className="w-12 h-12 text-purple-600 dark:text-purple-400 mx-auto mb-3" />
-                                <p className="text-purple-900 dark:text-purple-100 font-medium">
+                              <div className="bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-lg p-6 text-center">
+                                <User className="w-12 h-12 text-teal-600 dark:text-teal-400 mx-auto mb-3" />
+                                <p className="text-teal-900 dark:text-teal-100 font-medium">
                                   Awaiting Teacher Grading
                                 </p>
-                                <p className="text-sm text-purple-700 dark:text-purple-300 mt-1">
+                                <p className="text-sm text-teal-700 dark:text-teal-300 mt-1">
                                   Your teacher will manually grade this attempt. Check back later for feedback.
                                 </p>
                               </div>
@@ -2331,9 +2212,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                               <>
                                 {/* Your Answer - MCQ */}
                                 {question.type === 'mcq' && feedback.selected_option && (
-                                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Your answer:</p>
-                                    <p className="flex items-start gap-1 text-base font-medium text-gray-900 dark:text-gray-100 whitespace-pre-wrap">
+                                  <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600 dark:text-muted-foreground mb-1">Your answer:</p>
+                                    <p className="flex items-start gap-1 text-base font-medium text-gray-900 dark:text-foreground whitespace-pre-wrap">
                                       <span>{feedback.selected_option}.</span>
                                       <MathText inline>{feedback.available_options?.[feedback.selected_option]}</MathText>
                                     </p>
@@ -2342,11 +2223,11 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                                 {/* Your Answer - MCQ Multiple */}
                                 {question.type === 'mcq_multiple' && feedback.selected_options && (
-                                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-1">Your answers:</p>
+                                  <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600 dark:text-muted-foreground mb-1">Your answers:</p>
                                     <div className="space-y-1">
                                       {feedback.selected_options.map((opt, idx) => (
-                                        <p key={idx} className="flex items-start gap-1 text-base font-medium text-gray-900 dark:text-gray-100">
+                                        <p key={idx} className="flex items-start gap-1 text-base font-medium text-gray-900 dark:text-foreground">
                                           <span>{opt}.</span>
                                           <MathText inline>{feedback.available_options?.[opt]}</MathText>
                                         </p>
@@ -2357,13 +2238,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                                 {/* Your Answer - Fill-in-the-Blank */}
                                 {question.type === 'fill_blank' && feedback.grading_details?.blank_results && (
-                                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Your answers:</p>
+                                  <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600 dark:text-muted-foreground mb-2">Your answers:</p>
                                     <div className="space-y-2">
                                       {feedback.grading_details.blank_results.map((blank, idx) => (
                                         <div key={idx} className="flex items-start gap-2">
-                                          <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Blank {blank.position + 1}:</span>
-                                          <MathText inline className="text-base font-medium text-gray-900 dark:text-gray-100">{blank.student_answer || '(empty)'}</MathText>
+                                          <span className="text-sm font-medium text-gray-600 dark:text-muted-foreground">Blank {blank.position + 1}:</span>
+                                          <MathText inline className="text-base font-medium text-gray-900 dark:text-foreground">{blank.student_answer || '(empty)'}</MathText>
                                           {blank.is_correct ? (
                                             <CheckCircle className="w-5 h-5 text-green-500" />
                                           ) : (
@@ -2377,13 +2258,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                                 {/* Your Answer - Multi-Part */}
                                 {question.type === 'multi_part' && feedback.sub_results && (
-                                  <div className="bg-gray-50 dark:bg-gray-800 p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">Your answers:</p>
+                                  <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600 dark:text-muted-foreground mb-2">Your answers:</p>
                                     <div className="space-y-2">
                                       {feedback.sub_results.map((sub, idx) => (
                                         <div key={idx} className="flex items-start gap-2">
-                                          <span className="text-sm font-medium text-purple-600 dark:text-purple-400">{sub.sub_id}:</span>
-                                          <MathText inline className="text-base font-medium text-gray-900 dark:text-gray-100 flex-1">
+                                          <span className="text-sm font-medium text-teal-600 dark:text-teal-400">{sub.sub_id}:</span>
+                                          <MathText inline className="text-base font-medium text-gray-900 dark:text-foreground flex-1">
                                             {typeof sub.student_answer === 'string' ? sub.student_answer : JSON.stringify(sub.student_answer)}
                                           </MathText>
                                           {sub.is_correct !== null && (
@@ -2403,8 +2284,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 <div className="space-y-3">
                                   {/* No AI Feedback Message - Only show when teacher graded but no AI feedback */}
                                   {!feedback.correctness_score && feedback.teacher_grade && (
-                                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                                      <p className="text-sm text-blue-800 dark:text-blue-200">
+                                    <div className="bg-teal-50 dark:bg-teal-950/20 p-4 rounded-lg border border-teal-200 dark:border-teal-800">
+                                      <p className="text-sm text-teal-800 dark:text-teal-200">
                                         <strong>Note:</strong> AI feedback was not generated for this question. Your teacher has manually graded your response below.
                                       </p>
                                     </div>
@@ -2429,7 +2310,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                         feedback.correctness_score === 100
                                           ? 'bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-700'
                                           : feedback.correctness_score >= 70
-                                          ? 'bg-blue-50 dark:bg-blue-950/20 border-blue-300 dark:border-blue-700'
+                                          ? 'bg-teal-50 dark:bg-teal-950/20 border-teal-300 dark:border-teal-700'
                                           : feedback.correctness_score >= 50
                                           ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700'
                                           : 'bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-700'
@@ -2441,7 +2322,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                             feedback.correctness_score === 100
                                               ? 'text-green-900 dark:text-green-100'
                                               : feedback.correctness_score >= 70
-                                              ? 'text-blue-900 dark:text-blue-100'
+                                              ? 'text-teal-900 dark:text-teal-100'
                                               : feedback.correctness_score >= 50
                                               ? 'text-yellow-900 dark:text-yellow-100'
                                               : 'text-red-900 dark:text-red-100'
@@ -2453,7 +2334,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                               feedback.correctness_score === 100
                                                 ? 'text-green-700 dark:text-green-300'
                                                 : feedback.correctness_score >= 70
-                                                ? 'text-blue-700 dark:text-blue-300'
+                                                ? 'text-teal-700 dark:text-teal-300'
                                                 : feedback.correctness_score >= 50
                                                 ? 'text-yellow-700 dark:text-yellow-300'
                                                 : 'text-red-700 dark:text-red-300'
@@ -2465,7 +2346,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                                 feedback.correctness_score === 100
                                                   ? 'text-green-600 dark:text-green-400'
                                                   : feedback.correctness_score >= 70
-                                                  ? 'text-blue-600 dark:text-blue-400'
+                                                  ? 'text-teal-600 dark:text-teal-400'
                                                   : feedback.correctness_score >= 50
                                                   ? 'text-yellow-600 dark:text-yellow-400'
                                                   : 'text-red-600 dark:text-red-400'
@@ -2480,7 +2361,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                             feedback.correctness_score === 100
                                               ? 'text-green-700 dark:text-green-300'
                                               : feedback.correctness_score >= 70
-                                              ? 'text-blue-700 dark:text-blue-300'
+                                              ? 'text-teal-700 dark:text-teal-300'
                                               : feedback.correctness_score >= 50
                                               ? 'text-yellow-700 dark:text-yellow-300'
                                               : 'text-red-700 dark:text-red-300'
@@ -2504,7 +2385,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                                 feedback.correctness_score === 100
                                                   ? 'bg-green-100/50 dark:bg-green-900/20'
                                                   : feedback.correctness_score >= 70
-                                                  ? 'bg-blue-100/50 dark:bg-blue-900/20'
+                                                  ? 'bg-teal-100/50 dark:bg-teal-900/20'
                                                   : feedback.correctness_score >= 50
                                                   ? 'bg-yellow-100/50 dark:bg-yellow-900/20'
                                                   : 'bg-red-100/50 dark:bg-red-900/20'
@@ -2514,7 +2395,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                                     feedback.correctness_score === 100
                                                       ? 'text-green-900 dark:text-green-100'
                                                       : feedback.correctness_score >= 70
-                                                      ? 'text-blue-900 dark:text-blue-100'
+                                                      ? 'text-teal-900 dark:text-teal-100'
                                                       : feedback.correctness_score >= 50
                                                       ? 'text-yellow-900 dark:text-yellow-100'
                                                       : 'text-red-900 dark:text-red-100'
@@ -2525,7 +2406,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                                     feedback.correctness_score === 100
                                                       ? 'text-green-700 dark:text-green-300'
                                                       : feedback.correctness_score >= 70
-                                                      ? 'text-blue-700 dark:text-blue-300'
+                                                      ? 'text-teal-700 dark:text-teal-300'
                                                       : feedback.correctness_score >= 50
                                                       ? 'text-yellow-700 dark:text-yellow-300'
                                                       : 'text-red-700 dark:text-red-300'
@@ -2538,7 +2419,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                                     feedback.correctness_score === 100
                                                       ? 'text-green-800 dark:text-green-200'
                                                       : feedback.correctness_score >= 70
-                                                      ? 'text-blue-800 dark:text-blue-200'
+                                                      ? 'text-teal-800 dark:text-teal-200'
                                                       : feedback.correctness_score >= 50
                                                       ? 'text-yellow-800 dark:text-yellow-200'
                                                       : 'text-red-800 dark:text-red-200'
@@ -2556,11 +2437,11 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                                   {/* Explanation */}
                                   {feedback.explanation && (
-                                    <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg">
-                                      <p className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                                    <div className="bg-teal-50 dark:bg-teal-950/20 p-4 rounded-lg">
+                                      <p className="text-sm font-medium text-teal-900 dark:text-teal-100 mb-1">
                                         Feedback
                                       </p>
-                                      <MathText className="text-sm text-blue-800 dark:text-blue-200 leading-relaxed">
+                                      <MathText className="text-sm text-teal-800 dark:text-teal-200 leading-relaxed">
                                         {feedback.explanation}
                                       </MathText>
                                     </div>
@@ -2614,11 +2495,11 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                                   {/* Concept Explanation */}
                                   {feedback.concept_explanation && (
-                                    <div className="bg-purple-50 dark:bg-purple-950/20 p-4 rounded-lg">
-                                      <p className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-1">
+                                    <div className="bg-teal-50 dark:bg-teal-950/20 p-4 rounded-lg">
+                                      <p className="text-sm font-medium text-teal-900 dark:text-teal-100 mb-1">
                                         Key concept
                                       </p>
-                                      <MathText className="text-sm text-purple-800 dark:text-purple-200 leading-relaxed">
+                                      <MathText className="text-sm text-teal-800 dark:text-teal-200 leading-relaxed">
                                         {feedback.concept_explanation}
                                       </MathText>
                                     </div>
@@ -2626,7 +2507,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
                                   {/* Teacher Grade - Final Grade from Teacher */}
                                   {feedback.teacher_grade && (
-                                    <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-4 rounded-lg border-2 border-emerald-300 dark:border-emerald-700">
+                                    <div className=" bg-emerald-50  dark:bg-emerald-950/20  p-4 rounded-lg border border-emerald-300 dark:border-emerald-700">
                                       <div className="flex items-start gap-3">
                                         <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
                                           <User className="w-5 h-5 text-white" />
@@ -2635,17 +2516,17 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                           <p className="text-sm font-bold text-emerald-900 dark:text-emerald-100 mb-2">
                                             Teacher&apos;s Final Grade
                                           </p>
-                                          <div className="bg-white dark:bg-gray-900 p-3 rounded-md mb-2">
+                                          <div className="bg-card p-3 rounded-md mb-2">
                                             <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                                               {feedback.teacher_grade.points_awarded} / {feedback.points_possible} points
                                             </p>
                                           </div>
                                           {feedback.teacher_grade.feedback_text && (
-                                            <div className="bg-white dark:bg-gray-900 p-3 rounded-md">
-                                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">
+                                            <div className="bg-card p-3 rounded-md">
+                                              <p className="text-sm font-medium text-gray-900 dark:text-foreground mb-1">
                                                 Teacher&apos;s Comments:
                                               </p>
-                                              <MathText className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed whitespace-pre-wrap">
+                                              <MathText className="text-sm text-gray-700 dark:text-foreground leading-relaxed whitespace-pre-wrap">
                                                 {feedback.teacher_grade.feedback_text}
                                               </MathText>
                                             </div>
@@ -2750,20 +2631,20 @@ const StudentModuleContent = memo(function StudentModuleContent() {
               <Card className="text-center py-12">
                 <CardContent>
                   <Brain className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                  <h3 className="text-lg font-medium text-gray-900 dark:text-foreground mb-2">
                     No Feedback Yet
                   </h3>
-                  <p className="text-gray-600 dark:text-gray-400 mb-4">
+                  <p className="text-gray-600 dark:text-muted-foreground mb-4">
                     Complete the test to receive AI feedback on your answers.
                   </p>
                   <div className="flex flex-wrap gap-2 justify-center">
                     {isTestEnabled && (
-                      <Button onClick={() => handleStartTest()} className="bg-blue-600 hover:bg-blue-700">
+                      <Button onClick={() => handleStartTest()} className="bg-teal-700 hover:bg-teal-700 text-white">
                         Start Test
                       </Button>
                     )}
                     {isMasteryEnabled && (
-                      <Button onClick={() => handleStartMastery()} className="bg-purple-600 hover:bg-purple-700 text-white">
+                      <Button onClick={() => handleStartMastery()} className="bg-teal-700 hover:bg-teal-700 text-white">
                         <Target className="w-4 h-4 mr-2" />
                         Start Mastery Practice
                       </Button>
@@ -2779,12 +2660,12 @@ const StudentModuleContent = memo(function StudentModuleContent() {
             {isChatbotEnabled ? (
               <ChatTab moduleId={moduleId} moduleAccess={moduleAccess} feedbackContext={feedbackChat} onContextSent={(requestId) => setFeedbackChat(current => current?.id === requestId ? null : current)} />
             ) : (
-              <Card className="relative overflow-hidden border-2 border-amber-200 dark:border-amber-800 shadow-lg">
-                <div className="absolute inset-0 bg-gradient-to-br from-amber-50 via-orange-50/60 to-yellow-50/40 dark:from-amber-950/30 dark:via-orange-950/20 dark:to-yellow-950/10"></div>
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500"></div>
+              <Card className="relative overflow-hidden border border-amber-200 dark:border-amber-800 shadow-sm">
+                <div className="absolute inset-0  bg-amber-50   dark:bg-amber-950/30  "></div>
+
                 <CardContent className="relative py-16 px-6">
                   <div className="text-center max-w-sm mx-auto">
-                    <div className="w-20 h-20 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-lg ring-4 ring-amber-500/20">
+                    <div className="w-20 h-20  bg-amber-500  rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-sm ring-4 ring-amber-500/20">
                       <MessageSquare className="w-10 h-10 text-white" />
                     </div>
                     <h3 className="text-2xl font-bold text-amber-900 dark:text-amber-100 mb-3">
@@ -2808,22 +2689,22 @@ const StudentModuleContent = memo(function StudentModuleContent() {
               const visibleDocs = documents.filter((doc) => !doc.file_name.toLowerCase().includes('testbank'));
               const getFileTypeStyle = (fileType) => {
                 const ft = (fileType || '').toLowerCase();
-                if (ft === 'pdf') return { badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800', accent: 'from-red-500 to-rose-500' };
-                if (ft === 'pptx' || ft === 'ppt') return { badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-800', accent: 'from-orange-500 to-amber-500' };
-                if (ft === 'docx' || ft === 'doc') return { badge: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-blue-200 dark:border-blue-800', accent: 'from-blue-500 to-indigo-500' };
-                return { badge: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700', accent: 'from-gray-500 to-slate-500' };
+                if (ft === 'pdf') return { badge: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300 border-red-200 dark:border-red-800', accent: 'bg-red-500 ' };
+                if (ft === 'pptx' || ft === 'ppt') return { badge: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-300 border-orange-200 dark:border-orange-800', accent: 'bg-orange-500 ' };
+                if (ft === 'docx' || ft === 'doc') return { badge: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border-teal-200 dark:border-teal-800', accent: 'bg-teal-500 ' };
+                return { badge: 'bg-muted text-gray-700 dark:text-foreground border-border ', accent: 'bg-gray-500 ' };
               };
               return (
                 <>
                   {/* Section header */}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gradient-to-br from-amber-500 to-orange-500 rounded-xl flex items-center justify-center shadow-md">
+                      <div className="w-10 h-10  bg-amber-500  rounded-xl flex items-center justify-center shadow-md">
                         <FileText className="w-5 h-5 text-white" />
                       </div>
                       <div>
-                        <h2 className="text-lg font-bold text-slate-900 dark:text-white">Course Materials</h2>
-                        <p className="text-sm text-slate-500 dark:text-slate-400">{visibleDocs.length} file{visibleDocs.length !== 1 ? 's' : ''} available</p>
+                        <h2 className="text-lg font-bold text-slate-900 dark:text-foreground">Course Materials</h2>
+                        <p className="text-sm text-slate-500 dark:text-muted-foreground">{visibleDocs.length} file{visibleDocs.length !== 1 ? 's' : ''} available</p>
                       </div>
                     </div>
                   </div>
@@ -2833,18 +2714,18 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       {visibleDocs.map((doc) => {
                         const { badge, accent } = getFileTypeStyle(doc.file_type);
                         return (
-                          <Card key={doc.id} className="relative overflow-hidden hover:shadow-xl hover:-translate-y-0.5 transition-all duration-200 border border-slate-200 dark:border-slate-700">
-                            <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${accent}`}></div>
+                          <Card key={doc.id} className="relative overflow-hidden hover:shadow-sm transition-all duration-200 border border-border ">
+                            <div className={`absolute top-0 left-0 w-full h-1  ${accent}`}></div>
                             <CardHeader className="pb-3 pt-5">
                               <div className="flex items-start justify-between gap-2">
-                                <CardTitle className="text-base font-semibold text-slate-900 dark:text-white leading-snug line-clamp-2">
+                                <CardTitle className="text-base font-semibold text-slate-900 dark:text-foreground leading-snug line-clamp-2">
                                   {doc.title}
                                 </CardTitle>
                                 <Badge className={`text-xs font-bold uppercase px-2 py-0.5 border flex-shrink-0 ${badge}`}>
                                   {doc.file_type}
                                 </Badge>
                               </div>
-                              <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mt-1.5">
+                              <div className="flex items-center gap-3 text-xs text-slate-500 dark:text-muted-foreground mt-1.5">
                                 <span className="flex items-center gap-1">
                                   <Calendar className="w-3 h-3" />
                                   {new Date(doc.uploaded_at).toLocaleDateString()}
@@ -2861,7 +2742,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                               <div className="flex gap-2">
                                 <Button
                                   onClick={() => handleViewDocument(doc)}
-                                  className="flex-1 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white shadow-sm"
+                                  className="flex-1 bg-primary hover:bg-primary/90 dark:bg-muted dark:hover:bg-slate-600 text-primary-foreground shadow-sm"
                                   size="sm"
                                 >
                                   <Eye className="w-3.5 h-3.5 mr-1.5" />
@@ -2870,7 +2751,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 <Button
                                   onClick={() => handleDownloadDocument(doc)}
                                   variant="outline"
-                                  className="flex-1 border-slate-200 dark:border-slate-700"
+                                  className="flex-1 border-border "
                                   size="sm"
                                 >
                                   <Download className="w-3.5 h-3.5 mr-1.5" />
@@ -2883,11 +2764,11 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                       })}
                     </div>
                   ) : (
-                    <Card className="relative overflow-hidden border-2 border-amber-200 dark:border-amber-800">
-                      <div className="absolute inset-0 bg-gradient-to-br from-amber-50 to-orange-50/50 dark:from-amber-950/20 dark:to-orange-950/10"></div>
-                      <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-amber-500 to-orange-500"></div>
+                    <Card className="relative overflow-hidden border border-amber-200 dark:border-amber-800">
+                      <div className="absolute inset-0  bg-amber-50  dark:bg-amber-950/20 "></div>
+
                       <CardContent className="relative py-16 px-6 text-center">
-                        <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-500 rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-lg ring-4 ring-amber-500/20">
+                        <div className="w-16 h-16  bg-amber-500  rounded-2xl flex items-center justify-center mx-auto mb-5 shadow-sm ring-4 ring-amber-500/20">
                           <FileText className="w-8 h-8 text-white" />
                         </div>
                         <h3 className="text-xl font-bold text-amber-900 dark:text-amber-100 mb-2">
@@ -2918,7 +2799,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
               const percentage = totalPoints > 0 ? Math.round((earnedPoints / totalPoints) * 100) : 0;
 
               return (
-                <Card className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 border-2 border-emerald-300 dark:border-emerald-700">
+                <Card className=" bg-emerald-50  dark:bg-emerald-950/20  border border-emerald-300 dark:border-emerald-700">
                   <CardHeader>
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center">
@@ -2934,25 +2815,25 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="bg-white dark:bg-gray-950 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                      <div className="bg-card dark:bg-background rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
                         <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mb-1">Total Score</p>
                         <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                           {earnedPoints}/{totalPoints}
                         </p>
                       </div>
-                      <div className="bg-white dark:bg-gray-950 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                      <div className="bg-card dark:bg-background rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
                         <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mb-1">Percentage</p>
                         <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                           {percentage}%
                         </p>
                       </div>
-                      <div className="bg-white dark:bg-gray-950 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                      <div className="bg-card dark:bg-background rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
                         <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mb-1">Graded</p>
                         <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                           {teacherGradedQuestions.length}/{questions.length}
                         </p>
                       </div>
-                      <div className="bg-white dark:bg-gray-950 rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
+                      <div className="bg-card dark:bg-background rounded-lg p-3 border border-emerald-200 dark:border-emerald-800">
                         <p className="text-xs text-emerald-700 dark:text-emerald-400 font-medium mb-1">Grade</p>
                         <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                           {percentage >= 90 ? 'A' : percentage >= 80 ? 'B' : percentage >= 70 ? 'C' : percentage >= 60 ? 'D' : 'F'}
@@ -2971,28 +2852,28 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Test Progress Card */}
-              <Card className="relative overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 to-indigo-500"></div>
+              <Card className="relative overflow-hidden border border-border shadow-sm">
+
                 <CardHeader className="pb-3 pt-5">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <div className="w-9 h-9  bg-teal-500  rounded-lg flex items-center justify-center shadow-sm">
                       <Target className="w-4 h-4 text-white" />
                     </div>
-                    <CardTitle className="text-base font-bold text-slate-900 dark:text-white">Test Progress</CardTitle>
+                    <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground">Test Progress</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-4">
                     <div>
                       <div className="flex justify-between text-sm mb-2 font-medium">
-                        <span className="text-slate-600 dark:text-slate-400">Attempts Completed</span>
-                        <span className="text-slate-900 dark:text-white">
+                        <span className="text-slate-600 dark:text-muted-foreground">Attempts Completed</span>
+                        <span className="text-slate-900 dark:text-foreground">
                           {submissionStatus?.submission_count || 0} / {submissionStatus?.max_attempts || 2}
                         </span>
                       </div>
-                      <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2.5">
+                      <div className="w-full bg-muted rounded-full h-2.5">
                         <div
-                          className="bg-gradient-to-r from-blue-500 to-indigo-500 h-2.5 rounded-full transition-all duration-500"
+                          className=" bg-teal-500  h-2.5 rounded-full transition-all duration-500"
                           style={{
                             width: `${submissionStatus ? ((submissionStatus.submission_count || 0) / (submissionStatus.max_attempts || 2)) * 100 : 0}%`
                           }}
@@ -3001,18 +2882,18 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                     </div>
 
                     {submissionStatus?.submissions && submissionStatus.submissions.length > 0 && (
-                      <div className="mt-2 pt-3 border-t border-slate-100 dark:border-slate-800">
-                        <h4 className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-3">Submission History</h4>
+                      <div className="mt-2 pt-3 border-t border-border ">
+                        <h4 className="text-xs font-semibold text-slate-500 dark:text-muted-foreground uppercase tracking-wide mb-3">Submission History</h4>
                         <div className="space-y-2">
                           {submissionStatus.submissions.map((submission, idx) => (
-                            <div key={idx} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 rounded-lg px-3 py-2">
-                              <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-slate-300">
+                            <div key={idx} className="flex items-center justify-between bg-muted/50 rounded-lg px-3 py-2">
+                              <span className="flex items-center gap-2 text-sm font-medium text-slate-700 dark:text-foreground">
                                 <div className="w-5 h-5 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
                                   <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
                                 </div>
                                 Attempt {submission.attempt}
                               </span>
-                              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border-0 text-xs">
+                              <Badge className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300 border-0 text-xs">
                                 {submission.questions_submitted} questions
                               </Badge>
                             </div>
@@ -3025,23 +2906,23 @@ const StudentModuleContent = memo(function StudentModuleContent() {
               </Card>
 
               {/* Feedback Summary Card */}
-              <Card className="relative overflow-hidden border border-slate-200 dark:border-slate-700 shadow-sm">
-                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-emerald-500 to-teal-500"></div>
+              <Card className="relative overflow-hidden border border-border shadow-sm">
+
                 <CardHeader className="pb-3 pt-5">
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center shadow-sm">
+                    <div className="w-9 h-9  bg-emerald-500  rounded-lg flex items-center justify-center shadow-sm">
                       <Brain className="w-4 h-4 text-white" />
                     </div>
-                    <CardTitle className="text-base font-bold text-slate-900 dark:text-white">Feedback Summary</CardTitle>
+                    <CardTitle className="text-base font-bold text-slate-900 dark:text-foreground">Feedback Summary</CardTitle>
                   </div>
                 </CardHeader>
                 <CardContent>
                   {Object.keys(feedbackData).length > 0 ? (
                     <div className="space-y-3">
                       <div className="grid grid-cols-3 gap-2">
-                        <div className="bg-slate-50 dark:bg-slate-800/50 rounded-lg p-3 text-center">
-                          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">Total</p>
-                          <p className="text-xl font-bold text-slate-900 dark:text-white">{Object.keys(feedbackData).length}</p>
+                        <div className="bg-muted/50 rounded-lg p-3 text-center">
+                          <p className="text-xs text-slate-500 dark:text-muted-foreground font-medium mb-1">Total</p>
+                          <p className="text-xl font-bold text-slate-900 dark:text-foreground">{Object.keys(feedbackData).length}</p>
                         </div>
                         <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-3 text-center">
                           <p className="text-xs text-green-600 dark:text-green-400 font-medium mb-1">Correct</p>
@@ -3056,9 +2937,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                           </p>
                         </div>
                       </div>
-                      <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+                      <div className="pt-3 border-t border-border ">
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Overall Score</span>
+                          <span className="text-sm font-medium text-slate-700 dark:text-foreground">Overall Score</span>
                           <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                             {(() => {
                               let totalPointsEarned = 0;
@@ -3084,9 +2965,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                             })()}%
                           </span>
                         </div>
-                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                        <div className="w-full bg-muted rounded-full h-2">
                           <div
-                            className="bg-gradient-to-r from-emerald-500 to-teal-500 h-2 rounded-full transition-all duration-500"
+                            className=" bg-emerald-500  h-2 rounded-full transition-all duration-500"
                             style={{
                               width: `${(() => {
                                 let e = 0, t = 0;
@@ -3104,10 +2985,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                     </div>
                   ) : (
                     <div className="text-center py-6">
-                      <div className="w-12 h-12 bg-slate-100 dark:bg-slate-800 rounded-xl flex items-center justify-center mx-auto mb-3">
+                      <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center mx-auto mb-3">
                         <Brain className="w-6 h-6 text-slate-400" />
                       </div>
-                      <p className="text-sm text-slate-500 dark:text-slate-400">
+                      <p className="text-sm text-slate-500 dark:text-muted-foreground">
                         No feedback yet. Complete the test to receive AI feedback.
                       </p>
                     </div>

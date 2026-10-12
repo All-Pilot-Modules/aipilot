@@ -20,10 +20,10 @@ export default function UserManualIntroduction() {
         <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-purple-600 mb-4">
           <BookOpen className="w-8 h-8 text-white" />
         </div>
-        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-3">
+        <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-foreground mb-3">
           Teacher&apos;s User Manual
         </h1>
-        <p className="text-lg text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+        <p className="text-lg text-gray-600 dark:text-muted-foreground max-w-2xl mx-auto">
           A comprehensive guide to using the AI Education Pilot platform for creating, managing, and grading educational modules.
         </p>
         <Badge variant="outline" className="mt-4">
@@ -40,7 +40,7 @@ export default function UserManualIntroduction() {
             What is AI Education Pilot?
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>
             AI Education Pilot is an AI-powered educational platform that helps teachers create, manage, and grade course modules efficiently. The platform leverages artificial intelligence to:
           </p>
@@ -63,7 +63,7 @@ export default function UserManualIntroduction() {
 
       {/* Platform Overview */}
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Platform Overview</h2>
+        <h2 className="text-2xl font-bold text-gray-900 dark:text-foreground mb-6">Platform Overview</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {[
             {
@@ -100,8 +100,8 @@ export default function UserManualIntroduction() {
                       <Icon className={`w-5 h-5 text-${item.color}-600 dark:text-${item.color}-400`} />
                     </div>
                     <div>
-                      <h3 className="font-semibold text-gray-900 dark:text-white mb-1">{item.title}</h3>
-                      <p className="text-sm text-gray-600 dark:text-gray-400">{item.description}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-foreground mb-1">{item.title}</h3>
+                      <p className="text-sm text-gray-600 dark:text-muted-foreground">{item.description}</p>
                     </div>
                   </div>
                 </CardContent>
@@ -112,13 +112,13 @@ export default function UserManualIntroduction() {
       </div>
 
       {/* How to Use This Manual */}
-      <Card className="bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-800 dark:to-gray-800/50">
+      <Card className="bg-gradient-to-br from-muted/50 to-blue-50/30 dark:from-muted dark:to-muted/50">
         <CardContent className="p-6">
-          <h3 className="font-semibold text-gray-900 dark:text-white mb-3">How to Use This Manual</h3>
-          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+          <h3 className="font-semibold text-gray-900 dark:text-foreground mb-3">How to Use This Manual</h3>
+          <p className="text-sm text-gray-600 dark:text-muted-foreground mb-4">
             Navigate through the sections using the sidebar on the left (or the menu button on mobile). Each section covers a specific feature of the platform with step-by-step instructions.
           </p>
-          <div className="text-sm text-gray-500 dark:text-gray-500">
+          <div className="text-sm text-gray-500 dark:text-muted-foreground">
             Tip: Start with &quot;Getting Started&quot; if you&apos;re new to the platform, or jump directly to any section you need help with.
           </div>
         </CardContent>

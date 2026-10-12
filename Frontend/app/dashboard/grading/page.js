@@ -128,15 +128,15 @@ const isValidGrade = (value, maxPoints) => {
  */
 const StudentListSkeleton = () => {
   return (
-    <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden shadow-sm">
-      <div className="border-b border-slate-200 dark:border-slate-700 py-3 px-4 bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-900/50 dark:to-slate-800/30">
+    <div className="bg-card dark:bg-background border border-border rounded-lg overflow-hidden shadow-sm">
+      <div className="border-b border-border py-3 px-4 bg-gradient-to-r from-muted/50 to-muted/50 dark:from-card/50 dark:to-muted/30">
         <div className="flex items-center gap-2">
           <Skeleton className="w-4 h-4" />
           <Skeleton className="h-4 w-20" />
           <Skeleton className="ml-auto h-5 w-8 rounded" />
         </div>
       </div>
-      <div className="divide-y divide-slate-200 dark:divide-slate-800">
+      <div className="divide-y divide-border ">
         {Array.from({ length: 3 }).map((_, i) => (
           <div key={i} className="px-4 py-3 flex items-center gap-3">
             <div className="flex-1 min-w-0 space-y-2">
@@ -157,32 +157,32 @@ const StudentListSkeleton = () => {
  */
 const QuestionCardSkeleton = () => {
   return (
-    <Card className="border border-slate-200 dark:border-slate-700 shadow-sm">
-      <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-900/50 dark:to-slate-800/30 border-b border-slate-200 dark:border-slate-700 py-3 px-4">
+    <Card className="border border-border shadow-sm">
+      <CardHeader className="bg-gradient-to-r from-muted/50 to-muted/50 dark:from-card/50 dark:to-muted/30 border-b border-border py-3 px-4">
         <div className="flex items-center gap-2.5">
           <Skeleton className="w-6 h-6 rounded" />
           <Skeleton className="h-4 flex-1" />
           <Skeleton className="h-5 w-12 rounded" />
         </div>
       </CardHeader>
-      <CardContent className="p-4 space-y-3 bg-white dark:bg-slate-950">
+      <CardContent className="p-4 space-y-3 bg-card dark:bg-background">
         {/* Answer boxes */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Skeleton className="h-3 w-16" />
-            <div className="p-3 rounded-md border border-slate-200 dark:border-slate-700">
+            <div className="p-3 rounded-md border border-border ">
               <Skeleton className="h-4 w-full" />
             </div>
           </div>
           <div className="space-y-1.5">
             <Skeleton className="h-3 w-16" />
-            <div className="p-3 rounded-md border border-slate-200 dark:border-slate-700">
+            <div className="p-3 rounded-md border border-border ">
               <Skeleton className="h-4 w-full" />
             </div>
           </div>
         </div>
         {/* Grading section */}
-        <div className="border border-slate-200 dark:border-slate-700 rounded-md p-3">
+        <div className="border border-border rounded-md p-3">
           <div className="flex gap-2">
             <Skeleton className="h-8 w-24" />
             <Skeleton className="h-8 flex-1" />
@@ -867,7 +867,7 @@ function GradingPageContent() {
                 <div className="px-4 lg:px-6">
                   {/* Header Skeleton */}
                   <div className="mb-6">
-                    <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-slate-50 to-slate-100/60 dark:from-slate-900/40 dark:to-slate-800/20 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                    <div className="flex items-center gap-3 p-4 bg-gradient-to-r from-muted/50 to-muted/60 dark:from-card/40 dark:to-muted/20 rounded-lg border border-border shadow-sm">
                       <Skeleton className="w-10 h-10 rounded-lg" />
                       <div className="space-y-2">
                         <Skeleton className="h-5 w-40" />
@@ -896,36 +896,36 @@ function GradingPageContent() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <div className="flex flex-1 flex-col bg-gradient-to-br from-slate-50 via-gray-800/10 to-gray-900/10 dark:from-slate-950 dark:via-gray-800/5 dark:to-gray-900/5 min-h-screen">
+        <div className="flex flex-1 flex-col bg-gradient-to-br from-muted/50 via-gray-800/10 to-gray-900/10 dark:from-background dark:via-muted/5 dark:to-card/5 min-h-screen">
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <div className="px-4 lg:px-6">
                 {/* Premium Header */}
                 <div className="mb-6 sm:mb-8">
                   <div className="relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-gray-800/10 via-gray-800/10 to-pink-500/10 dark:from-gray-800/5 dark:via-gray-800/5 dark:to-pink-500/5 blur-3xl"></div>
-                    <div className="relative flex items-center gap-3 sm:gap-4 p-4 sm:p-6 bg-gradient-to-r from-white/80 via-gray-800/50 to-gray-900/50 dark:from-slate-900/80 dark:via-gray-800/30 dark:to-gray-900/30 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 border-slate-200/50 dark:border-slate-700/50 shadow-xl">
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-800/10 via-gray-800/10 to-pink-500/10 dark:from-muted/5 dark:via-muted/5 dark:to-pink-500/5 blur-3xl"></div>
+                    <div className="relative flex items-center gap-3 sm:gap-4 p-4 sm:p-6 bg-gradient-to-r from-card/80 via-gray-800/50 to-gray-900/50 dark:via-muted/30 dark:to-card/30 backdrop-blur-sm rounded-xl sm:rounded-2xl border-2 border-border/50 shadow-xl">
                       <div className="relative flex-shrink-0">
-                        <div className="absolute inset-0 bg-gray-900 rounded-xl sm:rounded-2xl blur-xl opacity-50"></div>
-                        <div className="relative p-2.5 sm:p-3 md:p-4 rounded-xl sm:rounded-2xl bg-gray-900 shadow-2xl">
-                          <Edit2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-white" />
+                        <div className="absolute inset-0 bg-primary rounded-xl sm:rounded-2xl blur-xl opacity-50 text-primary-foreground"></div>
+                        <div className="relative p-2.5 sm:p-3 md:p-4 rounded-xl sm:rounded-2xl bg-primary shadow-2xl text-primary-foreground">
+                          <Edit2 className="w-5 h-5 sm:w-6 sm:h-6 md:w-8 md:h-8 text-primary-foreground" />
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h1 className="text-xl sm:text-2xl md:text-3xl font-black bg-gradient-to-r from-slate-900 via-gray-800 to-gray-900 dark:from-slate-100 dark:via-gray-800 dark:to-gray-900 bg-clip-text text-transparent mb-0.5 sm:mb-1 truncate">
+                        <h1 className="text-xl sm:text-2xl md:text-3xl font-black          mb-0.5 sm:mb-1 truncate text-foreground">
                           Grading Center
                         </h1>
-                        <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-400 flex items-center gap-1 sm:gap-2 truncate">
+                        <p className="text-xs sm:text-sm text-slate-600 dark:text-muted-foreground flex items-center gap-1 sm:gap-2 truncate">
                           <BookOpen className="w-3 h-3 sm:w-4 sm:h-4 flex-shrink-0" />
-                          <span className="font-semibold bg-gray-900 dark:from-gray-800 dark:to-gray-900 bg-clip-text text-transparent truncate">{moduleName}</span>
+                          <span className="font-semibold      truncate  text-foreground">{moduleName}</span>
                         </p>
                       </div>
                       {students.length > 0 && !selectedStudent && (
-                        <div className="hidden md:flex items-center gap-3 px-5 py-3 bg-gradient-to-br from-gray-800/80 to-gray-900/80 dark:from-gray-800/50 dark:to-gray-900/50 border border-gray-200 dark:border-border rounded-xl shadow-lg flex-shrink-0">
-                          <Users className="w-5 h-5 text-gray-900 dark:text-gray-300" />
+                        <div className="hidden md:flex items-center gap-3 px-5 py-3 bg-gradient-to-br from-gray-800/80 to-gray-900/80 dark:from-muted/50 dark:to-card/50 border border-border rounded-xl shadow-lg flex-shrink-0">
+                          <Users className="w-5 h-5 text-gray-900 dark:text-foreground" />
                           <div>
-                            <div className="text-xs text-slate-600 dark:text-slate-400 font-medium">Total Students</div>
-                            <div className="text-2xl font-black bg-gray-900 dark:from-gray-800 dark:to-gray-900 bg-clip-text text-transparent">
+                            <div className="text-xs text-slate-600 dark:text-muted-foreground font-medium">Total Students</div>
+                            <div className="text-2xl font-black       text-foreground">
                               {students.length}
                             </div>
                           </div>
@@ -938,34 +938,34 @@ function GradingPageContent() {
                 {/* Show student list if no student selected */}
                 {!selectedStudent ? (
                   <div className="relative">
-                    <div className="bg-white dark:bg-slate-950 border-2 border-slate-200/80 dark:border-slate-700/80 rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl">
-                      <div className="border-b-2 border-slate-200 dark:border-slate-700 py-3 sm:py-4 px-4 sm:px-6 bg-gradient-to-r from-slate-50 via-gray-800/30 to-gray-900/30 dark:from-slate-900/50 dark:via-gray-800/20 dark:to-gray-900/20">
+                    <div className="bg-card dark:bg-background border-2 border-border/80 rounded-xl sm:rounded-2xl overflow-hidden shadow-2xl">
+                      <div className="border-b-2 border-border py-3 sm:py-4 px-4 sm:px-6 bg-gradient-to-r from-muted/50 via-gray-800/30 to-gray-900/30 dark:from-card/50 dark:via-muted/20 dark:to-card/20">
                         <div className="flex items-center gap-2 sm:gap-3">
-                          <div className="p-1.5 sm:p-2 rounded-lg bg-gray-900 shadow-lg flex-shrink-0">
-                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                          <div className="p-1.5 sm:p-2 rounded-lg bg-primary shadow-lg flex-shrink-0 text-primary-foreground">
+                            <Users className="w-4 h-4 sm:w-5 sm:h-5 text-primary-foreground" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <h3 className="text-base sm:text-lg font-bold bg-gradient-to-r from-slate-900 to-gray-900 dark:from-slate-100 dark:to-gray-900 bg-clip-text text-transparent truncate">
+                            <h3 className="text-base sm:text-lg font-bold        truncate text-foreground">
                               Select a Student
                             </h3>
-                            <p className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 truncate">Click on any student to begin grading</p>
+                            <p className="text-[10px] sm:text-xs text-slate-600 dark:text-muted-foreground truncate">Click on any student to begin grading</p>
                           </div>
-                          <div className="px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-gray-900 dark:from-gray-800/50 dark:to-gray-900/50 border border-gray-200 dark:border-border shadow-md flex-shrink-0">
-                            <div className="text-[10px] sm:text-xs text-slate-600 dark:text-slate-400 font-medium whitespace-nowrap">Students</div>
-                            <div className="text-lg sm:text-xl font-black bg-gray-900 dark:from-gray-800 dark:to-gray-900 bg-clip-text text-transparent text-center">
+                          <div className="px-2 sm:px-4 py-1.5 sm:py-2 rounded-lg sm:rounded-xl bg-primary dark:from-muted/50 dark:to-card/50 border border-border shadow-md flex-shrink-0 text-primary-foreground">
+                            <div className="text-[10px] sm:text-xs text-slate-600 dark:text-muted-foreground font-medium whitespace-nowrap">Students</div>
+                            <div className="text-lg sm:text-xl font-black      text-center  text-foreground">
                               {students.length}
                             </div>
                           </div>
                         </div>
                       </div>
-                      <div className="divide-y divide-slate-200 dark:divide-slate-800">
+                      <div className="divide-y divide-border ">
                         {students.length === 0 ? (
                           <div className="p-16 text-center">
-                            <div className="mb-6 p-6 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 w-24 h-24 flex items-center justify-center mx-auto shadow-lg">
-                              <Users className="w-12 h-12 text-slate-400 dark:text-slate-600" />
+                            <div className="mb-6 p-6 rounded-full bg-gradient-to-br from-muted to-muted w-24 h-24 flex items-center justify-center mx-auto shadow-lg">
+                              <Users className="w-12 h-12 text-slate-400 dark:text-muted-foreground" />
                             </div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-100 mb-2">No Students Ready</h3>
-                            <p className="text-sm text-slate-600 dark:text-slate-400 max-w-md mx-auto">
+                            <h3 className="text-xl font-bold text-slate-900 dark:text-foreground mb-2">No Students Ready</h3>
+                            <p className="text-sm text-slate-600 dark:text-muted-foreground max-w-md mx-auto">
                               Students who have completed all attempts will appear here for grading.
                             </p>
                           </div>
@@ -974,24 +974,24 @@ function GradingPageContent() {
                             <button
                               key={student.student_id}
                               onClick={() => setSelectedStudent(student)}
-                            className="w-full px-6 py-4 hover:bg-gradient-to-r hover:from-gray-800/50 hover:via-gray-800/30 hover:to-pink-50/20 dark:hover:from-gray-800/30 dark:hover:via-gray-800/20 dark:hover:to-pink-950/10 transition-all duration-200 text-left flex items-center gap-4 group relative"
+                            className="w-full px-6 py-4 hover:bg-gradient-to-r hover:from-gray-800/50 hover:via-gray-800/30 hover:to-pink-50/20 dark:hover:from-muted/30 dark:hover:via-muted/20 dark:hover:to-pink-950/10 transition-all duration-200 text-left flex items-center gap-4 group relative"
                           >
-                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-gray-900 transform scale-y-0 group-hover:scale-y-100 transition-transform origin-top"></div>
+                            <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary transform scale-y-0 group-hover:scale-y-100 transition-transform origin-top text-primary-foreground"></div>
 
-                            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-700 border border-slate-200 dark:border-slate-600 shadow-sm group-hover:shadow-md group-hover:from-gray-800 group-hover:to-gray-900 dark:group-hover:from-gray-800/50 dark:group-hover:to-gray-900/50 transition-all">
-                              <User className="w-5 h-5 text-slate-600 dark:text-slate-400 group-hover:text-gray-900 dark:group-hover:text-gray-500" />
+                            <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-muted to-muted border border-border shadow-sm group-hover:shadow-md group-hover:from-gray-800 group-hover:to-gray-900 dark:group-hover:from-muted/50 dark:group-hover:to-card/50 transition-all">
+                              <User className="w-5 h-5 text-slate-600 dark:text-muted-foreground group-hover:text-gray-900 dark:group-hover:text-muted-foreground" />
                             </div>
 
                             <div className="flex-1 min-w-0">
-                              <div className="font-bold text-base text-slate-900 dark:text-slate-100 group-hover:text-gray-900 dark:group-hover:text-gray-500 transition-colors">
+                              <div className="font-bold text-base text-slate-900 dark:text-foreground group-hover:text-gray-900 dark:group-hover:text-muted-foreground transition-colors">
                                 {student.student_id}
                               </div>
-                              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400 mt-1">
+                              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-muted-foreground mt-1">
                                 <div className="flex items-center gap-1">
                                   <History className="w-3 h-3" />
                                   <span>{student.attempts} {student.attempts === 1 ? 'attempt' : 'attempts'}</span>
                                 </div>
-                                <span className="text-slate-300 dark:text-slate-600">•</span>
+                                <span className="text-slate-300 dark:text-muted-foreground">•</span>
                                 <div className="flex items-center gap-1">
                                   <Clock className="w-3 h-3" />
                                   <span>{student.last_access ? new Date(student.last_access).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No activity'}</span>
@@ -1011,7 +1011,7 @@ function GradingPageContent() {
                                   ? 'bg-gradient-to-br from-emerald-100 to-emerald-200/80 dark:from-emerald-900/40 dark:to-emerald-800/30 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-700'
                                   : student.gradedCount > 0
                                   ? 'bg-gradient-to-br from-amber-100 to-amber-200/80 dark:from-amber-900/40 dark:to-amber-800/30 text-amber-700 dark:text-amber-400 border-amber-300 dark:border-amber-700'
-                                  : 'bg-gradient-to-br from-slate-100 to-slate-200/80 dark:from-slate-800 dark:to-slate-700/50 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-600'
+                                  : 'bg-gradient-to-br from-muted to-muted/80 dark:to-muted/50 text-slate-600 dark:text-muted-foreground border-border '
                               }`}>
                                 {student.gradedCount === student.totalQuestions ? (
                                   <CheckCircle className="w-4 h-4" />
@@ -1021,7 +1021,7 @@ function GradingPageContent() {
                                 <span>{student.gradedCount}/{student.totalQuestions}</span>
                               </div>
 
-                              <ChevronRight className="w-5 h-5 text-slate-400 dark:text-slate-600 group-hover:text-gray-900 dark:group-hover:text-gray-500 group-hover:translate-x-1 transition-all" />
+                              <ChevronRight className="w-5 h-5 text-slate-400 dark:text-muted-foreground group-hover:text-gray-900 dark:group-hover:text-muted-foreground group-hover:translate-x-1 transition-all" />
                             </div>
                           </button>
                           ))
@@ -1033,16 +1033,16 @@ function GradingPageContent() {
                   <>
                     {/* Student Header with Back Button */}
                     <div className="mb-4 sm:mb-6">
-                      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border-2 border-slate-200/80 dark:border-slate-700/80 shadow-xl">
-                        <div className="absolute inset-0 bg-gradient-to-r from-gray-800/5 via-gray-800/5 to-pink-500/5 dark:from-gray-800/5 dark:via-gray-800/5 dark:to-pink-500/5"></div>
-                        <div className="relative bg-white/90 dark:bg-slate-950/90 backdrop-blur-sm p-3 sm:p-5">
+                      <div className="relative overflow-hidden rounded-xl sm:rounded-2xl border-2 border-border/80 shadow-xl">
+                        <div className="absolute inset-0 bg-gradient-to-r from-gray-800/5 via-gray-800/5 to-pink-500/5 dark:from-muted/5 dark:via-muted/5 "></div>
+                        <div className="relative bg-card/90 dark:bg-background/90 backdrop-blur-sm p-3 sm:p-5">
                           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
                             <div className="flex items-center gap-2 sm:gap-4 min-w-0">
                               <Button
                                 variant="outline"
                                 size="sm"
                                 onClick={() => setSelectedStudent(null)}
-                                className="border-2 border-slate-300 dark:border-slate-600 hover:bg-gradient-to-r hover:from-gray-800 hover:to-gray-900 dark:hover:from-gray-800/30 dark:hover:to-gray-900/30 hover:border-gray-300 dark:hover:border-gray-900 transition-all h-8 sm:h-10 px-3 sm:px-4 font-medium shadow-md text-xs sm:text-sm flex-shrink-0"
+                                className="border-2 border-border hover:bg-gradient-to-r hover:from-gray-800 hover:to-gray-900 dark:hover:from-muted/30 dark:hover:to-card/30 hover:border-border transition-all h-8 sm:h-10 px-3 sm:px-4 font-medium shadow-md text-xs sm:text-sm flex-shrink-0"
                               >
                                 <ChevronLeft className="w-3 h-3 sm:w-4 sm:h-4 mr-1" />
                                 <span className="hidden sm:inline">Back to Students</span>
@@ -1052,14 +1052,14 @@ function GradingPageContent() {
                               <div className="h-8 sm:h-10 w-px bg-slate-300 dark:bg-slate-600 flex-shrink-0"></div>
 
                               <div className="flex items-center gap-3">
-                                <div className="p-2.5 rounded-xl bg-gray-900 shadow-lg">
-                                  <User className="w-5 h-5 text-white" />
+                                <div className="p-2.5 rounded-xl bg-primary shadow-lg text-primary-foreground">
+                                  <User className="w-5 h-5 text-primary-foreground" />
                                 </div>
                                 <div>
-                                  <h2 className="text-lg font-bold bg-gradient-to-r from-slate-900 to-gray-900 dark:from-slate-100 dark:to-gray-900 bg-clip-text text-transparent">
+                                  <h2 className="text-lg font-bold        text-foreground">
                                     {selectedStudent.student_id}
                                   </h2>
-                                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+                                  <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-muted-foreground">
                                     <Clock className="w-3 h-3" />
                                     <span>{selectedStudent.last_access ? new Date(selectedStudent.last_access).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'No activity'}</span>
                                   </div>
@@ -1081,10 +1081,10 @@ function GradingPageContent() {
                               )}
 
                               {/* Show latest attempt badge (no selector) */}
-                              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-gray-800/80 to-gray-900/50 dark:from-gray-800/50 dark:to-gray-900/30 border border-gray-300 dark:border-border shadow-md">
-                                <History className="w-4 h-4 text-gray-900 dark:text-gray-300" />
-                                <span className="text-xs font-bold text-blue-900 dark:text-gray-400">Latest Attempt:</span>
-                                <span className="text-sm font-black bg-gray-900 dark:from-gray-800 dark:to-gray-900 bg-clip-text text-transparent">
+                              <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-gradient-to-br from-gray-800/80 to-gray-900/50 dark:from-muted/50 dark:to-card/30 border border-border shadow-md">
+                                <History className="w-4 h-4 text-gray-900 dark:text-foreground" />
+                                <span className="text-xs font-bold text-blue-900 dark:text-muted-foreground">Latest Attempt:</span>
+                                <span className="text-sm font-black       text-foreground">
                                   #{selectedAttempt}
                                 </span>
                               </div>
@@ -1094,7 +1094,7 @@ function GradingPageContent() {
                                 <Button
                                   size="sm"
                                   variant="outline"
-                                  className="h-9 border-2 border-gray-300 dark:border-border text-gray-800 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-950/30 font-bold transition-all flex-shrink-0"
+                                  className="h-9 border-2 border-border text-gray-800 dark:text-foreground hover:bg-muted/50 dark:hover:bg-background/30 font-bold transition-all flex-shrink-0"
                                 >
                                   <ExternalLink className="w-4 h-4 mr-1.5" />
                                   View Previous Attempts
@@ -1138,13 +1138,13 @@ function GradingPageContent() {
                         const isCorrect = compareAnswers(answerData.student_answer, answerData.correct_answer);
 
                         return (
-                          <Card key={answerData.question_id} className="border-2 border-slate-200/80 dark:border-slate-700/80 shadow-xl hover:shadow-2xl transition-all duration-200 overflow-hidden">
-                            <CardHeader className="bg-gradient-to-r from-slate-50 via-gray-800/20 to-gray-900/20 dark:from-slate-900/60 dark:via-gray-800/20 dark:to-gray-900/20 border-b-2 border-slate-200 dark:border-slate-700 py-4 px-6">
+                          <Card key={answerData.question_id} className="border-2 border-border/80 shadow-xl hover:shadow-2xl transition-all duration-200 overflow-hidden">
+                            <CardHeader className="bg-gradient-to-r from-muted/50 via-gray-800/20 to-gray-900/20 dark:from-card/60 dark:via-muted/20 dark:to-card/20 border-b-2 border-border py-4 px-6">
                               <CardTitle className="text-base flex items-center gap-3">
-                                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-gray-900 text-white text-sm font-black shadow-lg flex-shrink-0">
+                                <span className="flex items-center justify-center w-9 h-9 rounded-xl bg-primary text-primary-foreground text-sm font-black shadow-lg flex-shrink-0">
                                   {index + 1}
                                 </span>
-                                <span className="flex-1 font-bold text-slate-900 dark:text-slate-100 leading-tight"><MathText inline>{answerData.question_text}</MathText></span>
+                                <span className="flex-1 font-bold text-slate-900 dark:text-foreground leading-tight"><MathText inline>{answerData.question_text}</MathText></span>
                                 <div className="flex items-center gap-2">
                                   {teacherGrade ? (
                                     <span className="px-3 py-1.5 rounded-lg bg-gradient-to-br from-emerald-100 to-emerald-200 dark:from-emerald-900/40 dark:to-emerald-800/30 text-emerald-700 dark:text-emerald-400 text-sm font-black border border-emerald-300 dark:border-emerald-700 shadow-md flex items-center gap-1">
@@ -1159,7 +1159,7 @@ function GradingPageContent() {
                                 </div>
                               </CardTitle>
                             </CardHeader>
-                            <CardContent className="p-6 space-y-5 bg-white dark:bg-slate-950">
+                            <CardContent className="p-6 space-y-5 bg-card dark:bg-background">
                               {/* Question Image */}
                               {answerData.image_url && (
                                 <div className="mb-4">
@@ -1179,8 +1179,8 @@ function GradingPageContent() {
                                 <div className="group">
                                   <div className="flex items-center justify-between mb-2">
                                     <div className="flex items-center gap-2">
-                                      <User className="w-4 h-4 text-gray-900 dark:text-gray-300" />
-                                      <span className="text-sm font-bold text-gray-800 dark:text-gray-300">Student Answer</span>
+                                      <User className="w-4 h-4 text-gray-900 dark:text-foreground" />
+                                      <span className="text-sm font-bold text-gray-800 dark:text-foreground">Student Answer</span>
                                       {answerData.student_answer && answerData.correct_answer && (
                                         isCorrect ? (
                                           <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-emerald-100 dark:bg-emerald-900/30 border border-emerald-300 dark:border-emerald-700">
@@ -1196,7 +1196,7 @@ function GradingPageContent() {
                                       )}
                                     </div>
                                     {answerData.answered_at && (
-                                      <span className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                                      <span className="text-xs text-slate-500 dark:text-muted-foreground flex items-center gap-1">
                                         <Clock className="w-3 h-3" />
                                         {new Date(answerData.answered_at).toLocaleString('en-US', {
                                           month: 'short',
@@ -1207,11 +1207,11 @@ function GradingPageContent() {
                                       </span>
                                     )}
                                   </div>
-                                  <div className="relative overflow-hidden rounded-xl border-2 border-gray-200 dark:border-gray-700/60 bg-gradient-to-br from-gray-800/80 to-gray-900/40 dark:from-gray-800/40 dark:to-gray-900/20 shadow-lg p-4 transition-all group-hover:shadow-xl">
-                                    <div className="absolute top-0 right-0 w-24 h-24 bg-gray-400/10 dark:bg-gray-800/5 rounded-full blur-2xl"></div>
-                                    <div className="relative text-base text-slate-800 dark:text-slate-100 break-words font-medium leading-relaxed">
+                                  <div className="relative overflow-hidden rounded-xl border-2 border-border dark:border-border/60 bg-gradient-to-br from-gray-800/80 to-gray-900/40 dark:from-muted/40 dark:to-card/20 shadow-lg p-4 transition-all group-hover:shadow-xl">
+                                    <div className="absolute top-0 right-0 w-24 h-24 bg-gray-400/10 dark:bg-muted/5 rounded-full blur-2xl"></div>
+                                    <div className="relative text-base text-slate-800 dark:text-foreground break-words font-medium leading-relaxed">
                                       {formatAnswer(answerData.student_answer, answerData.options) || (
-                                        <span className="text-slate-400 dark:text-slate-500 italic font-normal">Not answered</span>
+                                        <span className="text-slate-400 dark:text-muted-foreground italic font-normal">Not answered</span>
                                       )}
                                     </div>
                                   </div>
@@ -1225,9 +1225,9 @@ function GradingPageContent() {
                                   </div>
                                   <div className="relative overflow-hidden rounded-xl border-2 border-emerald-200 dark:border-emerald-900/60 bg-gradient-to-br from-emerald-50/80 to-emerald-100/40 dark:from-emerald-950/40 dark:to-emerald-900/20 shadow-lg p-4 transition-all group-hover:shadow-xl">
                                     <div className="absolute top-0 right-0 w-24 h-24 bg-emerald-400/10 dark:bg-emerald-500/5 rounded-full blur-2xl"></div>
-                                    <div className="relative text-base text-slate-800 dark:text-slate-100 break-words font-medium leading-relaxed">
+                                    <div className="relative text-base text-slate-800 dark:text-foreground break-words font-medium leading-relaxed">
                                       {formatAnswer(answerData.correct_answer, answerData.options) || (
-                                        <span className="text-slate-400 dark:text-slate-500 italic font-normal">N/A</span>
+                                        <span className="text-slate-400 dark:text-muted-foreground italic font-normal">N/A</span>
                                       )}
                                     </div>
                                   </div>
@@ -1236,21 +1236,21 @@ function GradingPageContent() {
 
                               {/* AI Feedback — shown when released OR not a review-gated answer */}
                               {aiFeedback && aiFeedback.explanation && aiFeedback.released && (
-                                <div className="relative overflow-hidden rounded-xl border-2 border-violet-200 dark:border-violet-900/60 bg-gradient-to-br from-gray-800/80 to-gray-900/40 dark:from-gray-800/30 dark:to-gray-900/10 shadow-lg p-4">
-                                  <div className="absolute top-0 right-0 w-32 h-32 bg-gray-900/10 dark:bg-gray-900/5 rounded-full blur-2xl"></div>
+                                <div className="relative overflow-hidden rounded-xl border-2 border-violet-200 dark:border-violet-900/60 bg-gradient-to-br from-gray-800/80 to-gray-900/40 dark:from-muted/30 dark:to-card/10 shadow-lg p-4">
+                                  <div className="absolute top-0 right-0 w-32 h-32 bg-gray-900/10 dark:bg-card/5 rounded-full blur-2xl"></div>
                                   <div className="relative">
                                     <div className="flex items-center gap-2 mb-3">
-                                      <div className="p-2 rounded-lg bg-gray-900 shadow-lg">
-                                        <Bot className="w-4 h-4 text-white" />
+                                      <div className="p-2 rounded-lg bg-primary shadow-lg text-primary-foreground">
+                                        <Bot className="w-4 h-4 text-primary-foreground" />
                                       </div>
-                                      <span className="text-sm font-bold text-gray-700 dark:text-gray-700">AI Analysis</span>
+                                      <span className="text-sm font-bold text-gray-700 dark:text-muted-foreground">AI Analysis</span>
                                       {aiFeedback.score !== null && (
-                                        <span className="ml-auto px-3 py-1 rounded-lg bg-gray-900 dark:bg-gray-900/40 border border-violet-300 dark:border-violet-700 text-sm font-black text-gray-700 dark:text-gray-700 shadow-md">
+                                        <span className="ml-auto px-3 py-1 rounded-lg bg-primary dark:bg-primary/40 border border-violet-300 dark:border-violet-700 text-sm font-black text-primary-foreground shadow-md">
                                           {Math.round(aiFeedback.score > 1 ? aiFeedback.score : aiFeedback.score * 100)}%
                                         </span>
                                       )}
                                     </div>
-                                    <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium line-clamp-3"><MathText inline>{aiFeedback.explanation}</MathText></p>
+                                    <p className="text-sm text-slate-700 dark:text-foreground leading-relaxed font-medium line-clamp-3"><MathText inline>{aiFeedback.explanation}</MathText></p>
                                   </div>
                                 </div>
                               )}
@@ -1294,18 +1294,18 @@ function GradingPageContent() {
                                       return (
                                         <>
                                           {/* AI Grade badge */}
-                                          <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg bg-white/70 dark:bg-slate-900/50 border border-orange-200 dark:border-orange-800">
+                                          <div className="flex flex-wrap items-center gap-3 p-3 rounded-lg bg-card/70 dark:bg-card/50 border border-orange-200 dark:border-orange-800">
                                             <div className="flex items-center gap-2">
-                                              <Bot className="w-4 h-4 text-gray-700 dark:text-gray-700" />
-                                              <span className="text-xs font-bold text-slate-600 dark:text-slate-400">AI Grade:</span>
+                                              <Bot className="w-4 h-4 text-gray-700 dark:text-muted-foreground" />
+                                              <span className="text-xs font-bold text-slate-600 dark:text-muted-foreground">AI Grade:</span>
                                             </div>
                                             {aiPts != null ? (
                                               <div className="flex items-center gap-2">
-                                                <span className="text-base font-black text-gray-700 dark:text-gray-700">
+                                                <span className="text-base font-black text-gray-700 dark:text-muted-foreground">
                                                   {aiPts} / {answerData.points_possible}
                                                 </span>
                                                 {aiPct !== null && (
-                                                  <span className="px-2 py-0.5 rounded-md bg-gray-900 dark:bg-gray-900/40 border border-violet-300 dark:border-violet-700 text-xs font-bold text-gray-700 dark:text-gray-700">
+                                                  <span className="px-2 py-0.5 rounded-md bg-primary dark:bg-primary/40 border border-violet-300 dark:border-violet-700 text-xs font-bold text-primary-foreground ">
                                                     {aiPct}%
                                                   </span>
                                                 )}
@@ -1316,7 +1316,7 @@ function GradingPageContent() {
                                             {aiFeedback.criterion_scores && Object.keys(aiFeedback.criterion_scores).length > 0 && (
                                               <div className="ml-auto flex flex-wrap gap-1">
                                                 {Object.entries(aiFeedback.criterion_scores).map(([criterion, data]) => (
-                                                  <span key={criterion} className="text-[10px] px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 font-medium">
+                                                  <span key={criterion} className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-slate-600 dark:text-muted-foreground font-medium">
                                                     {criterion}: {data?.score ?? data}/{data?.out_of ?? '—'}
                                                   </span>
                                                 ))}
@@ -1326,7 +1326,7 @@ function GradingPageContent() {
 
                                           {/* AI feedback preview — 2 lines, expand to edit */}
                                           <div className="space-y-1">
-                                            <p className="text-xs text-slate-600 dark:text-slate-400 line-clamp-2 leading-relaxed">
+                                            <p className="text-xs text-slate-600 dark:text-muted-foreground line-clamp-2 leading-relaxed">
                                               {textValue || <span className="italic text-slate-400">No feedback text</span>}
                                             </p>
                                             <button
@@ -1345,7 +1345,7 @@ function GradingPageContent() {
                                                 rows={4}
                                                 value={textValue}
                                                 onChange={e => handleDraftChange(answerData.answer_id, 'text', e.target.value)}
-                                                className="text-sm border-2 border-orange-300 dark:border-orange-700 focus:ring-2 focus:ring-orange-400 rounded-lg resize-none bg-white/80 dark:bg-slate-900/60 mt-1"
+                                                className="text-sm border-2 border-orange-300 dark:border-orange-700 focus:ring-2 focus:ring-orange-400 rounded-lg resize-none bg-card/80 dark:bg-card/60 mt-1"
                                                 placeholder="AI feedback text…"
                                               />
                                             )}
@@ -1354,7 +1354,7 @@ function GradingPageContent() {
                                           {/* Editable score */}
                                           <div className="space-y-1.5">
                                             <Label className="text-xs font-bold text-orange-900 dark:text-orange-300">
-                                              Final Score <span className="font-normal text-slate-500">(override if needed)</span>
+                                              Final Score <span className="font-normal text-muted-foreground">(override if needed)</span>
                                             </Label>
                                             <div className="flex items-center gap-2">
                                               <Input
@@ -1369,7 +1369,7 @@ function GradingPageContent() {
                                                     handleDraftChange(answerData.answer_id, 'points', e.target.value);
                                                   }
                                                 }}
-                                                className="h-9 w-28 text-sm font-bold border-2 border-orange-300 dark:border-orange-700 focus:ring-2 focus:ring-orange-400 rounded-lg bg-white/80 dark:bg-slate-900/60"
+                                                className="h-9 w-28 text-sm font-bold border-2 border-orange-300 dark:border-orange-700 focus:ring-2 focus:ring-orange-400 rounded-lg bg-card/80 dark:bg-card/60"
                                               />
                                               <span className="text-sm font-black text-orange-900 dark:text-orange-300">/ {answerData.points_possible}</span>
                                             </div>
@@ -1440,15 +1440,15 @@ function GradingPageContent() {
                                     </div>
 
                                     {teacherGrade.feedback_text && (
-                                      <div className="mb-3 p-3 rounded-lg bg-white/60 dark:bg-slate-900/40 border border-emerald-200 dark:border-emerald-800">
-                                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                                      <div className="mb-3 p-3 rounded-lg bg-card/60 dark:bg-card/40 border border-emerald-200 dark:border-emerald-800">
+                                        <p className="text-sm text-slate-700 dark:text-foreground leading-relaxed font-medium">
                                           <MathText inline>{teacherGrade.feedback_text}</MathText>
                                         </p>
                                       </div>
                                     )}
 
                                     <div className="flex items-center justify-between text-xs pt-3 border-t border-emerald-200 dark:border-emerald-800/50 mb-4">
-                                      <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                                      <div className="flex items-center gap-1.5 text-slate-600 dark:text-muted-foreground">
                                         <Clock className="w-3.5 h-3.5" />
                                         <span className="font-medium">
                                           {new Date(teacherGrade.graded_at).toLocaleString('en-US', {
@@ -1460,9 +1460,9 @@ function GradingPageContent() {
                                         </span>
                                       </div>
                                       {teacherGrade.ai_suggested_score !== null && teacherGrade.overridden_ai && (
-                                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-gray-900 dark:bg-gray-900/30 border border-violet-300 dark:border-violet-700">
-                                          <Bot className="w-3.5 h-3.5 text-gray-700 dark:text-gray-700" />
-                                          <span className="font-bold text-gray-700 dark:text-gray-700">AI: {teacherGrade.ai_suggested_score.toFixed(1)}</span>
+                                        <div className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary dark:bg-primary/30 border border-violet-300 dark:border-violet-700 text-primary-foreground">
+                                          <Bot className="w-3.5 h-3.5 text-gray-700 dark:text-muted-foreground" />
+                                          <span className="font-bold text-gray-700 dark:text-muted-foreground">AI: {teacherGrade.ai_suggested_score.toFixed(1)}</span>
                                         </div>
                                       )}
                                     </div>
@@ -1582,7 +1582,7 @@ function GradingPageContent() {
                                       onClick={() => handleSaveGrade(answerData.answer_id, answerData.question_id)}
                                       disabled={savingGrade === answerData.answer_id || !gradeInput.points}
                                       size="lg"
-                                      className="w-full h-12 bg-gray-900 hover:from-gray-800 hover:via-gray-800 hover:to-gray-900 text-white font-bold shadow-xl hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="w-full h-12 bg-primary hover:from-gray-800 hover:via-gray-800 hover:to-gray-900 text-primary-foreground font-bold shadow-xl hover:shadow-2xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                                     >
                                       {savingGrade === answerData.answer_id ? (
                                         <>
@@ -1599,10 +1599,10 @@ function GradingPageContent() {
                                   </div>
                                 </div>
                               ) : (
-                                <div className="rounded-xl border-2 border-dashed border-slate-300 dark:border-slate-700 bg-gradient-to-br from-slate-50 to-slate-100/40 dark:from-slate-900/20 dark:to-slate-800/10 p-6 text-center">
-                                  <AlertCircle className="w-8 h-8 text-slate-400 dark:text-slate-600 mx-auto mb-2" />
-                                  <p className="text-sm text-slate-500 dark:text-slate-400 font-semibold">No Answer Submitted</p>
-                                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Student did not answer this question</p>
+                                <div className="rounded-xl border-2 border-dashed border-border bg-gradient-to-br from-muted/50 to-muted/40 dark:from-card/20 dark:to-muted/10 p-6 text-center">
+                                  <AlertCircle className="w-8 h-8 text-slate-400 dark:text-muted-foreground mx-auto mb-2" />
+                                  <p className="text-sm text-slate-500 dark:text-muted-foreground font-semibold">No Answer Submitted</p>
+                                  <p className="text-xs text-slate-400 dark:text-muted-foreground mt-1">Student did not answer this question</p>
                                 </div>
                               )}
                             </CardContent>

@@ -444,38 +444,38 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
   const getQuestionIcon = (type) => {
     switch (type) {
       case 'mcq':
-        return <CheckCircle className="w-5 h-5 text-gray-900 dark:text-gray-300" />;
+        return <CheckCircle className="w-5 h-5 text-gray-900 dark:text-foreground" />;
       case 'mcq_multiple':
         return <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />;
       case 'fill_blank':
         return <FileText className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />;
       case 'multi_part':
-        return <AlignLeft className="w-5 h-5 text-gray-700 dark:text-gray-400" />;
+        return <AlignLeft className="w-5 h-5 text-gray-700 dark:text-muted-foreground" />;
       case 'short':
-        return <MessageCircle className="w-5 h-5 text-gray-900 dark:text-gray-300" />;
+        return <MessageCircle className="w-5 h-5 text-gray-900 dark:text-foreground" />;
       case 'long':
-        return <AlignLeft className="w-5 h-5 text-gray-900 dark:text-gray-300" />;
+        return <AlignLeft className="w-5 h-5 text-gray-900 dark:text-foreground" />;
       default:
-        return <HelpCircle className="w-5 h-5 text-gray-500" />;
+        return <HelpCircle className="w-5 h-5 text-muted-foreground" />;
     }
   };
 
   const getQuestionTypeBadge = (type) => {
     switch (type) {
       case 'mcq':
-        return "bg-gray-100 text-blue-800 dark:bg-muted/20 dark:text-gray-400 border-0";
+        return "bg-muted text-blue-800 dark:bg-muted/20 dark:text-muted-foreground border-0";
       case 'mcq_multiple':
         return "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300 border-0";
       case 'fill_blank':
         return "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300 border-0";
       case 'multi_part':
-        return "bg-gray-100 text-purple-800 dark:bg-muted/20 dark:text-gray-400 border-0";
+        return "bg-muted text-purple-800 dark:bg-muted/20 dark:text-muted-foreground border-0";
       case 'short':
         return "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/30 dark:text-cyan-300 border-0";
       case 'long':
         return "bg-indigo-100 text-indigo-800 dark:bg-indigo-900/30 dark:text-indigo-300 border-0";
       default:
-        return "bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-300 border-0";
+        return "bg-muted text-gray-800 dark:bg-card/30 dark:text-foreground border-0";
     }
   };
 
@@ -1096,9 +1096,9 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
             {/* Header */}
             <div className="mb-10">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-2xl font-semibold text-foreground mb-2">Questions - {moduleName}</h1>
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <h1 className="text-2xl font-semibold text-foreground mb-2 break-words">Questions - {moduleName}</h1>
                   <p className="text-muted-foreground">
                     Create and manage questions for your module assessments
                   </p>
@@ -1138,13 +1138,13 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                     <div className="flex flex-col items-center justify-center space-y-8">
                       {/* Spinner — always purple for testbank */}
                       <div className="relative">
-                        <div className="w-32 h-32 border-8 border-gray-200/30 rounded-full"></div>
+                        <div className="w-32 h-32 border-8 border-border/30 rounded-full"></div>
                         <div className="w-32 h-32 border-8 border-purple-600 border-t-transparent rounded-full animate-spin absolute top-0"></div>
                         <div className="w-24 h-24 border-4 border-pink-500/40 border-b-transparent rounded-full animate-spin absolute top-4 left-4" style={{ animationDuration: '3s', animationDirection: 'reverse' }}></div>
-                        <Sparkles className="w-12 h-12 text-gray-700 absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
+                        <Sparkles className="w-12 h-12 text-foreground absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
                       </div>
                       <div className="text-center space-y-3">
-                        <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 bg-clip-text text-transparent">
+                        <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-600 dark:from-purple-300 via-pink-600 dark:via-pink-300 to-purple-600 dark:to-purple-300 bg-clip-text text-transparent">
                           {uploadStage === 0 && 'Uploading Testbank'}
                           {uploadStage === 1 && 'Extracting Questions'}
                           {uploadStage === 2 && 'Parsing Questions'}
@@ -1157,15 +1157,15 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           {uploadStage === 3 && 'Saving questions to your question bank...'}
                         </p>
                         {uploadForm.file && (
-                          <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-purple-950/30 border border-gray-200 dark:border-border rounded-xl inline-block">
+                          <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-purple-950/30 border border-border rounded-xl inline-block">
                             <div className="flex items-center gap-3 mb-3">
-                              <FileCheck className="w-6 h-6 text-gray-700" />
+                              <FileCheck className="w-6 h-6 text-foreground" />
                               <p className="text-base font-semibold">{uploadForm.file.name}</p>
                             </div>
                             <p className="text-sm text-muted-foreground">{formatFileSize(uploadForm.file.size)}</p>
                             <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-purple-200/50 dark:bg-muted/20 rounded-full">
-                              <Sparkles className="w-4 h-4 text-gray-700 dark:text-gray-400" />
-                              <span className="text-sm font-semibold text-gray-800 dark:text-gray-400">Testbank File</span>
+                              <Sparkles className="w-4 h-4 text-gray-700 dark:text-muted-foreground" />
+                              <span className="text-sm font-semibold text-gray-800 dark:text-muted-foreground">Testbank File</span>
                             </div>
                           </div>
                         )}
@@ -1175,12 +1175,12 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         {[{ icon: Upload, label: 'Upload' }, { icon: FileText, label: 'Extract' }, { icon: Cpu, label: 'Parse' }, { icon: CheckCircle, label: 'Save' }].map((step, i) => (
                           <div key={i} className="flex items-center">
                             <div className="flex flex-col items-center gap-2">
-                              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${uploadStage >= i ? 'bg-gray-900 text-white scale-110' : 'bg-muted text-muted-foreground'}`}>
+                              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${uploadStage >= i ? 'bg-primary text-primary-foreground scale-110' : 'bg-muted text-muted-foreground'}`}>
                                 <step.icon className="w-6 h-6" />
                               </div>
-                              <span className={`text-xs font-medium ${uploadStage >= i ? 'text-gray-700' : 'text-muted-foreground'}`}>{step.label}</span>
+                              <span className={`text-xs font-medium ${uploadStage >= i ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
                             </div>
-                            {i < 3 && <div className={`w-12 h-1 rounded-full mx-2 transition-all ${uploadStage > i ? 'bg-gray-900' : 'bg-muted'}`}></div>}
+                            {i < 3 && <div className={`w-12 h-1 rounded-full mx-2 transition-all ${uploadStage > i ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}></div>}
                           </div>
                         ))}
                       </div>
@@ -1190,7 +1190,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   <>
                     <DialogHeader>
                       <DialogTitle className="text-2xl flex items-center gap-2">
-                        <Sparkles className="w-6 h-6 text-gray-700" />
+                        <Sparkles className="w-6 h-6 text-foreground" />
                         Import Testbank
                       </DialogTitle>
                       <DialogDescription>
@@ -1214,15 +1214,15 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           required
                         />
                         {uploadForm.file && (
-                          <div className={`mt-2 p-3 rounded-lg border ${isTestbank ? 'bg-gray-50 dark:bg-muted/20/20 border-gray-200 dark:border-border' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'}`}>
+                          <div className={`mt-2 p-3 rounded-lg border ${isTestbank ? 'bg-muted/50 dark:bg-muted/20 border-border ' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'}`}>
                             <div className="flex items-center gap-2 text-sm">
-                              <FileCheck className={`w-4 h-4 ${isTestbank ? 'text-gray-600' : 'text-red-500'}`} />
+                              <FileCheck className={`w-4 h-4 ${isTestbank ? 'text-muted-foreground' : 'text-red-500'}`} />
                               <span className="font-medium">{uploadForm.file.name}</span>
                               <span className="text-muted-foreground ml-auto">{formatFileSize(uploadForm.file.size)}</span>
                             </div>
                             {isTestbank ? (
                               <div className="mt-2 flex items-center gap-2">
-                                <Badge className="bg-gray-100 text-gray-800 dark:bg-muted/20 dark:text-gray-400 border-gray-200 dark:border-border">
+                                <Badge className="bg-muted text-gray-800 dark:bg-muted/20 dark:text-muted-foreground border-border ">
                                   <Sparkles className="w-3 h-3 mr-1" />
                                   Testbank Detected
                                 </Badge>
@@ -1255,7 +1255,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         <Button
                           type="submit"
                           disabled={!uploadForm.file || !isTestbank}
-                          className="bg-gray-900 hover:bg-gray-800 disabled:opacity-50"
+                          className="bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground"
                         >
                           <Sparkles className="w-4 h-4 mr-2" />
                           Import Testbank
@@ -1269,30 +1269,30 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
             {/* Unreviewed Questions Alert */}
             {unreviewedCount > 0 && (
-              <Card className="mb-6 border-gray-200 dark:border-border bg-gray-50 dark:bg-muted/20/20">
+              <Card className="mb-6 border-border bg-muted/50 dark:bg-muted/20">
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-gray-800 rounded-full flex items-center justify-center">
-                        <Sparkles className="w-5 h-5 text-white" />
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <div className="w-10 h-10 shrink-0 bg-primary rounded-full flex items-center justify-center text-primary-foreground">
+                        <Sparkles className="w-5 h-5 text-primary-foreground" />
                       </div>
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <h3 className="font-semibold text-purple-900 dark:text-purple-100">
                             {unreviewedCount} AI-Generated Question{unreviewedCount > 1 ? 's' : ''} Pending Review
                           </h3>
-                          <Badge className="bg-gray-900 text-white">
+                          <Badge className="bg-primary text-primary-foreground">
                             {unreviewedCount}
                           </Badge>
                         </div>
-                        <p className="text-sm text-gray-800 dark:text-gray-400 mt-1">
+                        <p className="text-sm text-gray-800 dark:text-muted-foreground mt-1">
                           Review and approve AI-generated questions before they become available to students
                         </p>
                       </div>
                     </div>
                     <Button
                       asChild
-                      className="bg-gray-900 hover:bg-gray-800 text-white"
+                      className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
                       <Link href={`/dashboard/questions/review?module_id=${currentModule?.id}&module_name=${encodeURIComponent(moduleName)}&status=unreviewed`}>
                         <AlertCircle className="w-4 h-4 mr-2" />
@@ -1311,7 +1311,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
               <div className="lg:col-span-4">
                 <Card className={`sticky top-6 max-h-[calc(100vh-8rem)] overflow-hidden flex flex-col ${isEditOpen ? 'opacity-50 pointer-events-none' : ''}`}>
                   <CardHeader className="flex-shrink-0">
-                    <CardTitle className="text-lg text-gray-900 dark:text-gray-300 flex items-center gap-2">
+                    <CardTitle className="text-lg text-gray-900 dark:text-foreground flex items-center gap-2">
                       <Plus className="w-5 h-5" />
                       Create New Question
                     </CardTitle>
@@ -1319,8 +1319,8 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   </CardHeader>
                   <CardContent className="overflow-y-auto flex-1">
                     <form onSubmit={handleCreate} className="space-y-4">
-                      <div className="p-3 bg-gray-50 dark:bg-muted/20/20 rounded-lg border border-gray-200 dark:border-border">
-                        <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-400">
+                      <div className="p-3 bg-muted/50 dark:bg-muted/20 rounded-lg border border-border ">
+                        <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-muted-foreground">
                           <BookOpen className="w-4 h-4" />
                           <span>Module: <strong>{moduleName}</strong></span>
                         </div>
@@ -1370,7 +1370,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         {questionForm.text?.includes('$') && (
                           <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2">
                             <p className="text-xs text-muted-foreground mb-1">Preview</p>
-                            <MathText>{questionForm.text}</MathText>
+                            <MathText embedLinks>{questionForm.text}</MathText>
                           </div>
                         )}
                       </div>
@@ -1403,7 +1403,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                   size="sm"
                                   variant="outline"
                                   onClick={clearImageSelection}
-                                  className="text-red-600 hover:text-red-700"
+                                  className="text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300"
                                 >
                                   <Trash2 className="w-4 h-4 mr-2" />
                                   Remove
@@ -1439,7 +1439,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           <div className="space-y-2 mt-2">
                             {questionForm.options.map((option, index) => (
                               <div key={index} className="flex items-center gap-2">
-                                <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-gray-900 dark:text-gray-300">
+                                <span className="w-6 h-6 rounded-full bg-muted dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-gray-900 dark:text-foreground">
                                   {String.fromCharCode(65 + index)}
                                 </span>
                                 <Input
@@ -1496,7 +1496,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                           : currentIds.filter(id => id !== letter);
                                         setQuestionForm({...questionForm, correct_option_ids: newCorrectIds});
                                       }}
-                                      className="h-4 w-4 text-green-600 focus:ring-green-500"
+                                      className="h-4 w-4 text-green-600 dark:text-green-300 focus:ring-green-500"
                                     />
                                     <Label htmlFor={`correct-${letter}`} className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0">
                                       <span>{letter} -</span>
@@ -1523,15 +1523,15 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                             <Label>Blanks Configuration</Label>
                             <div className="space-y-3 mt-2">
                               {(questionForm.blanks || []).map((blank, index) => (
-                                <div key={index} className="p-3 border rounded-lg bg-gray-50 dark:bg-gray-800">
+                                <div key={index} className="p-3 border rounded-lg bg-muted/50 dark:bg-muted">
                                   <div className="flex items-center justify-between mb-2">
                                     <span className="font-medium text-sm">Blank {index + 1}</span>
                                   </div>
                                   {blank.context && (
                                     <div className="mb-3 p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs font-mono">
-                                      <span className="text-gray-600 dark:text-gray-400">{blank.context.before}</span>
+                                      <span className="text-gray-600 dark:text-muted-foreground">{blank.context.before}</span>
                                       <span className="px-2 py-1 bg-yellow-300 dark:bg-yellow-600 text-yellow-900 dark:text-yellow-100 font-bold">___</span>
-                                      <span className="text-gray-600 dark:text-gray-400">{blank.context.after}</span>
+                                      <span className="text-gray-600 dark:text-muted-foreground">{blank.context.after}</span>
                                     </div>
                                   )}
                                   <div className="space-y-2">
@@ -1549,7 +1549,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                 </div>
                               ))}
                               {questionForm.blanks.length === 0 && (
-                                <div className="text-center py-4 text-sm text-gray-500">
+                                <div className="text-center py-4 text-sm text-muted-foreground">
                                   No blanks detected. Add <strong>___</strong> (three underscores) in your question text above.
                                 </div>
                               )}
@@ -1561,7 +1561,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       {/* Multi-Part Questions */}
                       {questionForm.type === "multi_part" && (
                         <div className="space-y-4">
-                          <div className="p-3 bg-gray-50 dark:bg-muted/20/20 border border-gray-200 dark:border-border rounded-lg">
+                          <div className="p-3 bg-muted/50 dark:bg-muted/20 border border-border rounded-lg">
                             <p className="text-sm text-purple-800 dark:text-purple-200">
                               Create sub-questions (e.g., 1a, 1b, 1c) with different types (MCQ, Short, Long)
                             </p>
@@ -1570,7 +1570,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                             <Label>Sub-Questions</Label>
                             <div className="space-y-4 mt-2">
                               {(questionForm.sub_questions || []).map((subQ, index) => (
-                                <div key={index} className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+                                <div key={index} className="p-4 border rounded-lg bg-muted/50 dark:bg-muted">
                                   <div className="flex items-center justify-between mb-3">
                                     <Input
                                       placeholder="ID (e.g., 1a)"
@@ -1632,7 +1632,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                               const optionValue = subQ.options?.[letter] || '';
                                               return (
                                                 <div key={letter} className="flex items-center gap-2">
-                                                  <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-purple-900 flex items-center justify-center text-xs font-medium text-gray-700 dark:text-gray-400">
+                                                  <span className="w-6 h-6 rounded-full bg-muted dark:bg-purple-900 flex items-center justify-center text-xs font-medium text-gray-700 dark:text-muted-foreground">
                                                     {letter}
                                                   </span>
                                                   <Input
@@ -1847,7 +1847,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       </div>
 
                       <div className="pt-4 space-y-2">
-                        <Button type="submit" className="w-full bg-gray-900 hover:bg-gray-800">
+                        <Button type="submit" className="w-full bg-primary hover:bg-primary/90 text-primary-foreground">
                           <Plus className="w-4 h-4 mr-2" />
                           Create Question
                         </Button>
@@ -1894,19 +1894,19 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 {/* Module Statistics */}
                 {filteredQuestions.length > 0 && (
                   <div className="mb-6 grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-950/50 dark:to-blue-900/50 border-gray-200 dark:border-border">
+                    <Card className="bg-gradient-to-br from-blue-50 to-blue-100 border-border  dark:bg-none dark:bg-card">
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm text-gray-800 dark:text-gray-400 font-medium">Total Questions</p>
+                            <p className="text-sm text-gray-800 dark:text-muted-foreground font-medium">Total Questions</p>
                             <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{filteredQuestions.length}</p>
                           </div>
-                          <HelpCircle className="w-8 h-8 text-gray-900 dark:text-gray-300" />
+                          <HelpCircle className="w-8 h-8 text-gray-900 dark:text-foreground" />
                         </div>
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/50 border-amber-200 dark:border-amber-800">
+                    <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:border-amber-800 dark:bg-none dark:bg-card">
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
@@ -1920,16 +1920,16 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       </CardContent>
                     </Card>
 
-                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 dark:from-purple-950/50 dark:to-purple-900/50 border-gray-200 dark:border-border">
+                    <Card className="bg-gradient-to-br from-purple-50 to-purple-100 border-border  dark:bg-none dark:bg-card">
                       <CardContent className="pt-6">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-sm text-gray-800 dark:text-gray-400 font-medium">Question Types</p>
+                            <p className="text-sm text-gray-800 dark:text-muted-foreground font-medium">Question Types</p>
                             <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
                               {[...new Set(filteredQuestions.map(q => q.type))].length}
                             </p>
                           </div>
-                          <Sparkles className="w-8 h-8 text-gray-700 dark:text-gray-400" />
+                          <Sparkles className="w-8 h-8 text-gray-700 dark:text-muted-foreground" />
                         </div>
                       </CardContent>
                     </Card>
@@ -1940,7 +1940,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 {loadingQuestions ? (
                   <div className="space-y-4">
                     {Array.from({ length: 3 }).map((_, i) => (
-                      <Card key={i} className="border-0 shadow-sm bg-white dark:bg-slate-900/50">
+                      <Card key={i} className="border-border shadow-sm bg-card">
                         <CardContent className="p-6">
                           <div className="flex items-start gap-4">
                             <div className="flex flex-col items-center gap-2">
@@ -1973,12 +1973,12 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   <>
                     <div className="space-y-4">
                       {filteredQuestions.map((question, index) => (
-                        <Card key={question.id} className="border-0 shadow-sm bg-white dark:bg-slate-900/50 hover:shadow-md transition-all duration-200">
+                        <Card key={question.id} className="border-border shadow-sm bg-card hover:shadow-md transition-all duration-200">
                           <CardContent className="p-4 sm:p-6">
                         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4">
                           <div className="flex items-start gap-3 sm:gap-4 flex-1 min-w-0">
                         <div className="flex flex-col items-center gap-1.5 sm:gap-2 flex-shrink-0">
-                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-gray-900 dark:bg-gray-800 flex items-center justify-center text-white font-bold text-xs sm:text-sm">
+                          <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary flex items-center justify-center text-primary-foreground font-bold text-xs sm:text-sm">
                             {index + 1}
                           </div>
                           {getQuestionIcon(question.type)}
@@ -2006,7 +2006,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                               </Badge>
                             )}
                           </div>
-                          <MathText
+                          <MathText embedLinks
                             className="text-sm sm:text-base text-foreground font-medium mb-3 leading-relaxed whitespace-pre-wrap"
                           >
                             {question.text}
@@ -2031,19 +2031,19 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                     className={`flex items-center gap-2 p-2 sm:p-3 rounded-lg border ${
                                       isCorrect
                                         ? 'bg-green-50 dark:bg-green-950/50 border-green-300 dark:border-green-700'
-                                        : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                                        : 'bg-muted/50 dark:bg-muted border-border '
                                     }`}
                                   >
                                     <span className={`w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] sm:text-xs font-bold flex-shrink-0 ${
                                       isCorrect
-                                        ? 'bg-green-600 dark:bg-green-500 text-white'
-                                        : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                                        ? 'bg-green-700 dark:bg-green-700 text-white'
+                                        : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-foreground'
                                     }`}>
                                       {key}
                                     </span>
                                     <MathText
                                       inline
-                                      className={`flex-1 whitespace-pre-wrap min-w-0 ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}
+                                      className={`flex-1 whitespace-pre-wrap min-w-0 ${isCorrect ? 'font-semibold text-gray-900 dark:text-foreground' : 'text-gray-600 dark:text-muted-foreground'}`}
                                     >
                                       {option}
                                     </MathText>
@@ -2074,11 +2074,11 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                 return (
                                   <div key={index} className="p-3 bg-yellow-50 dark:bg-yellow-950/30 border border-yellow-200 dark:border-yellow-800 rounded-lg">
                                     <div className="flex items-start gap-2">
-                                      <span className="w-6 h-6 rounded-full bg-yellow-500 dark:bg-yellow-600 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
+                                      <span className="w-6 h-6 rounded-full bg-yellow-700 dark:bg-yellow-700 text-white flex items-center justify-center text-xs font-bold flex-shrink-0">
                                         {index + 1}
                                       </span>
                                       <div className="flex-1 min-w-0">
-                                        <div className="text-xs text-gray-600 dark:text-gray-400 mb-1 font-mono truncate">
+                                        <div className="text-xs text-gray-600 dark:text-muted-foreground mb-1 font-mono truncate">
                                           <span className="opacity-60">...{beforeText}</span>
                                           <span className="px-1 text-yellow-600 dark:text-yellow-400 font-bold">___</span>
                                           <span className="opacity-60">{afterText}...</span>
@@ -2109,19 +2109,19 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                     className={`flex items-center gap-2 p-3 rounded-lg border ${
                                       isCorrect
                                         ? 'bg-green-50 dark:bg-green-950/50 border-green-300 dark:border-green-700'
-                                        : 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                                        : 'bg-muted/50 dark:bg-muted border-border '
                                     }`}
                                   >
                                     <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold ${
                                       isCorrect
-                                        ? 'bg-green-600 dark:bg-green-500 text-white'
-                                        : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300'
+                                        ? 'bg-green-700 dark:bg-green-700 text-white'
+                                        : 'bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-foreground'
                                     }`}>
                                       {key}
                                     </span>
                                     <MathText
                                       inline
-                                      className={`flex-1 whitespace-pre-wrap ${isCorrect ? 'font-semibold text-gray-900 dark:text-white' : 'text-gray-600 dark:text-gray-400'}`}
+                                      className={`flex-1 whitespace-pre-wrap ${isCorrect ? 'font-semibold text-gray-900 dark:text-foreground' : 'text-gray-600 dark:text-muted-foreground'}`}
                                     >
                                       {option}
                                     </MathText>
@@ -2140,24 +2140,24 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           {/* Multi-Part Questions Display */}
                           {question.type === "multi_part" && question.extended_config && question.extended_config.sub_questions && (
                             <div className="mt-3 space-y-3">
-                              <div className="text-xs font-bold text-gray-800 dark:text-gray-400 mb-2 flex items-center gap-2">
+                              <div className="text-xs font-bold text-gray-800 dark:text-muted-foreground mb-2 flex items-center gap-2">
                                 <CheckCircle className="w-4 h-4" />
                                 <span>Sub-Questions:</span>
                               </div>
                               {question.extended_config.sub_questions.map((subQ, index) => (
-                                <div key={index} className="p-3 bg-gray-50 dark:bg-muted/20/30 border border-gray-200 dark:border-border rounded-lg">
+                                <div key={index} className="p-3 bg-muted/50 dark:bg-muted/30 border border-border rounded-lg">
                                   <div className="flex items-start gap-2">
-                                    <span className="px-2 py-1 rounded bg-gray-800 dark:bg-gray-900 text-white text-xs font-bold flex-shrink-0">
+                                    <span className="px-2 py-1 rounded bg-primary text-primary-foreground text-xs font-bold flex-shrink-0">
                                       {subQ.id}
                                     </span>
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-sm font-medium text-gray-900 dark:text-white mb-2">{subQ.text}</p>
+                                      <p className="text-sm font-medium text-gray-900 dark:text-foreground mb-2">{subQ.text}</p>
                                       {subQ.type === 'mcq' && subQ.options && (
                                         <div className="space-y-1 text-xs">
                                           {Object.entries(subQ.options).map(([key, opt]) => {
                                             const isCorrect = key === subQ.correct_option_id;
                                             return (
-                                              <div key={key} className={`flex items-center gap-2 p-2 rounded ${isCorrect ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 font-medium' : 'text-gray-600 dark:text-gray-400'}`}>
+                                              <div key={key} className={`flex items-center gap-2 p-2 rounded ${isCorrect ? 'bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 font-medium' : 'text-gray-600 dark:text-muted-foreground'}`}>
                                                 <span className="font-bold">{key}.</span>
                                                 <span className="flex-1">{opt}</span>
                                                 {isCorrect && <CheckCircle className="w-3 h-3" />}
@@ -2184,7 +2184,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                 <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-500 mt-0.5 flex-shrink-0" />
                                 <div className="flex-1">
                                   <p className="text-xs font-bold text-green-700 dark:text-green-400 mb-1.5">Correct Answer:</p>
-                                  <MathText className="text-sm font-medium text-gray-900 dark:text-white whitespace-pre-wrap">
+                                  <MathText className="text-sm font-medium text-gray-900 dark:text-foreground whitespace-pre-wrap">
                                     {question.correct_answer}
                                   </MathText>
                                 </div>
@@ -2219,7 +2219,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950 h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm"
+                          className="text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950 h-8 sm:h-9 px-2 sm:px-3 text-xs sm:text-sm"
                           onClick={() => handleDelete(question.id)}
                         >
                           <Trash2 className="h-3 w-3 sm:h-4 sm:w-4 sm:mr-1" />
@@ -2264,10 +2264,10 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
       {/* Edit Drawer */}
         <Drawer open={isEditOpen} onOpenChange={setIsEditOpen}>
           <DrawerContent className="max-h-[85vh] flex flex-col">
-            <DrawerHeader className="border-b bg-gray-50 dark:bg-muted/20/30 flex-shrink-0">
+            <DrawerHeader className="border-b bg-muted/50 dark:bg-muted/30 flex-shrink-0">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-900 rounded-lg flex items-center justify-center">
-                  <Edit3 className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center text-primary-foreground">
+                  <Edit3 className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <div>
                   <DrawerTitle className="text-lg">Edit Question</DrawerTitle>
@@ -2280,8 +2280,8 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
             <form onSubmit={handleEdit} className="flex flex-col flex-1 min-h-0">
               <div className="px-4 py-4 space-y-4 overflow-y-auto flex-1">
-                <div className="p-3 bg-gray-50 dark:bg-muted/20/20 rounded-lg border border-gray-200 dark:border-border">
-                  <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-gray-400">
+                <div className="p-3 bg-muted/50 dark:bg-muted/20 rounded-lg border border-border ">
+                  <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-muted-foreground">
                     <BookOpen className="w-4 h-4" />
                     <span>Module: <strong>{moduleName}</strong></span>
                   </div>
@@ -2331,7 +2331,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   {questionForm.text?.includes('$') && (
                     <div className="mt-2 rounded-md border border-border bg-muted/40 px-3 py-2">
                       <p className="text-xs text-muted-foreground mb-1">Preview</p>
-                      <MathText>{questionForm.text}</MathText>
+                      <MathText embedLinks>{questionForm.text}</MathText>
                     </div>
                   )}
                 </div>
@@ -2365,7 +2365,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                               size="sm"
                               variant="outline"
                               onClick={() => handleImageRemove(selectedQuestion.id)}
-                              className="text-red-600 hover:text-red-700"
+                              className="text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300"
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
                               Delete from Storage
@@ -2376,7 +2376,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                               size="sm"
                               variant="outline"
                               onClick={clearImageSelection}
-                              className="text-red-600 hover:text-red-700"
+                              className="text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300"
                             >
                               <Trash2 className="w-4 h-4 mr-2" />
                               Remove
@@ -2413,7 +2413,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                     <div className="space-y-2 mt-2">
                       {questionForm.options.map((option, index) => (
                         <div key={index} className="flex items-center gap-2">
-                          <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-gray-900 dark:text-gray-300">
+                          <span className="w-6 h-6 rounded-full bg-muted dark:bg-blue-900 flex items-center justify-center text-xs font-medium text-gray-900 dark:text-foreground">
                             {String.fromCharCode(65 + index)}
                           </span>
                           <Input
@@ -2470,7 +2470,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                     : currentIds.filter(id => id !== letter);
                                   setQuestionForm({...questionForm, correct_option_ids: newCorrectIds});
                                 }}
-                                className="h-4 w-4 text-green-600 focus:ring-green-500"
+                                className="h-4 w-4 text-green-600 dark:text-green-300 focus:ring-green-500"
                               />
                               <Label htmlFor={`edit-correct-${letter}`} className="cursor-pointer flex-1 flex items-center gap-1.5 min-w-0">
                                 <span>{letter} -</span>
@@ -2497,15 +2497,15 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       <Label>Blanks Configuration</Label>
                       <div className="space-y-3 mt-2">
                         {(questionForm.blanks || []).map((blank, index) => (
-                          <div key={index} className="p-3 border rounded-lg bg-gray-50 dark:bg-gray-800">
+                          <div key={index} className="p-3 border rounded-lg bg-muted/50 dark:bg-muted">
                             <div className="flex items-center justify-between mb-2">
                               <span className="font-medium text-sm">Blank {index + 1}</span>
                             </div>
                             {blank.context && (
                               <div className="mb-3 p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded text-xs font-mono">
-                                <span className="text-gray-600 dark:text-gray-400">{blank.context.before}</span>
+                                <span className="text-gray-600 dark:text-muted-foreground">{blank.context.before}</span>
                                 <span className="px-2 py-1 bg-yellow-300 dark:bg-yellow-600 text-yellow-900 dark:text-yellow-100 font-bold">___</span>
-                                <span className="text-gray-600 dark:text-gray-400">{blank.context.after}</span>
+                                <span className="text-gray-600 dark:text-muted-foreground">{blank.context.after}</span>
                               </div>
                             )}
                             <div className="space-y-2">
@@ -2523,7 +2523,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                           </div>
                         ))}
                         {questionForm.blanks.length === 0 && (
-                          <div className="text-center py-4 text-sm text-gray-500">
+                          <div className="text-center py-4 text-sm text-muted-foreground">
                             No blanks detected. Add <strong>___</strong> (three underscores) in your question text above.
                           </div>
                         )}
@@ -2535,7 +2535,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 {/* Multi-Part Questions */}
                 {questionForm.type === "multi_part" && (
                   <div className="space-y-4">
-                    <div className="p-3 bg-gray-50 dark:bg-muted/20/20 border border-gray-200 dark:border-border rounded-lg">
+                    <div className="p-3 bg-muted/50 dark:bg-muted/20 border border-border rounded-lg">
                       <p className="text-sm text-purple-800 dark:text-purple-200">
                         Create sub-questions (e.g., 1a, 1b, 1c) with different types (MCQ, Short, Long)
                       </p>
@@ -2544,7 +2544,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       <Label>Sub-Questions</Label>
                       <div className="space-y-4 mt-2">
                         {(questionForm.sub_questions || []).map((subQ, index) => (
-                          <div key={index} className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+                          <div key={index} className="p-4 border rounded-lg bg-muted/50 dark:bg-muted">
                             <div className="flex items-center justify-between mb-3">
                               <Input
                                 placeholder="ID (e.g., 1a)"
@@ -2606,7 +2606,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                                         const optionValue = subQ.options?.[letter] || '';
                                         return (
                                           <div key={letter} className="flex items-center gap-2">
-                                            <span className="w-6 h-6 rounded-full bg-gray-100 dark:bg-purple-900 flex items-center justify-center text-xs font-medium text-gray-700 dark:text-gray-400">
+                                            <span className="w-6 h-6 rounded-full bg-muted dark:bg-purple-900 flex items-center justify-center text-xs font-medium text-gray-700 dark:text-muted-foreground">
                                               {letter}
                                             </span>
                                             <Input
@@ -2810,12 +2810,12 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 </div>
               </div>
 
-              <DrawerFooter className="border-t flex-shrink-0 bg-white dark:bg-gray-900">
+              <DrawerFooter className="border-t flex-shrink-0 bg-card ">
                 <div className="flex justify-end gap-3">
                   <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
                     Cancel
                   </Button>
-                  <Button type="submit" className="bg-gray-900 hover:bg-gray-800">
+                  <Button type="submit" className="bg-primary hover:bg-primary/90 text-primary-foreground">
                     Update Question
                   </Button>
                 </div>

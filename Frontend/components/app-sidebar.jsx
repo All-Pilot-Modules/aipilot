@@ -139,14 +139,14 @@ export function AppSidebar(props) {
         {/* Module Selector - Hidden when collapsed */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="bg-gray-100 dark:bg-gray-800/50 rounded-lg p-2 cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800/70 transition-all duration-200 border border-gray-200 dark:border-gray-700 group-data-[collapsible=icon]:hidden">
+            <div className="bg-muted dark:bg-muted/50 rounded-lg p-2 cursor-pointer hover:bg-muted dark:hover:bg-muted/70 transition-all duration-200 border border-border group-data-[collapsible=icon]:hidden">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
                   <div className="w-9 h-9 bg-emerald-700 dark:bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
                     <BookOpen className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex flex-col min-w-0">
-                    <span className="text-[10px] text-gray-500 dark:text-gray-400 font-semibold uppercase tracking-wider">Module</span>
+                    <span className="text-[10px] text-muted-foreground font-semibold uppercase tracking-wider">Module</span>
                     <span className="text-sm font-bold text-foreground truncate capitalize">{module || 'Select module'}</span>
                   </div>
                 </div>
@@ -198,7 +198,7 @@ export function AppSidebar(props) {
       <SidebarContent className="px-2">
         {/* Main Navigation */}
         <SidebarGroup className="mb-2">
-          <SidebarGroupLabel className="px-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="px-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 group-data-[collapsible=icon]:hidden">
             MENU
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -224,7 +224,7 @@ export function AppSidebar(props) {
 
         {/* Module Settings */}
         <SidebarGroup className="mb-2">
-          <SidebarGroupLabel className="px-2 text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-widest mb-2 group-data-[collapsible=icon]:hidden">
+          <SidebarGroupLabel className="px-2 text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-2 group-data-[collapsible=icon]:hidden">
             MODULE SETTINGS
           </SidebarGroupLabel>
           <SidebarGroupContent>
@@ -270,10 +270,10 @@ export function AppSidebar(props) {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="p-2 border-t border-gray-200 dark:border-gray-700">
+      <SidebarFooter className="p-2 border-t border-border ">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800/50 cursor-pointer transition-all duration-200 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
+            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted dark:hover:bg-muted/50 cursor-pointer transition-all duration-200 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
               <Avatar className="h-9 w-9 border-2 border-emerald-700">
                 <AvatarImage src={user?.profile_image} alt={user?.username} />
                 <AvatarFallback className="bg-emerald-700 text-white font-semibold text-sm">
@@ -282,7 +282,7 @@ export function AppSidebar(props) {
               </Avatar>
               <div className="flex flex-col min-w-0 flex-1 group-data-[collapsible=icon]:hidden">
                 <p className="text-sm font-semibold text-foreground truncate">{user?.username || 'User'}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                <p className="text-xs text-muted-foreground truncate">
                   {user?.email || user?.role || 'Teacher'}
                 </p>
               </div>

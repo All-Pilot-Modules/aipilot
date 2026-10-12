@@ -21,9 +21,9 @@ export default function FeedbackPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
             <MessageSquare className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">AI Feedback</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">AI Feedback</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Understand how AI feedback works, track generation status, and manage feedback critiques.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Understand how AI feedback works, track generation status, and manage feedback critiques.</p>
       </div>
 
       {/* How AI Feedback Works */}
@@ -34,7 +34,7 @@ export default function FeedbackPage() {
             How AI Feedback Works
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>When a student submits an answer, the AI generates personalized feedback:</p>
           <ol className="space-y-3 list-decimal list-inside">
             <li>The AI analyzes the student&apos;s response</li>
@@ -50,11 +50,11 @@ export default function FeedbackPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-blue-600" />
+            <Clock className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Feedback Generation Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Track the status of AI feedback generation:</p>
           <div className="space-y-3 mt-3">
             <div className="flex items-center gap-3">
@@ -81,11 +81,11 @@ export default function FeedbackPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="w-5 h-5 text-amber-600" />
+            <RefreshCw className="w-5 h-5 text-amber-600 dark:text-amber-300" />
             Retrying Failed Feedback
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>If feedback generation fails:</p>
           <ol className="space-y-2 list-decimal list-inside">
             <li>Navigate to the <strong>Feedback</strong> section</li>
@@ -95,7 +95,7 @@ export default function FeedbackPage() {
           </ol>
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mt-4">
             <div className="flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-300 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 <strong>Tip:</strong> Failures are usually temporary. If retrying doesn&apos;t work after a few attempts, contact support.
               </p>
@@ -108,11 +108,11 @@ export default function FeedbackPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-purple-600" />
+            <Sparkles className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             Feedback Critiques
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Students can request critiques of their AI feedback:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
@@ -139,11 +139,11 @@ export default function FeedbackPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-teal-600" />
+            <MessageSquare className="w-5 h-5 text-teal-600 dark:text-teal-300" />
             Managing Feedback
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The Feedback section allows you to:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li>View all generated feedback across your module</li>

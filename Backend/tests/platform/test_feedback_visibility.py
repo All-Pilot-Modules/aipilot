@@ -29,3 +29,21 @@ def test_feedback_for_other_student_not_returned(client, db_session, student_ans
     response = client.get(f"/api/student/modules/{test_module.id}/feedback", headers=headers)
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_teacher_feedback_includes_full_student_feedback(db_session, student_answer_mcq, test_module):
+    from app.api.routes.feedback import get_module_feedback_for_teacher
+    details = {
+        "explanation": "Apply the product rule.",
+        "strengths": ["Correct first derivative"],
+        "weaknesses": ["Missing second term"],
+        "improvement_hint": "Differentiate both factors.",
+        "concept_explanation": "The derivative of a product is u'v + uv'.",
+    }
+    db_session.add(AIFeedback(answer_id=student_answer_mcq.id, released=True,
+        generation_status="completed", feedback_data=details))
+    db_session.flush()
+    result = get_module_feedback_for_teacher(test_module.id, student_answer_mcq.student_id, db_session)
+    assert len(result) == 1
+    for field, value in details.items():
+        assert result[0][field] == value

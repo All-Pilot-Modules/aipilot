@@ -1136,9 +1136,9 @@ const StudentTestPage = memo(function StudentTestPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <div className="min-h-screen bg-muted/50 dark:bg-card">
         {/* Header Skeleton */}
-        <div className="bg-white dark:bg-gray-800 border-b shadow-sm">
+        <div className="bg-card dark:bg-muted border-b shadow-sm">
           <div className="max-w-5xl mx-auto px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-4">
@@ -1180,8 +1180,8 @@ const StudentTestPage = memo(function StudentTestPage() {
 
             {/* Question Card Skeleton */}
             <div className="lg:col-span-4 space-y-4">
-              <Card className="border-2 border-slate-200 dark:border-slate-700">
-                <CardHeader className="bg-gradient-to-r from-slate-50 to-blue-50/30 dark:from-slate-900/50 dark:to-blue-900/20 border-b-2">
+              <Card className="border-2 border-border ">
+                <CardHeader className="bg-gradient-to-r from-muted/50 to-blue-50/30 dark:from-card/50 dark:to-blue-900/20 border-b-2">
                   <div className="flex items-center justify-between mb-4">
                     <Skeleton className="h-6 w-32" />
                     <div className="flex items-center gap-2">
@@ -1197,14 +1197,14 @@ const StudentTestPage = memo(function StudentTestPage() {
                   {/* Question Options Skeleton */}
                   <div className="space-y-3">
                     {Array.from({ length: 4 }).map((_, i) => (
-                      <div key={i} className="p-4 border-2 border-slate-200 dark:border-slate-700 rounded-lg">
+                      <div key={i} className="p-4 border-2 border-border rounded-lg">
                         <Skeleton className="h-5 w-full" />
                       </div>
                     ))}
                   </div>
 
                   {/* Navigation Buttons Skeleton */}
-                  <div className="flex items-center justify-between pt-6 border-t-2 border-slate-200 dark:border-slate-700">
+                  <div className="flex items-center justify-between pt-6 border-t-2 border-border ">
                     <Skeleton className="h-10 w-32" />
                     <Skeleton className="h-10 w-32" />
                   </div>
@@ -1232,12 +1232,12 @@ const StudentTestPage = memo(function StudentTestPage() {
 
   if (questions.length === 0) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-muted/50 dark:bg-card flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
             <AlertCircle className="w-12 h-12 text-orange-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No Test Available</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">This module doesn&apos;t have any questions yet.</p>
+            <p className="text-gray-600 dark:text-muted-foreground mb-4">This module doesn&apos;t have any questions yet.</p>
             <Button onClick={() => router.push(`/student/module/${moduleId}`)}>
               Back to Module
             </Button>
@@ -1250,9 +1250,9 @@ const StudentTestPage = memo(function StudentTestPage() {
   const currentQ = questions[currentQuestion];
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-muted/50 dark:bg-card">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b shadow-sm">
+      <div className="bg-card dark:bg-muted border-b shadow-sm">
         <div className="max-w-5xl mx-auto px-4 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
@@ -1265,13 +1265,13 @@ const StudentTestPage = memo(function StudentTestPage() {
                 Exit Test
               </Button>
               <div className="flex items-center gap-2">
-                <BookOpen className="w-5 h-5 text-blue-600" />
+                <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-300" />
                 <h1 className="text-lg font-semibold">{moduleAccess?.moduleName} Test</h1>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              <div className="text-sm text-gray-600 dark:text-gray-400">
+              <div className="text-sm text-gray-600 dark:text-muted-foreground">
                 <Clock className="w-4 h-4 inline mr-1" />
                 <TimerDisplay startTime={startTime} />
               </div>
@@ -1308,19 +1308,19 @@ const StudentTestPage = memo(function StudentTestPage() {
                   {saveStatus === 'saving' && (
                     <>
                       <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-blue-600" aria-hidden="true"></div>
-                      <span className="text-blue-600">Saving...</span>
+                      <span className="text-blue-600 dark:text-blue-300">Saving...</span>
                     </>
                   )}
                   {saveStatus === 'saved' && (
                     <>
-                      <CheckCircle className="w-3 h-3 text-green-600" aria-hidden="true" />
-                      <span className="text-green-600">Saved</span>
+                      <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-300" aria-hidden="true" />
+                      <span className="text-green-600 dark:text-green-300">Saved</span>
                     </>
                   )}
                   {saveStatus === 'error' && (
                     <>
-                      <XCircle className="w-3 h-3 text-red-600" aria-hidden="true" />
-                      <span className="text-red-600">Save failed</span>
+                      <XCircle className="w-3 h-3 text-red-600 dark:text-red-300" aria-hidden="true" />
+                      <span className="text-red-600 dark:text-red-300">Save failed</span>
                     </>
                   )}
                 </div>
@@ -1385,7 +1385,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                             ? 'border-blue-600 bg-blue-600 text-white shadow-md'
                             : hasAnswer
                             ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300'
-                            : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+                            : 'border-border hover:border-border hover:bg-muted/50 dark:hover:bg-muted'
                           }
                         `}
                       >
@@ -1399,7 +1399,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                         )}
                         {/* Prefilled indicator badge */}
                         {isPrefilled && (
-                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border-2 border-white dark:border-gray-800 rounded-full" title="Prefilled from previous attempt" />
+                          <div className="absolute -top-1 -right-1 w-3 h-3 bg-blue-500 border-2 border-white dark:border-border rounded-full" title="Prefilled from previous attempt" />
                         )}
                       </button>
                     );
@@ -1418,7 +1418,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                     <CardTitle className="text-xl mb-2">
                       Question {currentQuestion + 1} of {questions.length}
                     </CardTitle>
-                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                    <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-muted-foreground">
                       <Badge variant="outline">
                         {currentQ?.type === 'mcq' ? 'Multiple Choice' :
                          currentQ?.type === 'mcq_multiple' ? 'Multiple Choice (Multiple Answers)' :
@@ -1445,7 +1445,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                   {/* Question Text - Only show for non-fill_blank types */}
                   {currentQ?.type !== 'fill_blank' && (
                     <div className="prose dark:prose-invert max-w-none" id={`question-text-${currentQ.id}`}>
-                      <MathText className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ?.text}</MathText>
+                      <MathText embedLinks className="text-lg leading-relaxed whitespace-pre-wrap">{currentQ?.text}</MathText>
                     </div>
                   )}
 
@@ -1453,7 +1453,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                   {currentQ?.learning_outcome && (
                     <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
                       <div className="flex items-start gap-2">
-                        <Target className="w-4 h-4 text-blue-600 mt-1" />
+                        <Target className="w-4 h-4 text-blue-600 dark:text-blue-300 mt-1" />
                         <div>
                           <h4 className="font-medium text-blue-900 dark:text-blue-100">Learning Outcome</h4>
                           <p className="text-sm text-blue-700 dark:text-blue-300"><MathText inline>{currentQ.learning_outcome}</MathText></p>
@@ -1464,7 +1464,7 @@ const StudentTestPage = memo(function StudentTestPage() {
 
                   {/* Question Image */}
                   {currentQ?.image_url && (
-                    <div className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                    <div className="bg-muted/50 dark:bg-muted border border-border rounded-lg p-4">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={currentQ.image_url}
@@ -1494,7 +1494,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                             variant="ghost"
                             size="sm"
                             onClick={() => clearPrefill(currentQ.id)}
-                            className="h-7 text-xs text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/20"
+                            className="h-7 text-xs text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950/20"
                           >
                             Clear
                           </Button>
@@ -1513,7 +1513,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                               className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-all duration-200 ${
                                 isSelected
                                   ? 'border-blue-500 bg-blue-50 dark:bg-blue-950/20'
-                                  : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+                                  : 'border-border hover:border-border hover:bg-muted/50 dark:hover:bg-muted'
                               }`}
                               onClick={() => updateAnswer(currentQ.id, key)}
                             >
@@ -1525,13 +1525,13 @@ const StudentTestPage = memo(function StudentTestPage() {
                                 checked={isSelected}
                                 onChange={() => {}}
                                 aria-label={`Option ${key}: ${option}`}
-                                className="h-5 w-5 text-blue-600 focus:ring-blue-500 border-gray-300 cursor-pointer"
+                                className="h-5 w-5 text-blue-600 dark:text-blue-300 focus:ring-blue-500 border-border cursor-pointer"
                               />
                               <Label
                                 htmlFor={`option-${currentQ.id}-${key}`}
                                 className="flex-1 cursor-pointer text-base leading-relaxed"
                               >
-                                <span className="font-semibold mr-3 text-blue-600">{key}.</span>
+                                <span className="font-semibold mr-3 text-blue-600 dark:text-blue-300">{key}.</span>
                                 <MathText inline className={`whitespace-pre-wrap ${isSelected ? 'text-blue-900 dark:text-blue-100' : ''}`}>{option}</MathText>
                               </Label>
                             </div>
@@ -1556,7 +1556,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                                 className={`flex items-center space-x-3 p-3 rounded-md border cursor-pointer transition-all duration-200 ${
                                   isSelected
                                     ? 'border-green-500 bg-green-50 dark:bg-green-950/20'
-                                    : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-800'
+                                    : 'border-border hover:border-border hover:bg-muted/50 dark:hover:bg-muted'
                                 }`}
                                 onClick={() => {
                                   const newSelections = isSelected
@@ -1571,13 +1571,13 @@ const StudentTestPage = memo(function StudentTestPage() {
                                   checked={isSelected}
                                   onChange={() => {}}
                                   aria-label={`Option ${key}: ${option}`}
-                                  className="h-5 w-5 text-green-600 focus:ring-green-500 border-gray-300 cursor-pointer"
+                                  className="h-5 w-5 text-green-600 dark:text-green-300 focus:ring-green-500 border-border cursor-pointer"
                                 />
                                 <Label
                                   htmlFor={`option-${currentQ.id}-${key}`}
                                   className="flex-1 cursor-pointer text-base leading-relaxed"
                                 >
-                                  <span className="font-semibold mr-3 text-green-600">{key}.</span>
+                                  <span className="font-semibold mr-3 text-green-600 dark:text-green-300">{key}.</span>
                                   <MathText inline className={`whitespace-pre-wrap ${isSelected ? 'text-green-900 dark:text-green-100' : ''}`}>{option}</MathText>
                                 </Label>
                               </div>
@@ -1588,7 +1588,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                     ) : currentQ?.type === 'fill_blank' ? (
                       <div className="space-y-6">
                         {/* Question with Interactive Blanks */}
-                        <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-lg">
+                        <div className="p-5 bg-muted/50 dark:bg-card/50 border border-border rounded-lg">
                           <div className="text-lg leading-relaxed">
                             {(() => {
                               const text = currentQ.text || '';
@@ -1619,7 +1619,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                               const isFilled = currentBlanks[blank.position] && currentBlanks[blank.position].trim();
                               return (
                                 <div key={index} className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center font-semibold text-sm flex-shrink-0">
+                                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center font-semibold text-sm flex-shrink-0">
                                     {index + 1}
                                   </div>
                                   <Input
@@ -1652,12 +1652,12 @@ const StudentTestPage = memo(function StudentTestPage() {
                             const subQuestions = currentQ.extended_config?.sub_questions || [];
                             const currentSubAnswers = answers[currentQ.id] || {};
                             return subQuestions.map((subQ, index) => (
-                              <div key={index} className="p-4 border rounded-lg bg-gray-50 dark:bg-gray-800">
+                              <div key={index} className="p-4 border rounded-lg bg-muted/50 dark:bg-muted">
                                 <div className="mb-3">
                                   <span className="inline-block px-2 py-1 bg-purple-100 dark:bg-purple-900 text-purple-700 dark:text-purple-300 rounded font-medium text-sm">
                                     {subQ.id}
                                   </span>
-                                  <MathText className="mt-2 text-base">{subQ.text}</MathText>
+                                  <MathText embedLinks className="mt-2 text-base">{subQ.text}</MathText>
                                 </div>
                                 {subQ.type === 'mcq' ? (
                                   <div className="space-y-2">
@@ -1669,7 +1669,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                                           className={`flex items-center space-x-3 p-2 rounded-md border cursor-pointer ${
                                             isSelected
                                               ? 'border-purple-500 bg-purple-50 dark:bg-purple-950/20'
-                                              : 'border-gray-200 dark:border-gray-700 hover:border-gray-300'
+                                              : 'border-border hover:border-border'
                                           }`}
                                           onClick={() => {
                                             const newSubAnswers = {...currentSubAnswers, [subQ.id]: key};
@@ -1680,7 +1680,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                                             type="radio"
                                             checked={isSelected}
                                             onChange={() => {}}
-                                            className="h-4 w-4 text-purple-600"
+                                            className="h-4 w-4 text-purple-600 dark:text-purple-300"
                                           />
                                           <Label className="flex-1 cursor-pointer text-sm">
                                             <span className="font-semibold mr-2">{key}.</span>
@@ -1771,7 +1771,7 @@ const StudentTestPage = memo(function StudentTestPage() {
                   </Button>
                 </div>
 
-                <div className="text-sm text-gray-500 dark:text-gray-400">
+                <div className="text-sm text-gray-500 dark:text-muted-foreground">
                   Question {currentQuestion + 1} of {questions.length}
                 </div>
               </div>
@@ -1780,7 +1780,7 @@ const StudentTestPage = memo(function StudentTestPage() {
               {currentQuestion === questions.length - 1 && (
                 <div className="border-t pt-4">
                   <div className="flex flex-col gap-3">
-                    <div className="text-sm text-gray-600 dark:text-gray-400">
+                    <div className="text-sm text-gray-600 dark:text-muted-foreground">
                       Ready to submit? You&apos;ve answered {getAnsweredCount()} of {questions.length} questions
                     </div>
                     <Button
@@ -1808,7 +1808,7 @@ const StudentTestPage = memo(function StudentTestPage() {
               {/* Progress indicator when not on last question */}
               {currentQuestion < questions.length - 1 && (
                 <div className="border-t pt-4">
-                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                  <div className="text-sm text-gray-500 dark:text-muted-foreground">
                     Continue to the next question. You can submit when you reach the last question.
                   </div>
                 </div>
@@ -1843,12 +1843,12 @@ const StudentTestPage = memo(function StudentTestPage() {
               Unanswered Questions
             </AlertDialogTitle>
             <AlertDialogDescription className="text-base">
-              You have <span className="font-bold text-orange-600">{unansweredQuestions.length} unanswered question{unansweredQuestions.length !== 1 ? 's' : ''}</span> out of {questions.length} total questions.
+              You have <span className="font-bold text-orange-600 dark:text-orange-300">{unansweredQuestions.length} unanswered question{unansweredQuestions.length !== 1 ? 's' : ''}</span> out of {questions.length} total questions.
             </AlertDialogDescription>
           </AlertDialogHeader>
 
           <div className="my-4 max-h-64 overflow-y-auto">
-            <p className="text-sm font-medium mb-3 text-gray-700 dark:text-gray-300">
+            <p className="text-sm font-medium mb-3 text-gray-700 dark:text-foreground">
               Unanswered questions:
             </p>
             <div className="space-y-2">
@@ -1858,10 +1858,10 @@ const StudentTestPage = memo(function StudentTestPage() {
                   className="p-3 bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-lg"
                 >
                   <div className="flex items-start gap-2">
-                    <Badge variant="outline" className="bg-white dark:bg-gray-900 shrink-0">
+                    <Badge variant="outline" className="bg-card shrink-0">
                       Q{questions.findIndex(qu => qu.id === q.id) + 1}
                     </Badge>
-                    <MathText className="text-sm text-gray-700 dark:text-gray-300 line-clamp-2">
+                    <MathText className="text-sm text-gray-700 dark:text-foreground line-clamp-2">
                       {q.text}
                     </MathText>
                   </div>

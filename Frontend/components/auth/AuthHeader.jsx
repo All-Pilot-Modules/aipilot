@@ -19,17 +19,17 @@ export default function AuthHeader() {
 
   if (loading) {
     return (
-      <header className="flex justify-end items-center p-4 gap-4 h-16 dark:bg-black">
-        <div className="w-8 h-8 bg-gray-200 rounded-full animate-pulse" />
+      <header className="flex justify-end items-center p-4 gap-4 h-16 dark:bg-background">
+        <div className="w-8 h-8 bg-muted rounded-full animate-pulse" />
         <ModeToggle />
       </header>
     );
   }
 
   return (
-    <header className="flex justify-between items-center px-3 sm:px-4 py-3 gap-2 sm:gap-4 h-16 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
+    <header className="flex justify-between items-center px-3 sm:px-4 py-3 gap-2 sm:gap-4 h-16 bg-card/80 backdrop-blur-md border-b border-border ">
       {/* Logo */}
-      <Link href="/" className="flex items-center gap-2 font-bold text-lg sm:text-xl text-gray-900 dark:text-white">
+      <Link href="/" className="flex items-center gap-2 font-bold text-lg sm:text-xl text-gray-900 dark:text-foreground">
         <div className="w-8 h-8 bg-emerald-700 rounded-lg flex items-center justify-center flex-shrink-0">
           <span className="text-white text-sm font-bold">AP</span>
         </div>

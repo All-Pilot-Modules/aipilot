@@ -4,6 +4,8 @@ import { jwtDecode } from 'jwt-decode';
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
 
 // Returns true for transient network errors that are worth retrying
+const httpError = (message, status) => Object.assign(new Error(message), { status });
+
 const isRetryableError = (error) => {
   if (!error) return false;
   const msg = error.message || '';
@@ -193,6 +195,19 @@ export const auth = {
     sessionStorage.setItem('student_token:active', token);
   },
 
+  // This is a client-side loading guard; the server still verifies the signature.
+  hasStudentSession(moduleId, studentId) {
+    try {
+      const claims = jwtDecode(this.getToken() || '');
+      return claims.role === 'student' &&
+        claims.module_id === String(moduleId) &&
+        claims.sub === String(studentId) &&
+        Number.isFinite(claims.exp) && claims.exp > Date.now() / 1000;
+    } catch {
+      return false;
+    }
+  },
+
   // Logout function
   logout() {
     // Clear all auth-related storage
@@ -274,7 +289,10 @@ export const auth = {
         if (stored) return stored;
         // Support an existing student cookie during migration, never a teacher token.
         const legacy = document.cookie.split(';').find(c => c.trim().startsWith('token='))?.trim().slice(6);
-        try { if (legacy && jwtDecode(legacy).role === 'student') return legacy; } catch {}
+        try {
+          const claims = legacy && jwtDecode(legacy);
+          if (claims?.role === 'student' && (!moduleMatch || claims.module_id === moduleMatch[1])) return legacy;
+        } catch {}
         return null;
       }
       const cookies = document.cookie.split(';');
@@ -564,11 +582,11 @@ export const apiClient = {
 
         if (!response.ok) {
           if (studentSession && !token && response.status === 403) {
-            throw new Error('Your student session is missing. Rejoin this module using its access code, then retry.');
+            throw httpError('Your student session is missing. Rejoin this module using its access code, then retry.', 403);
           }
           if (response.status === 401) {
             if (studentSession) {
-              throw new Error('Your student session has expired or is missing. Rejoin this module using its access code, then retry.');
+              throw httpError('Your student session has expired or is missing. Rejoin this module using its access code, then retry.', 401);
             }
             console.warn(`[apiClient] 401 on ${endpoint} — attempting token refresh`);
             const newToken = await auth.refreshAccessToken();
@@ -578,18 +596,17 @@ export const apiClient = {
               if (retryResponse.ok) {
                 return retryResponse.json();
               }
-              console.error(`[apiClient] Retry after token refresh still failed on ${endpoint}: HTTP ${retryResponse.status}`);
               // A newly issued token does not authorize every endpoint. Keep the
               // session when this particular request is rejected or unavailable.
               const retryError = await retryResponse.json().catch(() => ({}));
-              throw new Error(typeof retryError.detail === 'string'
-                ? retryError.detail : `HTTP ${retryResponse.status}`);
+              throw httpError(typeof retryError.detail === 'string'
+                ? retryError.detail : `HTTP ${retryResponse.status}`, retryResponse.status);
             }
             if (skipAuthLogout) {
-              throw new Error('Authentication required');
+              throw httpError('Authentication required', 401);
             }
             auth.logout();
-            throw new Error('Authentication required');
+            throw httpError('Authentication required', 401);
           }
 
           const error = await response.json().catch(() => ({}));
@@ -607,8 +624,7 @@ export const apiClient = {
             }
           }
 
-          console.error(`[apiClient] ${endpoint} → ${errorMessage}`);
-          throw new Error(errorMessage);
+          throw httpError(errorMessage, response.status);
         }
 
         return response.json();

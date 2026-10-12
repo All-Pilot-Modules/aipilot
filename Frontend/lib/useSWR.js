@@ -1,6 +1,9 @@
 import useSWR, { useSWRConfig, mutate as globalMutate } from 'swr';
 import { apiClient } from './auth';
 
+// Permission and validation failures cannot be fixed by repeating the request.
+export const shouldRetryAPIError = (error) => !error.status || error.status >= 500 || error.status === 429;
+
 /**
  * Custom SWR hook with automatic caching and request deduplication
  *
@@ -27,6 +30,7 @@ export function useAPI(key, options = {}) {
       revalidateOnReconnect: true, // Refetch when internet reconnects
       dedupingInterval: 30000, // Dedupe requests within 30 seconds (stable data like modules/questions)
       focusThrottleInterval: 5000, // Throttle focus revalidation
+      shouldRetryOnError: shouldRetryAPIError,
       errorRetryCount: 3, // Retry failed requests 3 times
       errorRetryInterval: 5000, // Wait 5s between retries
       ...options, // Allow overrides
@@ -57,7 +61,7 @@ export async function prefetchAPI(key) {
     globalMutate(key, data, false);
     return data;
   } catch (error) {
-    console.error('Prefetch failed:', error);
+    // apiClient already reports the failure; optional prefetch must not duplicate it.
     return null;
   }
 }

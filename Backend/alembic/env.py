@@ -20,7 +20,7 @@ from app.models import (  # noqa: F401, E402
     feedback_job, teacher_grade, feedback_critique,
     answer_grade, student_module_grade,
     module_batch, module_collaborator,
-    worker_lock,
+    worker_lock, learning_memory,
 )
 
 target_metadata = Base.metadata

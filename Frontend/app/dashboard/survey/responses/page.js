@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -20,9 +20,9 @@ import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 function SurveyResponsesContent() {
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const moduleId = searchParams.get('module');
-  const moduleName = searchParams.get('name');
+  // Dashboard links use moduleId; older survey links put the ID in module.
+  const moduleId = searchParams.get('moduleId') || searchParams.get('module');
+  const moduleName = searchParams.get('name') || searchParams.get('module');
 
   const [module, setModule] = useState(null);
   const [surveyConfig, setSurveyConfig] = useState(null);
@@ -63,6 +63,9 @@ function SurveyResponsesContent() {
   useEffect(() => {
     if (moduleId) {
       loadSurveyData();
+    } else {
+      setError('No module selected. Open survey responses from a module dashboard.');
+      setLoading(false);
     }
   }, [moduleId, loadSurveyData]);
 
@@ -101,7 +104,7 @@ function SurveyResponsesContent() {
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `${moduleName}-survey-responses.csv`;
+    a.download = `${module?.name || moduleName || "module"}-survey-responses.csv`;
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -114,13 +117,14 @@ function SurveyResponsesContent() {
     );
   }
 
-  if (!module || !surveyConfig) {
+  if (error || !module || !surveyConfig) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <Card className="max-w-md">
           <CardContent className="pt-6">
             <div className="text-center">
-              <p className="text-red-600 mb-4">{error || 'Module or survey not found'}</p>
+              <p className="text-red-600 dark:text-red-300 mb-4">{error || 'Module or survey not found'}</p>
+              {moduleId && <Button variant="outline" onClick={loadSurveyData} className="mr-2">Try again</Button>}
               <Button asChild>
                 <Link href="/mymodules">Back to Modules</Link>
               </Button>
@@ -137,7 +141,7 @@ function SurveyResponsesContent() {
         {/* Header */}
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href={`/dashboard?module=${moduleName}`}>
+            <Link href={`/dashboard?${new URLSearchParams({ module: module.name, moduleId })}`}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Link>
@@ -220,7 +224,7 @@ function SurveyResponsesContent() {
           <div className="space-y-6">
             {responses.map((response, responseIdx) => (
               <Card key={response.id} className="border-2">
-                <CardHeader className="bg-gray-50 dark:bg-gray-900/50">
+                <CardHeader className="bg-muted/50 dark:bg-card/50">
                   <div className="flex items-start justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2 text-lg">
@@ -240,7 +244,7 @@ function SurveyResponsesContent() {
                 <CardContent className="pt-6">
                   <div className="space-y-6">
                     {surveyConfig.survey_questions.map((question, qIdx) => (
-                      <div key={question.id} className="border-b border-gray-200 dark:border-gray-800 pb-6 last:border-0 last:pb-0">
+                      <div key={question.id} className="border-b border-border pb-6 last:border-0 last:pb-0">
                         <div className="flex items-start gap-3 mb-3">
                           <Badge variant="secondary" className="mt-1">Q{qIdx + 1}</Badge>
                           <div className="flex-1">
@@ -259,7 +263,7 @@ function SurveyResponsesContent() {
                         <div className="ml-14 mt-3">
                           <div className="flex items-start gap-2">
                             <MessageSquare className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />
-                            <div className="flex-1 p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                            <div className="flex-1 p-4 rounded-lg bg-muted/50 dark:bg-card border border-border ">
                               {response.responses[question.id] ? (
                                 <p className="text-foreground whitespace-pre-wrap break-words">
                                   {response.responses[question.id]}

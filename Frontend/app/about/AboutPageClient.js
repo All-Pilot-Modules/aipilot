@@ -21,16 +21,16 @@ import {
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-950 dark:via-blue-950/10 dark:to-purple-950/10">
+    <div className="min-h-screen bg-gradient-to-br from-muted/50 via-blue-50/30 to-purple-50/20 dark:from-background dark:via-blue-950/10 dark:to-purple-950/10">
       {/* Header */}
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+      <header className="bg-card/80 backdrop-blur-lg border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                 <span className="text-white font-bold text-lg">AI</span>
               </div>
-              <span className="text-xl font-bold text-gray-900 dark:text-white">AI Education Pilot</span>
+              <span className="text-xl font-bold text-gray-900 dark:text-foreground">AI Education Pilot</span>
             </Link>
             <Button variant="outline" asChild>
               <Link href="/">
@@ -49,13 +49,13 @@ export default function AboutPage() {
             <Heart className="w-4 h-4 mr-2 text-red-500" />
             About Us
           </Badge>
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-foreground mb-6">
             Revolutionizing Education
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 dark:from-blue-300 to-purple-600 dark:to-purple-300">
               with AI Technology
             </span>
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-xl text-gray-600 dark:text-muted-foreground max-w-3xl mx-auto leading-relaxed">
             AI Education Pilot is a free, open-source platform empowering educators worldwide with cutting-edge AI analytics and personalized learning insights.
           </p>
         </div>
@@ -67,8 +67,8 @@ export default function AboutPage() {
               <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <Target className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Our Mission</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-3">Our Mission</h3>
+              <p className="text-gray-600 dark:text-muted-foreground">
                 To make AI-powered educational insights accessible to every educator and student, regardless of budget or technical expertise.
               </p>
             </CardContent>
@@ -79,8 +79,8 @@ export default function AboutPage() {
               <div className="w-16 h-16 bg-gradient-to-br from-purple-500 to-purple-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <Globe className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Our Vision</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-3">Our Vision</h3>
+              <p className="text-gray-600 dark:text-muted-foreground">
                 A world where every student receives personalized, data-driven education that adapts to their unique learning needs.
               </p>
             </CardContent>
@@ -91,8 +91,8 @@ export default function AboutPage() {
               <div className="w-16 h-16 bg-gradient-to-br from-green-500 to-green-600 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <Heart className="w-8 h-8 text-white" />
               </div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-3">Our Values</h3>
-              <p className="text-gray-600 dark:text-gray-400">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-3">Our Values</h3>
+              <p className="text-gray-600 dark:text-muted-foreground">
                 Open source, accessibility, privacy-first, and student-centered design guide everything we build.
               </p>
             </CardContent>
@@ -102,8 +102,8 @@ export default function AboutPage() {
         {/* Story Section */}
         <Card className="mb-20 border-0 shadow-lg">
           <CardContent className="p-12">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-6">Our Story</h2>
-            <div className="space-y-4 text-gray-600 dark:text-gray-400 leading-relaxed">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-foreground mb-6">Our Story</h2>
+            <div className="space-y-4 text-gray-600 dark:text-muted-foreground leading-relaxed">
               <p>
                 AI Education Pilot was born from a simple observation: while AI technology has made incredible advances, most educational institutions still rely on outdated tools that don&apos;t leverage these breakthroughs.
               </p>
@@ -122,7 +122,7 @@ export default function AboutPage() {
 
         {/* Features Highlight */}
         <div className="mb-20">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-12">
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-foreground text-center mb-12">
             What Makes Us Different
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -133,8 +133,8 @@ export default function AboutPage() {
                     <Github className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">100% Open Source</h3>
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">100% Open Source</h3>
+                    <p className="text-gray-600 dark:text-muted-foreground">
                       Complete transparency. Inspect the code, contribute improvements, or fork it for your own needs. MIT Licensed forever.
                     </p>
                   </div>
@@ -149,8 +149,8 @@ export default function AboutPage() {
                     <Sparkles className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">AI-Powered Insights</h3>
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">AI-Powered Insights</h3>
+                    <p className="text-gray-600 dark:text-muted-foreground">
                       Advanced machine learning algorithms analyze patterns and predict outcomes to help you make better educational decisions.
                     </p>
                   </div>
@@ -165,8 +165,8 @@ export default function AboutPage() {
                     <Shield className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Privacy First</h3>
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">Privacy First</h3>
+                    <p className="text-gray-600 dark:text-muted-foreground">
                       Your data stays yours. Self-host on your own servers with complete control over student information and compliance.
                     </p>
                   </div>
@@ -181,8 +181,8 @@ export default function AboutPage() {
                     <Users className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Community Driven</h3>
-                    <p className="text-gray-600 dark:text-gray-400">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">Community Driven</h3>
+                    <p className="text-gray-600 dark:text-muted-foreground">
                       Built by educators, for educators. Join our growing community of contributors making education better for everyone.
                     </p>
                   </div>
@@ -200,12 +200,12 @@ export default function AboutPage() {
               Start using AI Education Pilot today. No credit card required, no setup fees, just powerful AI tools for education.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg" className="bg-white text-blue-600 hover:bg-blue-50">
+              <Button asChild size="lg" className="bg-card text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40">
                 <Link href="/sign-up">
                   Get Started Free
                 </Link>
               </Button>
-              <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-white/10">
+              <Button asChild size="lg" variant="outline" className="border-white text-white hover:bg-card/10">
                 <Link href="https://github.com/All-Pilot-Modules/ai-pilot" target="_blank">
                   <Github className="w-4 h-4 mr-2" />
                   View on GitHub
@@ -217,7 +217,7 @@ export default function AboutPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-300 border-t border-gray-800 mt-20">
+      <footer className="bg-primary text-primary-foreground border-t border-gray-800 mt-20">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="text-center">
             <p className="text-sm">

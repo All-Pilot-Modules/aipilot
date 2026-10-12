@@ -106,10 +106,10 @@ export default function AccessAssignment() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-card flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading module...</p>
+          <p className="text-muted-foreground">Loading module...</p>
         </div>
       </div>
     );
@@ -117,15 +117,15 @@ export default function AccessAssignment() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-white flex items-center justify-center">
+      <div className="min-h-screen bg-card flex items-center justify-center">
         <div className="max-w-md mx-auto px-6">
           <Card>
             <CardContent className="py-12 text-center">
-              <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <ExternalLink className="w-8 h-8 text-red-600" />
+              <div className="w-16 h-16 bg-red-100 dark:bg-red-950/40 rounded-full flex items-center justify-center mx-auto mb-4">
+                <ExternalLink className="w-8 h-8 text-red-600 dark:text-red-300" />
               </div>
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Module Not Found</h3>
-              <p className="text-gray-600 mb-6">{error}</p>
+              <h3 className="text-lg font-semibold text-foreground mb-2">Module Not Found</h3>
+              <p className="text-muted-foreground mb-6">{error}</p>
               <Button asChild>
                 <Link href="/">Go Home</Link>
               </Button>
@@ -137,14 +137,14 @@ export default function AccessAssignment() {
   }
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-card">
       <div className="max-w-md mx-auto px-6 py-12">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <BookOpen className="w-8 h-8 text-blue-600" />
+          <div className="w-16 h-16 bg-blue-100 dark:bg-blue-950/40 rounded-full flex items-center justify-center mx-auto mb-4">
+            <BookOpen className="w-8 h-8 text-blue-600 dark:text-blue-300" />
           </div>
-          <h1 className="text-2xl font-semibold text-gray-900 mb-2">Access Assignment</h1>
-          <p className="text-gray-600">Enter your details to access the assignment</p>
+          <h1 className="text-2xl font-semibold text-foreground mb-2">Access Assignment</h1>
+          <p className="text-muted-foreground">Enter your details to access the assignment</p>
         </div>
 
         {module && (
@@ -154,7 +154,7 @@ export default function AccessAssignment() {
             </CardHeader>
             <CardContent>
               {module.description && (
-                <p className="text-gray-600 text-sm">{module.description}</p>
+                <p className="text-muted-foreground text-sm">{module.description}</p>
               )}
             </CardContent>
           </Card>

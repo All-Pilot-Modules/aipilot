@@ -205,7 +205,7 @@ const columns = [
           Target
         </Label>
         <Input
-          className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
+          className="hover:bg-input/30 focus-visible:bg-background dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border "
           defaultValue={row.original.target}
           id={`${row.original.id}-target`} />
       </form>
@@ -228,7 +228,7 @@ const columns = [
           Limit
         </Label>
         <Input
-          className="hover:bg-input/30 focus-visible:bg-background dark:hover:bg-input/30 dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border dark:bg-transparent"
+          className="hover:bg-input/30 focus-visible:bg-background dark:focus-visible:bg-input/30 h-8 w-16 border-transparent bg-transparent text-right shadow-none focus-visible:border "
           defaultValue={row.original.limit}
           id={`${row.original.id}-limit`} />
       </form>

@@ -65,7 +65,7 @@ export default function RubricSummary({ rubric }) {
             <div className={`p-2 rounded-lg ${
               ragEnabled
                 ? 'bg-green-100 dark:bg-green-900/30'
-                : 'bg-gray-100 dark:bg-gray-800'
+                : 'bg-muted '
             }`}>
               <Zap className={`w-5 h-5 ${
                 ragEnabled
@@ -90,7 +90,7 @@ export default function RubricSummary({ rubric }) {
             <div className={`p-2 rounded-lg ${
               custom_instructions
                 ? 'bg-purple-100 dark:bg-purple-900/30'
-                : 'bg-gray-100 dark:bg-gray-800'
+                : 'bg-muted '
             }`}>
               <BookOpen className={`w-5 h-5 ${
                 custom_instructions

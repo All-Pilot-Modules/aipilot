@@ -174,8 +174,8 @@ export default function SettingsPage() {
               </Button>
               <Separator orientation="vertical" className="h-6" />
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gray-900 rounded-xl flex items-center justify-center shadow-lg">
-                  <SettingsIcon className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg text-primary-foreground">
+                  <SettingsIcon className="w-5 h-5 text-primary-foreground" />
                 </div>
                 <div>
                   <h1 className="text-lg font-bold">Settings</h1>
@@ -197,7 +197,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-3">
                 <Avatar className="h-9 w-9 ring-2 ring-blue-100 dark:ring-blue-900/50">
                   <AvatarImage src={user?.profile_image} alt={user?.username} />
-                  <AvatarFallback className="bg-gray-900 text-white font-semibold text-sm">
+                  <AvatarFallback className="bg-primary text-primary-foreground font-semibold text-sm">
                     {user?.username?.charAt(0)?.toUpperCase() || 'U'}
                   </AvatarFallback>
                 </Avatar>
@@ -226,7 +226,7 @@ export default function SettingsPage() {
                         {user?.username?.charAt(0)?.toUpperCase() || 'U'}
                       </AvatarFallback>
                     </Avatar>
-                    <button className="absolute bottom-2 right-2 w-10 h-10 bg-white text-gray-700 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
+                    <button className="absolute bottom-2 right-2 w-10 h-10 bg-card text-foreground rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform">
                       <Camera className="w-5 h-5" />
                     </button>
                   </div>
@@ -258,7 +258,7 @@ export default function SettingsPage() {
             {/* Quick Stats Dashboard */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-card/10 rounded-full -mr-16 -mt-16"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
@@ -271,7 +271,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="relative overflow-hidden rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950 p-6 shadow-sm">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-card/10 rounded-full -mr-16 -mt-16"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
@@ -288,7 +288,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="relative overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-sm">
-                <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full -mr-16 -mt-16"></div>
+                <div className="absolute top-0 right-0 w-32 h-32 bg-card/10 rounded-full -mr-16 -mt-16"></div>
                 <div className="relative">
                   <div className="flex items-center justify-between mb-4">
                     <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center">
@@ -546,15 +546,15 @@ export default function SettingsPage() {
 
                   {/* Account Timestamps */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-blue-950/30">
-                      <Calendar className="w-5 h-5 text-gray-700 dark:text-gray-500" />
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 dark:bg-blue-950/30">
+                      <Calendar className="w-5 h-5 text-gray-700 dark:text-muted-foreground" />
                       <div>
                         <p className="text-xs text-muted-foreground">Account Created</p>
                         <p className="text-sm font-medium">{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}</p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-950/30">
-                      <Calendar className="w-5 h-5 text-gray-700 dark:text-gray-500" />
+                    <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50 dark:bg-background/30">
+                      <Calendar className="w-5 h-5 text-gray-700 dark:text-muted-foreground" />
                       <div>
                         <p className="text-xs text-muted-foreground">Last Updated</p>
                         <p className="text-sm font-medium">{user?.updated_at ? new Date(user.updated_at).toLocaleDateString() : 'N/A'}</p>

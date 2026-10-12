@@ -20,9 +20,9 @@ export default function RubricPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-teal-500 to-cyan-600 flex items-center justify-center">
             <ClipboardList className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Rubric & Feedback Config</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Rubric & Feedback Config</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Configure how the AI grades submissions and generates feedback for students.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Configure how the AI grades submissions and generates feedback for students.</p>
       </div>
 
       {/* Overview */}
@@ -33,7 +33,7 @@ export default function RubricPage() {
             Rubric Configuration Overview
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The rubric settings control how the AI evaluates student submissions. Access these settings from the <strong>Rubric</strong> section in your module.</p>
           <div className="bg-teal-50 dark:bg-teal-950/20 border border-teal-200 dark:border-teal-800 rounded-lg p-4">
             <p className="text-sm text-teal-700 dark:text-teal-300">
@@ -47,29 +47,29 @@ export default function RubricPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-purple-600" />
+            <MessageSquare className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             Feedback Tone
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Choose how the AI communicates with students:</p>
           <div className="space-y-3 mt-3">
-            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white text-sm">Encouraging</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Positive, supportive feedback that motivates students</p>
+                <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">Encouraging</h4>
+                <p className="text-xs text-gray-500 dark:text-muted-foreground">Positive, supportive feedback that motivates students</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white text-sm">Neutral</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Objective, balanced feedback focusing on facts</p>
+                <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">Neutral</h4>
+                <p className="text-xs text-gray-500 dark:text-muted-foreground">Objective, balanced feedback focusing on facts</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white text-sm">Critical</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Direct feedback highlighting areas for improvement</p>
+                <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">Critical</h4>
+                <p className="text-xs text-gray-500 dark:text-muted-foreground">Direct feedback highlighting areas for improvement</p>
               </div>
             </div>
           </div>
@@ -80,11 +80,11 @@ export default function RubricPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Sliders className="w-5 h-5 text-blue-600" />
+            <Sliders className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             RAG Settings
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>RAG (Retrieval-Augmented Generation) settings control how the AI uses your documents:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
@@ -107,11 +107,11 @@ export default function RubricPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="w-5 h-5 text-orange-600" />
+            <FileText className="w-5 h-5 text-orange-600 dark:text-orange-300" />
             Custom Instructions
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Add custom instructions to guide the AI grading:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li>Specific criteria you want the AI to evaluate</li>
@@ -132,11 +132,11 @@ export default function RubricPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="w-5 h-5 text-green-600" />
+            <ClipboardList className="w-5 h-5 text-green-600 dark:text-green-300" />
             Grading Scale
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Configure your grading scale:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>Points per question</strong> - Maximum points for each question</li>
@@ -145,7 +145,7 @@ export default function RubricPage() {
           </ul>
           <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mt-4">
             <div className="flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-blue-600 dark:text-blue-300 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-blue-700 dark:text-blue-300">
                 The AI will use this scale when assigning scores. You can always manually adjust grades after review.
               </p>

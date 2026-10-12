@@ -19,9 +19,9 @@ export default function AnalyticsPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
             <BarChart3 className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Analytics</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Analytics</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">View detailed metrics, grade distributions, and student progress tracking.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">View detailed metrics, grade distributions, and student progress tracking.</p>
       </div>
 
       {/* Analytics Dashboard */}
@@ -32,7 +32,7 @@ export default function AnalyticsPage() {
             Analytics Dashboard
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The Analytics section provides comprehensive insights into your module&apos;s performance:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li>Overall module statistics</li>
@@ -47,11 +47,11 @@ export default function AnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Target className="w-5 h-5 text-blue-600" />
+            <Target className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Key Metrics
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Track these important metrics:</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
             {[
@@ -62,11 +62,11 @@ export default function AnalyticsPage() {
             ].map((item) => {
               const Icon = item.icon;
               return (
-                <div key={item.title} className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+                <div key={item.title} className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
                   <Icon className={`w-5 h-5 text-${item.color}-600 dark:text-${item.color}-400 flex-shrink-0 mt-0.5`} />
                   <div>
-                    <h4 className="font-medium text-gray-900 dark:text-white text-sm">{item.title}</h4>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">{item.description}</p>
+                    <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">{item.title}</h4>
+                    <p className="text-xs text-gray-500 dark:text-muted-foreground">{item.description}</p>
                   </div>
                 </div>
               );
@@ -79,11 +79,11 @@ export default function AnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <PieChart className="w-5 h-5 text-purple-600" />
+            <PieChart className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             Grade Distribution
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>View how grades are distributed across your class:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>Pie chart</strong> showing grade category breakdown (A, B, C, D, F)</li>
@@ -102,11 +102,11 @@ export default function AnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <LineChart className="w-5 h-5 text-green-600" />
+            <LineChart className="w-5 h-5 text-green-600 dark:text-green-300" />
             Progress Tracking
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Monitor how students progress over time:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>Submission timeline</strong> - When students are most active</li>
@@ -121,11 +121,11 @@ export default function AnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-indigo-600" />
+            <TrendingUp className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
             Question-Level Analytics
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Analyze performance on individual questions:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>Difficulty analysis</strong> - Average score per question</li>
@@ -140,11 +140,11 @@ export default function AnalyticsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-teal-600" />
+            <BarChart3 className="w-5 h-5 text-teal-600 dark:text-teal-300" />
             Using Analytics Effectively
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Tips for leveraging analytics:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li>Identify struggling students early and provide support</li>

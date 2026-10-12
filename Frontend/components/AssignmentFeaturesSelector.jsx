@@ -34,7 +34,7 @@ function CollapseToggle({ expanded, onClick }) {
     <button
       type="button"
       onClick={onClick}
-      className="p-1 -m-1 rounded hover:bg-black/5 dark:hover:bg-white/10 text-muted-foreground transition-colors"
+      className="p-1 -m-1 rounded hover:bg-black/5 dark:hover:bg-card/10 text-muted-foreground transition-colors"
       aria-label={expanded ? 'Collapse section' : 'Expand section'}
     >
       {expanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -374,7 +374,7 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
         </div>
 
         {/* Mastery Learning */}
-        <div className={`border rounded-lg p-4 border-purple-200 dark:border-purple-800 ${config.features.mastery_learning.enabled ? 'bg-purple-50/50 dark:bg-purple-950/10' : 'bg-gray-50/50 dark:bg-gray-950/10'}`}>
+        <div className={`border rounded-lg p-4 border-purple-200 dark:border-purple-800 ${config.features.mastery_learning.enabled ? 'bg-purple-50/50 dark:bg-purple-950/10' : 'bg-muted/50 dark:bg-background/10'}`}>
           <div className="flex items-center justify-between mb-1">
             <div
               className="flex items-center gap-2 cursor-pointer select-none"

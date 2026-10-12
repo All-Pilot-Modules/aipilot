@@ -77,6 +77,8 @@ app.include_router(student_router, prefix="/api/student", tags=["Student"])
 app.include_router(student_answers_router, prefix="/api/student-answers", tags=["Student Answers"])
 app.include_router(chat_router, prefix="/api", tags=["Chat"])
 app.include_router(survey_router, prefix="/api", tags=["Survey"])
+from app.api.routes.learning_memory import router as learning_memory_router
+app.include_router(learning_memory_router, prefix="/api", tags=["Learning Memory"])
 app.include_router(export_router, prefix="/api", tags=["Export"])
 app.include_router(feedback_router, prefix="/api/ai-feedback", tags=["AI Feedback"])
 app.include_router(claims_router,   prefix="/api",              tags=["Claims"])
@@ -116,6 +118,9 @@ def on_startup():
     except Exception as e:
         print(f"⚠️  start_worker failed (non-fatal): {e}")
 
+    from app.services.learning_memory import start_memory_worker
+    start_memory_worker()
+
     print("🎉 Application startup complete!")
 
 
@@ -127,6 +132,8 @@ def on_shutdown():
     that will never come again. stop_worker() was built for this but was
     never actually wired to a shutdown hook — this was dead code until now.
     """
+    from app.services.learning_memory import stop_memory_worker
+    stop_memory_worker()
     print("🛑 App shutdown initiated...")
     from app.services.feedback_worker import stop_worker
     try:

@@ -571,9 +571,10 @@ def get_dashboard_metrics(
         StudentAnswer.module_id == module_id
     ).scalar() or 0
 
-    questions_count = db.query(func.count(Question.id)).filter(
+    module_questions = db.query(Question.id, Question.text).filter(
         Question.module_id == module_id
-    ).scalar() or 0
+    ).all()
+    questions_count = len(module_questions)
 
     documents_count = db.query(func.count(Document.id)).filter(
         Document.module_id == module_id
@@ -594,6 +595,12 @@ def get_dashboard_metrics(
     ).filter(
         StudentAnswer.module_id == module_id
     ).all()
+
+    from app.services.dashboard_insights import build_dashboard_insights
+    student_insights = build_dashboard_insights(rows, questions_count)
+    question_texts = {str(qid): text for qid, text in module_questions}
+    for item in student_insights["question_difficulty"]:
+        item["question_text"] = question_texts.get(item["question_id"], "Question no longer available")
 
     # ── Process results in Python (single pass) ──
     scored_answers = []
@@ -699,7 +706,8 @@ def get_dashboard_metrics(
         "total_questions": questions_count,
         "total_documents": documents_count,
         "average_score": avg_score,
-        "completion_rate": completion_rate,
+        "completion_rate": student_insights["question_coverage"],
+        "student_insights": student_insights,
         "total_submissions": total_answers,
         "ai_feedback_count": len(scored_answers),
         "score_distribution": score_ranges,

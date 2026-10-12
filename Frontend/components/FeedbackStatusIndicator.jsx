@@ -55,7 +55,7 @@ export function FeedbackStatusIndicator({ answerId, hasFeedback, onFeedbackCompl
     return (
       <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
         <div className="flex items-center gap-3">
-          <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />
+          <Loader2 className="h-5 w-5 text-blue-600 dark:text-blue-300 animate-spin" />
           <div className="flex-1">
             <p className="text-sm font-medium text-blue-900 dark:text-blue-100">
               Generating feedback...
@@ -81,7 +81,7 @@ export function FeedbackStatusIndicator({ answerId, hasFeedback, onFeedbackCompl
     return (
       <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
         <div className="flex items-start gap-3">
-          <AlertCircle className="h-5 w-5 text-red-600 mt-0.5 flex-shrink-0" />
+          <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-300 mt-0.5 flex-shrink-0" />
           <div className="flex-1">
             <p className="text-sm font-medium text-red-900 dark:text-red-100">
               Feedback generation failed

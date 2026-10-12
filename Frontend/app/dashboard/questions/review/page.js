@@ -214,11 +214,11 @@ function QuestionReviewContent() {
   const getQuestionTypeBadge = (type) => {
     switch (type) {
       case 'mcq':
-        return <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30">Multiple Choice</Badge>;
+        return <Badge className="bg-blue-100 text-blue-700 dark:text-blue-300 dark:bg-blue-900/30">Multiple Choice</Badge>;
       case 'short':
-        return <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30">Short Answer</Badge>;
+        return <Badge className="bg-green-100 text-green-700 dark:text-green-300 dark:bg-green-900/30">Short Answer</Badge>;
       case 'long':
-        return <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900/30">Long Answer</Badge>;
+        return <Badge className="bg-purple-100 text-purple-700 dark:text-purple-300 dark:bg-purple-900/30">Long Answer</Badge>;
       default:
         return <Badge>{type}</Badge>;
     }
@@ -267,7 +267,7 @@ function QuestionReviewContent() {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-4xl font-bold text-purple-600">{questions.length}</p>
+                  <p className="text-4xl font-bold text-purple-600 dark:text-purple-300">{questions.length}</p>
                   <p className="text-sm text-muted-foreground">Pending Review</p>
                 </div>
               </div>
@@ -304,7 +304,7 @@ function QuestionReviewContent() {
                     <Button
                       onClick={handleBulkApprove}
                       disabled={selectedQuestions.size === 0 || isBulkApproving}
-                      className="bg-green-600 hover:bg-green-700"
+                      className="bg-green-700 hover:bg-green-700 text-white"
                     >
                       {isBulkApproving ? (
                         <>
@@ -340,7 +340,7 @@ function QuestionReviewContent() {
                             type="checkbox"
                             checked={selectedQuestions.has(question.id)}
                             onChange={() => toggleSelection(question.id)}
-                            className="mt-1 h-4 w-4 rounded border-gray-300"
+                            className="mt-1 h-4 w-4 rounded border-border"
                           />
                           <div className="flex-1">
                             <div className="flex items-center gap-2 mb-2">
@@ -405,17 +405,17 @@ function QuestionReviewContent() {
                               </div>
                             ) : (
                               <>
-                                <CardTitle className="text-lg mb-3"><MathText inline>{question.text}</MathText></CardTitle>
+                                <CardTitle className="text-lg mb-3"><MathText embedLinks>{question.text}</MathText></CardTitle>
                                 {question.type === 'mcq' && question.options && (
                                   <div className="space-y-2 pl-4">
                                     {Object.entries(question.options).map(([key, value]) => (
                                       <div key={key} className="flex items-center gap-2">
                                         <span className="font-semibold">{key}.</span>
-                                        <span className={key === question.correct_option_id ? "font-semibold text-green-600" : ""}>
+                                        <span className={key === question.correct_option_id ? "font-semibold text-green-600 dark:text-green-300" : ""}>
                                           <MathText inline>{value}</MathText>
                                         </span>
                                         {key === question.correct_option_id && (
-                                          <CheckCircle2 className="w-4 h-4 text-green-600" />
+                                          <CheckCircle2 className="w-4 h-4 text-green-600 dark:text-green-300" />
                                         )}
                                       </div>
                                     ))}
@@ -449,7 +449,7 @@ function QuestionReviewContent() {
                             <Button
                               size="sm"
                               onClick={() => handleSaveEdit(question.id)}
-                              className="bg-green-600 hover:bg-green-700"
+                              className="bg-green-700 hover:bg-green-700 text-white"
                             >
                               <CheckCircle2 className="w-4 h-4 mr-1" />
                               Save & Approve
@@ -468,7 +468,7 @@ function QuestionReviewContent() {
                               size="sm"
                               onClick={() => handleApprove(question.id)}
                               disabled={isApproving === question.id}
-                              className="bg-green-600 hover:bg-green-700"
+                              className="bg-green-700 hover:bg-green-700 text-white"
                             >
                               {isApproving === question.id ? (
                                 <Loader2 className="w-4 h-4 mr-1 animate-spin" />

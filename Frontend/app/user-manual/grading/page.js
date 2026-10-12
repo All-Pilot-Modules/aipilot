@@ -20,9 +20,9 @@ export default function GradingPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-rose-500 to-pink-600 flex items-center justify-center">
             <CheckSquare className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Grading</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Grading</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Review student submissions, view AI scores, and manually override grades as needed.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Review student submissions, view AI scores, and manually override grades as needed.</p>
       </div>
 
       {/* Grading Overview */}
@@ -33,7 +33,7 @@ export default function GradingPage() {
             Grading Interface Overview
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The grading interface shows all student submissions organized by:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>Student</strong> - Group submissions by student</li>
@@ -48,11 +48,11 @@ export default function GradingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-purple-600" />
+            <Bot className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             AI Scoring
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>When a student submits an answer, the AI automatically:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
@@ -84,11 +84,11 @@ export default function GradingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Eye className="w-5 h-5 text-blue-600" />
+            <Eye className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Viewing Submissions
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Click on any submission to view:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li>The original question</li>
@@ -105,11 +105,11 @@ export default function GradingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Edit className="w-5 h-5 text-amber-600" />
+            <Edit className="w-5 h-5 text-amber-600 dark:text-amber-300" />
             Manual Grade Override
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>You can override AI grades at any time:</p>
           <ol className="space-y-2 list-decimal list-inside">
             <li>Open the submission you want to modify</li>
@@ -130,11 +130,11 @@ export default function GradingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-green-600" />
+            <MessageSquare className="w-5 h-5 text-green-600 dark:text-green-300" />
             Adding Comments
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Add your own comments to any submission:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li>Click the <strong>&quot;Add Comment&quot;</strong> button</li>
@@ -142,7 +142,7 @@ export default function GradingPage() {
             <li>Choose whether the comment is visible to the student</li>
             <li>Save your comment</li>
           </ul>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+          <p className="text-sm text-gray-500 dark:text-muted-foreground mt-2">
             Teacher comments appear alongside AI feedback, giving students additional guidance.
           </p>
         </CardContent>
@@ -152,11 +152,11 @@ export default function GradingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <RefreshCw className="w-5 h-5 text-indigo-600" />
+            <RefreshCw className="w-5 h-5 text-indigo-600 dark:text-indigo-300" />
             Bulk Actions
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>For efficiency, you can perform bulk actions:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>Select multiple submissions</strong> using checkboxes</li>

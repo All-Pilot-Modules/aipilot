@@ -175,7 +175,7 @@ export default function ModuleConsentPage() {
             <Card className="max-w-md">
               <CardContent className="pt-6">
                 <div className="text-center">
-                  <p className="text-red-600 mb-4">
+                  <p className="text-red-600 dark:text-red-300 mb-4">
                     {error || (!module ? 'Module not found' : 'Invalid module ID')}
                   </p>
                   <Button asChild>

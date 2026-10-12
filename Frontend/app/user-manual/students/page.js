@@ -21,9 +21,9 @@ export default function StudentsPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center">
             <Users className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Students</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Students</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">View enrolled students, track their progress, and manage student access.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">View enrolled students, track their progress, and manage student access.</p>
       </div>
 
       {/* How Students Join */}
@@ -34,7 +34,7 @@ export default function StudentsPage() {
             How Students Join
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Students enroll in your module using the access code:</p>
           <ol className="space-y-3 list-decimal list-inside">
             <li>Share your module&apos;s <strong>access code</strong> with students</li>
@@ -54,11 +54,11 @@ export default function StudentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Eye className="w-5 h-5 text-blue-600" />
+            <Eye className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Viewing Enrolled Students
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The Students page shows a list of all enrolled students with:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
@@ -89,11 +89,11 @@ export default function StudentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="w-5 h-5 text-purple-600" />
+            <BarChart3 className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             Individual Student Progress
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Click on a student to view their detailed progress:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li>All submissions with grades and feedback</li>
@@ -109,11 +109,11 @@ export default function StudentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-amber-600" />
+            <Clock className="w-5 h-5 text-amber-600 dark:text-amber-300" />
             Activity Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Monitor student engagement with activity indicators:</p>
           <div className="space-y-3 mt-3">
             <div className="flex items-center gap-3">
@@ -136,11 +136,11 @@ export default function StudentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-teal-600" />
+            <Users className="w-5 h-5 text-teal-600 dark:text-teal-300" />
             Managing Students
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Actions you can take:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
@@ -154,7 +154,7 @@ export default function StudentsPage() {
           </ul>
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mt-4">
             <div className="flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-300 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 <strong>Note:</strong> Removing a student will revoke their access but preserve their submission history for your records.
               </p>

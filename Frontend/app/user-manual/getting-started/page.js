@@ -20,9 +20,9 @@ export default function GettingStartedPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
             <Rocket className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Getting Started</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Getting Started</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Create your account, verify your email, and start building your first module.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Create your account, verify your email, and start building your first module.</p>
       </div>
 
       {/* Sign Up */}
@@ -33,7 +33,7 @@ export default function GettingStartedPage() {
             Creating Your Account
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>To get started with AI Education Pilot:</p>
           <ol className="space-y-3 list-decimal list-inside">
             <li>Navigate to the <strong>Sign Up</strong> page</li>
@@ -43,7 +43,7 @@ export default function GettingStartedPage() {
           </ol>
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mt-4">
             <div className="flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-300 flex-shrink-0 mt-0.5" />
               <div className="text-sm">
                 <strong className="text-amber-800 dark:text-amber-300">Important:</strong>
                 <span className="text-amber-700 dark:text-amber-400"> Use a valid email address as you&apos;ll need to verify it before accessing the platform.</span>
@@ -57,11 +57,11 @@ export default function GettingStartedPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-blue-600" />
+            <Mail className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Email Verification
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>After signing up, you&apos;ll receive a verification email:</p>
           <ol className="space-y-2 list-decimal list-inside">
             <li>Check your inbox for an email from AI Education Pilot</li>
@@ -80,11 +80,11 @@ export default function GettingStartedPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <LogIn className="w-5 h-5 text-purple-600" />
+            <LogIn className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             Logging In
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Once your email is verified:</p>
           <ol className="space-y-2 list-decimal list-inside">
             <li>Go to the <strong>Sign In</strong> page</li>
@@ -99,11 +99,11 @@ export default function GettingStartedPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <KeyRound className="w-5 h-5 text-orange-600" />
+            <KeyRound className="w-5 h-5 text-orange-600 dark:text-orange-300" />
             Password Reset
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>If you forget your password:</p>
           <ol className="space-y-2 list-decimal list-inside">
             <li>Click <strong>&quot;Forgot Password?&quot;</strong> on the login page</li>
@@ -119,10 +119,10 @@ export default function GettingStartedPage() {
       <Card className="bg-gradient-to-br from-emerald-50/50 to-green-50/30 dark:from-emerald-950/20 dark:to-green-950/10">
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
-            <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5" />
+            <CheckCircle className="w-5 h-5 text-emerald-600 dark:text-emerald-300 flex-shrink-0 mt-0.5" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Next Steps</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
+              <h3 className="font-semibold text-gray-900 dark:text-foreground mb-1">Next Steps</h3>
+              <p className="text-sm text-gray-600 dark:text-muted-foreground">
                 Once you&apos;re logged in, head to the <strong>Dashboard</strong> section to learn about navigating the platform and creating your first module.
               </p>
             </div>

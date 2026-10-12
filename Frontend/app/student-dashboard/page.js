@@ -98,17 +98,17 @@ function ShareModuleDialog({ mod, open, onClose }) {
       <DialogContent style={{ background: 'var(--sd-card)', border: '1px solid var(--sd-border)', color: 'var(--sd-text)' }}
         className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-slate-100">
+          <DialogTitle className="flex items-center gap-2 text-foreground">
             <Share2 className="w-4 h-4" style={{ color: '#6366f1' }} />
             Share &ldquo;{mod?.name}&rdquo;
           </DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogDescription className="text-muted-foreground">
             Invite classmates to study together.
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-5 py-2">
           <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Access Code</label>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Access Code</label>
             <div className="flex items-center gap-2">
               <div className="flex-1 font-mono text-center text-2xl font-bold tracking-[0.3em] rounded-lg py-3 select-all"
                 style={{ background: 'var(--sd-card2)', color: 'var(--sd-indigo-text)', border: '1px solid var(--sd-border)' }}>
@@ -122,12 +122,12 @@ function ShareModuleDialog({ mod, open, onClose }) {
               >
                 {copied === 'code'
                   ? <CheckCircle className="w-4 h-4 text-emerald-400" />
-                  : <Copy className="w-4 h-4 text-slate-400" />}
+                  : <Copy className="w-4 h-4 text-muted-foreground" />}
               </button>
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-xs font-medium text-slate-400 uppercase tracking-wider">Join Link</label>
+            <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Join Link</label>
             <div className="flex items-center gap-2">
               <input readOnly value={joinLink}
                 onClick={e => e.target.select()}
@@ -138,7 +138,7 @@ function ShareModuleDialog({ mod, open, onClose }) {
                 style={{ background: 'var(--sd-card2)', border: '1px solid var(--sd-border)' }}>
                 {copied === 'link'
                   ? <CheckCircle className="w-3.5 h-3.5 text-emerald-400" />
-                  : <Copy className="w-3.5 h-3.5 text-slate-400" />}
+                  : <Copy className="w-3.5 h-3.5 text-muted-foreground" />}
               </button>
             </div>
           </div>
@@ -149,7 +149,7 @@ function ShareModuleDialog({ mod, open, onClose }) {
           </div>
         </div>
         <DialogFooter>
-          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg text-slate-400 hover:text-slate-200 transition-colors"
+          <button onClick={onClose} className="px-4 py-2 text-sm rounded-lg text-muted-foreground hover:text-foreground transition-colors"
             style={{ background: 'var(--sd-card2)', border: '1px solid var(--sd-border)' }}>
             Done
           </button>
@@ -202,17 +202,17 @@ function NewModuleDialog({ open, onClose, onCreated, userId }) {
       <DialogContent style={{ background: 'var(--sd-card)', border: '1px solid var(--sd-border)', color: 'var(--sd-text)' }}
         className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2 text-slate-100">
+          <DialogTitle className="flex items-center gap-2 text-foreground">
             <Zap className="w-4 h-4" style={{ color: '#f59e0b' }} />
             New Learning Module
           </DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogDescription className="text-muted-foreground">
             Upload study material and AI generates practice questions.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4 pt-2">
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-300">
+            <label className="text-sm font-medium text-foreground">
               Module name <span style={{ color: '#f87171' }}>*</span>
             </label>
             <input
@@ -225,8 +225,8 @@ function NewModuleDialog({ open, onClose, onCreated, userId }) {
             />
           </div>
           <div className="space-y-1.5">
-            <label className="text-sm font-medium text-slate-300">
-              Description <span className="text-slate-500 font-normal">(optional)</span>
+            <label className="text-sm font-medium text-foreground">
+              Description <span className="text-muted-foreground font-normal">(optional)</span>
             </label>
             <textarea
               placeholder="What is this module about?"
@@ -239,7 +239,7 @@ function NewModuleDialog({ open, onClose, onCreated, userId }) {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-300">Max attempts</label>
+              <label className="text-sm font-medium text-foreground">Max attempts</label>
               <select
                 className="w-full h-9 rounded-lg px-3 text-sm outline-none"
                 style={{ background: 'var(--sd-card2)', border: '1px solid var(--sd-border)', color: 'var(--sd-text)' }}
@@ -253,8 +253,8 @@ function NewModuleDialog({ open, onClose, onCreated, userId }) {
               </select>
             </div>
             <div className="space-y-1.5">
-              <label className="text-sm font-medium text-slate-300">
-                Due date <span className="text-slate-500 font-normal">(opt.)</span>
+              <label className="text-sm font-medium text-foreground">
+                Due date <span className="text-muted-foreground font-normal">(opt.)</span>
               </label>
               <input
                 type="date"
@@ -268,8 +268,8 @@ function NewModuleDialog({ open, onClose, onCreated, userId }) {
           <div className="flex items-center justify-between p-3 rounded-lg"
             style={{ background: 'var(--sd-card2)', border: '1px solid var(--sd-border)' }}>
             <div>
-              <p className="text-sm font-medium text-slate-200">Make public</p>
-              <p className="text-xs text-slate-500 mt-0.5">Other students can find and join</p>
+              <p className="text-sm font-medium text-foreground">Make public</p>
+              <p className="text-xs text-muted-foreground mt-0.5">Other students can find and join</p>
             </div>
             <Switch checked={form.isPublic} onCheckedChange={v => setForm(f => ({ ...f, isPublic: v }))} />
           </div>
@@ -281,7 +281,7 @@ function NewModuleDialog({ open, onClose, onCreated, userId }) {
           )}
           <div className="flex gap-2 pt-1">
             <button type="button" onClick={handleClose} disabled={loading}
-              className="flex-1 h-9 text-sm rounded-lg transition-colors text-slate-400 hover:text-slate-200"
+              className="flex-1 h-9 text-sm rounded-lg transition-colors text-muted-foreground hover:text-foreground"
               style={{ background: 'var(--sd-card2)', border: '1px solid var(--sd-border)' }}>
               Cancel
             </button>
@@ -327,13 +327,13 @@ function EnrolledModuleCard({ mod }) {
                 style={{ background: palette.light, color: palette.accent }}>
                 {mod.name.charAt(0).toUpperCase()}
               </div>
-              <p className="font-semibold text-slate-100 truncate text-sm leading-tight">{mod.name}</p>
+              <p className="font-semibold text-foreground truncate text-sm leading-tight">{mod.name}</p>
             </div>
             {mod.description && (
-              <p className="text-xs text-slate-500 line-clamp-2 pl-9">{mod.description}</p>
+              <p className="text-xs text-muted-foreground line-clamp-2 pl-9">{mod.description}</p>
             )}
           </div>
-          <ArrowRight className="w-4 h-4 text-slate-600 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
+          <ArrowRight className="w-4 h-4 text-muted-foreground flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-1" />
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 pl-2">
@@ -353,12 +353,12 @@ function EnrolledModuleCard({ mod }) {
         </div>
 
         {due && (
-          <div className={`flex items-center gap-1.5 text-xs pl-2 ${overdue ? 'text-rose-400' : soon ? 'text-orange-400' : 'text-slate-500'}`}>
+          <div className={`flex items-center gap-1.5 text-xs pl-2 ${overdue ? 'text-rose-400' : soon ? 'text-orange-400' : 'text-muted-foreground'}`}>
             <CalendarDays className="w-3 h-3" />Due {formatDate(due)}
           </div>
         )}
         {mod.enrolled_at && !due && (
-          <p className="text-xs text-slate-600 pl-2">Joined {formatDate(mod.enrolled_at)}</p>
+          <p className="text-xs text-muted-foreground pl-2">Joined {formatDate(mod.enrolled_at)}</p>
         )}
       </div>
     </Link>
@@ -389,9 +389,9 @@ function MyModuleCard({ mod, onShare }) {
               {mod.name.charAt(0).toUpperCase()}
             </div>
             <div className="min-w-0">
-              <p className="font-semibold text-slate-100 truncate leading-tight">{mod.name}</p>
+              <p className="font-semibold text-foreground truncate leading-tight">{mod.name}</p>
               {mod.description && (
-                <p className="text-xs text-slate-500 mt-0.5 line-clamp-1">{mod.description}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">{mod.description}</p>
               )}
             </div>
           </div>
@@ -445,14 +445,14 @@ function DiscoverCard({ mod, onJoin, joining }) {
             style={{ background: palette.light, color: palette.accent }}>
             {mod.name.charAt(0).toUpperCase()}
           </div>
-          <p className="font-semibold text-slate-100 truncate text-sm">{mod.name}</p>
+          <p className="font-semibold text-foreground truncate text-sm">{mod.name}</p>
         </div>
         {mod.description && (
-          <p className="text-xs text-slate-500 line-clamp-2 pl-9">{mod.description}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2 pl-9">{mod.description}</p>
         )}
       </div>
 
-      <div className="flex items-center gap-3 text-xs text-slate-500 pl-2">
+      <div className="flex items-center gap-3 text-xs text-muted-foreground pl-2">
         <span className="flex items-center gap-1"><User className="w-3 h-3" />{mod.owner_username || 'Unknown'}</span>
         {mod.question_count != null && (
           <span className="flex items-center gap-1"><ClipboardList className="w-3 h-3" />{mod.question_count} questions</span>
@@ -625,10 +625,10 @@ export default function StudentDashboard() {
               <Brain className="w-4 h-4 text-white" />
             </div>
             <div className="min-w-0">
-              <h1 className="text-sm font-semibold text-slate-100 truncate">
+              <h1 className="text-sm font-semibold text-foreground truncate">
                 {greeting}, <span style={{ color: 'var(--sd-username)' }}>{user?.username}</span>
               </h1>
-              <p className="text-xs text-slate-500 flex items-center gap-1">
+              <p className="text-xs text-muted-foreground flex items-center gap-1">
                 <Sparkles className="w-3 h-3 flex-shrink-0" style={{ color: '#6366f1' }} />AI-Powered Learning
               </p>
             </div>
@@ -672,8 +672,8 @@ export default function StudentDashboard() {
                   style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
                   <BookOpen className="w-6 h-6" style={{ color: '#6366f1' }} />
                 </div>
-                <p className="font-semibold text-slate-200 mb-1">No modules yet</p>
-                <p className="text-sm text-slate-500 max-w-xs mx-auto mb-6">
+                <p className="font-semibold text-foreground mb-1">No modules yet</p>
+                <p className="text-sm text-muted-foreground max-w-xs mx-auto mb-6">
                   {canCreate
                     ? 'Create a module from the My Modules tab, then share it with others or enroll yourself.'
                     : 'Get an access code from your instructor and join your first module.'}
@@ -697,11 +697,11 @@ export default function StudentDashboard() {
               <div className="flex items-center justify-between px-5 py-4"
                 style={{ background: 'var(--sd-card)' }}>
                 <div>
-                  <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                    <BookMarked className="w-3.5 h-3.5 text-slate-500" />
+                  <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+                    <BookMarked className="w-3.5 h-3.5 text-muted-foreground" />
                     Claim Past Activity
                   </h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Link a guest session to your account</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">Link a guest session to your account</p>
                 </div>
                 <button
                   onClick={() => { setShowClaim(v => !v); setClaimMsg(null); }}
@@ -718,7 +718,7 @@ export default function StudentDashboard() {
                   <form onSubmit={submitClaim} className="space-y-3">
                     <div className="grid sm:grid-cols-2 gap-3">
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-400">Banner ID</label>
+                        <label className="text-xs font-medium text-muted-foreground">Banner ID</label>
                         <input placeholder="e.g. B00123456"
                           className="w-full h-8 px-3 rounded-lg text-sm outline-none"
                           style={{ background: 'var(--sd-card2)', border: '1px solid var(--sd-border)', color: 'var(--sd-text)' }}
@@ -726,7 +726,7 @@ export default function StudentDashboard() {
                           onChange={e => setClaimForm(f => ({ ...f, banner_id: e.target.value }))} />
                       </div>
                       <div className="space-y-1.5">
-                        <label className="text-xs font-medium text-slate-400">Access Code</label>
+                        <label className="text-xs font-medium text-muted-foreground">Access Code</label>
                         <input placeholder="e.g. XYZ789"
                           className="w-full h-8 px-3 rounded-lg text-sm outline-none"
                           style={{ background: 'var(--sd-card2)', border: '1px solid var(--sd-border)', color: 'var(--sd-text)' }}
@@ -762,8 +762,8 @@ export default function StudentDashboard() {
                       <div key={c.id} className="flex items-center justify-between px-5 py-3"
                         style={{ background: 'var(--sd-card2)' }}>
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-slate-200 truncate">{c.module_name || 'Unknown module'}</p>
-                          <p className="text-xs text-slate-500 mt-0.5">
+                          <p className="text-sm font-medium text-foreground truncate">{c.module_name || 'Unknown module'}</p>
+                          <p className="text-xs text-muted-foreground mt-0.5">
                             Banner ID: <span className="font-mono">{c.banner_id}</span>
                             {c.created_at && ` · ${formatDate(c.created_at)}`}
                           </p>
@@ -797,8 +797,8 @@ export default function StudentDashboard() {
                       <Plus className="w-5 h-5 text-white" />
                     </div>
                     <div>
-                      <p className="font-semibold text-slate-100 text-sm">Create New Module</p>
-                      <p className="text-xs text-slate-500">Configure your module settings</p>
+                      <p className="font-semibold text-foreground text-sm">Create New Module</p>
+                      <p className="text-xs text-muted-foreground">Configure your module settings</p>
                     </div>
                   </div>
                   <button onClick={() => setShowNewModule(true)}
@@ -830,8 +830,8 @@ export default function StudentDashboard() {
             <div>
               <div className="flex items-center justify-between mb-5">
                 <div>
-                  <h2 className="font-semibold text-slate-100">Your Modules</h2>
-                  <p className="text-xs text-slate-500 mt-0.5">
+                  <h2 className="font-semibold text-foreground">Your Modules</h2>
+                  <p className="text-xs text-muted-foreground mt-0.5">
                     {myModules.length > 0
                       ? `${myModules.length} module${myModules.length !== 1 ? 's' : ''} · upload docs & AI generates questions`
                       : 'No modules yet — create your first one'}
@@ -846,8 +846,8 @@ export default function StudentDashboard() {
                     style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.2)' }}>
                     <Zap className="w-6 h-6" style={{ color: '#f59e0b' }} />
                   </div>
-                  <p className="font-semibold text-slate-200 mb-1">No modules created yet</p>
-                  <p className="text-sm text-slate-500 max-w-xs mx-auto">
+                  <p className="font-semibold text-foreground mb-1">No modules created yet</p>
+                  <p className="text-sm text-muted-foreground max-w-xs mx-auto">
                     Get started by creating your first module using the panel on the left.
                   </p>
                 </div>
@@ -866,7 +866,7 @@ export default function StudentDashboard() {
         {effectiveTab === 'discover' && canCreate && (
           <div className="space-y-5">
             <div className="flex items-center justify-between">
-              <p className="text-sm text-slate-500">
+              <p className="text-sm text-muted-foreground">
                 Public modules from other students — join with one click.
               </p>
               <button
@@ -905,8 +905,8 @@ export default function StudentDashboard() {
                   style={{ background: 'rgba(99,102,241,0.1)', border: '1px solid rgba(99,102,241,0.2)' }}>
                   <Compass className="w-6 h-6" style={{ color: '#6366f1' }} />
                 </div>
-                <p className="font-semibold text-slate-200 mb-1">Nothing here yet</p>
-                <p className="text-sm text-slate-500 max-w-xs mx-auto">
+                <p className="font-semibold text-foreground mb-1">Nothing here yet</p>
+                <p className="text-sm text-muted-foreground max-w-xs mx-auto">
                   Be the first — create a module and make it public!
                 </p>
               </div>
@@ -923,9 +923,9 @@ export default function StudentDashboard() {
 
       {/* ── Footer ───────────────────────────────────────────────────────── */}
       <footer className="py-5 mt-auto" style={{ borderTop: '1px solid var(--sd-border)' }}>
-        <p className="text-center text-xs text-slate-600">
+        <p className="text-center text-xs text-muted-foreground">
           AI Pilot · Student Portal ·{' '}
-          <a href="mailto:nyu@brockport.edu" className="hover:text-slate-400 transition-colors underline underline-offset-2">
+          <a href="mailto:nyu@brockport.edu" className="hover:text-muted-foreground transition-colors underline underline-offset-2">
             nyu@brockport.edu
           </a>
         </p>

@@ -39,7 +39,7 @@ export default function CustomInstructionsEditor({ value, onChange }) {
             />
             <div className="flex items-center justify-between text-xs text-muted-foreground">
               <span>Be specific about what you want the AI to emphasize</span>
-              <span className={charCount > maxChars * 0.9 ? 'text-orange-600' : ''}>
+              <span className={charCount > maxChars * 0.9 ? 'text-orange-600 dark:text-orange-300' : ''}>
                 {charCount} / {maxChars}
               </span>
             </div>

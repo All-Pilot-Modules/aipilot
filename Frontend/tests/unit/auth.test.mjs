@@ -108,3 +108,35 @@ test('joining a student module preserves teacher cookies and stores a separate s
   assert.equal(document.cookie, 'token=teacher-session');
   assert.equal(stored.get('student_token:module-a'), token);
 });
+
+test('permission errors retain status and are reported only once', async () => {
+  const fetch = mock.method(globalThis, 'fetch', async () => response(403, { detail: 'Forbidden' }));
+  await assert.rejects(apiClient.request('/api/private'), error => error.status === 403 && error.message === 'Forbidden');
+  assert.equal(fetch.mock.callCount(), 1);
+  assert.equal(console.error.mock.callCount(), 1);
+});
+
+test('rejected refreshed token retains status without duplicate error reports', async () => {
+  const fetch = mock.method(globalThis, 'fetch', async () => response(401, { detail: 'Wrong session' }));
+  mock.method(auth, 'refreshAccessToken', async () => 'refreshed-token');
+  const logout = mock.method(auth, 'logout', () => {});
+  await assert.rejects(apiClient.request('/api/private'), error => error.status === 401);
+  assert.equal(fetch.mock.callCount(), 2);
+  assert.equal(console.error.mock.callCount(), 1);
+  assert.equal(logout.mock.callCount(), 0);
+});
+
+for (const [name, overrides, expected] of [
+  ['valid session', {}, true],
+  ['expired session', { exp: 1 }, false],
+  ['different student', { sub: 'someone-else' }, false],
+  ['different module', { module_id: 'other' }, false],
+  ['teacher token', { role: 'teacher' }, false],
+  ['missing expiry', { exp: undefined }, false],
+]) {
+  test(`student loading guard rejects invalid identity: ${name}`, () => {
+    const claims = { role: 'student', sub: 'hero testing now', module_id: 'module-a', exp: Date.now()/1000 + 3600, ...overrides };
+    mock.method(auth, 'getToken', () => ['e30', Buffer.from(JSON.stringify(claims)).toString('base64url'), 'test'].join('.'));
+    assert.equal(auth.hasStudentSession('module-a', 'hero testing now'), expected);
+  });
+}

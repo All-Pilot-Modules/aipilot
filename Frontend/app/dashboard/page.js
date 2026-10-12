@@ -1,11 +1,9 @@
 'use client';
 
 import { useAuth } from "@/context/AuthContext";
-import { useSearchParams, usePathname } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Label } from "@/components/ui/label";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
@@ -20,53 +18,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import {
-  Users,
-  FileText,
-  BarChart3,
-  Settings,
-  TrendingUp,
-  Clock,
-  BookOpen,
-  Target,
-  Award,
-  Activity,
-  Copy,
-  RotateCcw,
-  ExternalLink,
-  Check,
-  Share2,
-  Eye,
-  PlusCircle,
-  Calendar,
-  ChevronUp,
-  Download,
-  Bell,
-  Zap,
-  Shield,
-  Globe,
-  Star,
-  Sparkles,
-  CheckCircle,
-  XCircle,
-  Brain,
-  ClipboardList
-} from "lucide-react";
+import { Users, FileText, BarChart3, Settings, BookOpen, Copy, RotateCcw, Check, PlusCircle, Shield, CheckCircle, Brain, ClipboardList, ArrowUpRight, MessageSquare, Share2, Globe, ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState, useEffect, useCallback, Suspense, memo } from "react";
 import { apiClient } from "@/lib/auth";
-import { useAPI } from "@/lib/useSWR";
+import { MathText } from "@/components/MathText";
 import { FullPageLoader } from "@/components/LoadingSpinner";
 import { StatCardSkeleton, ModuleCardSkeleton } from "@/components/SkeletonLoader";
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler } from 'chart.js';
-import { Line, Doughnut } from 'react-chartjs-2';
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ArcElement, Title, Tooltip, Legend, Filler);
-
 const DashboardContent = memo(function DashboardContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
-  const pathname = usePathname();
   const moduleName = searchParams.get('module');
   const [moduleData, setModuleData] = useState({
     accessCode: "",
@@ -75,9 +36,9 @@ const DashboardContent = memo(function DashboardContent() {
     totalDocuments: 0
   });
 
+  const [dashboardError, setDashboardError] = useState(null);
   const [copiedItems, setCopiedItems] = useState({});
   const [moduleId, setModuleId] = useState(null);
-  const [rubricSummary, setRubricSummary] = useState(null);
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -100,256 +61,9 @@ const DashboardContent = memo(function DashboardContent() {
     aiFeedbackCount: 0,
     totalSubmissions: 0
   });
+  const [studentInsights, setStudentInsights] = useState(null);
   const [progressData, setProgressData] = useState([]);
   const [scoreDistribution, setScoreDistribution] = useState([]);
-
-  const loadRubricSummary = useCallback(async (id) => {
-    try {
-      const data = await apiClient.get(`/api/modules/${id}/rubric`);
-      console.log('📊 Rubric data loaded:', data);
-      setRubricSummary(data);
-    } catch (error) {
-      console.error('Failed to load rubric:', error);
-      // Set default values if rubric doesn't exist
-      setRubricSummary({
-        rubric: {
-          feedback_style: {
-            tone: 'encouraging',
-            detail_level: 'detailed'
-          },
-          rag_settings: {
-            enabled: true
-          },
-          custom_instructions: null
-        }
-      });
-    }
-  }, []);
-
-  // Load recent activities
-  const loadRecentActivities = useCallback(async (moduleId, prefetchedAnswers = null) => {
-    setLoadingActivities(true);
-    try {
-      // Get recent student answers
-      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
-
-      if (Array.isArray(answersData)) {
-        // Sort by timestamp and take last 10
-        const sortedActivities = answersData
-          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
-          .slice(0, 10)
-          .map(answer => ({
-            id: answer.id,
-            type: 'submission',
-            studentName: answer.student_name || `Student ${answer.student_id}`,
-            questionText: answer.question_text || `Question ${answer.question_id}`,
-            timestamp: answer.created_at,
-            score: answer.score
-          }));
-
-        setRecentActivities(sortedActivities);
-      }
-    } catch (error) {
-      console.error('Failed to load recent activities:', error);
-      setRecentActivities([]);
-    } finally {
-      setLoadingActivities(false);
-    }
-  }, []);
-
-  // Load action items (things needing attention)
-  const loadActionItems = useCallback(async (moduleId, prefetchedAnswers = null) => {
-    setLoadingActions(true);
-    try {
-      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
-
-      if (Array.isArray(answersData)) {
-        // Count submissions that need manual grading (marked for teacher review)
-        const pendingGrades = answersData.filter(a =>
-          a.needs_teacher_review === true || a.teacher_grade === null
-        ).length;
-
-        // Count unique students who haven't submitted anything
-        const uniqueStudents = new Set(answersData.map(a => a.student_id));
-        const inactiveStudents = Math.max(0, moduleData.totalStudents - uniqueStudents.size);
-
-        // Find questions with low average scores (< 60%)
-        const questionScores = {};
-        answersData.forEach(answer => {
-          if (answer.score !== null && answer.score !== undefined) {
-            if (!questionScores[answer.question_id]) {
-              questionScores[answer.question_id] = { total: 0, count: 0 };
-            }
-            questionScores[answer.question_id].total += answer.score;
-            questionScores[answer.question_id].count += 1;
-          }
-        });
-
-        const lowPerformanceQuestions = Object.values(questionScores).filter(q => {
-          const avg = q.total / q.count;
-          return avg < 60;
-        }).length;
-
-        setActionItems({
-          pendingGrades,
-          inactiveStudents,
-          lowPerformanceQuestions
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load action items:', error);
-    } finally {
-      setLoadingActions(false);
-    }
-  }, [moduleData.totalStudents]);
-
-  // Load performance metrics
-  const loadPerformanceMetrics = useCallback(async (moduleId, prefetchedAnswers = null) => {
-    setLoadingMetrics(true);
-    try {
-      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
-
-      if (Array.isArray(answersData) && answersData.length > 0) {
-        // Calculate average score
-        const scoresWithValues = answersData.filter(a => a.score !== null && a.score !== undefined);
-        const averageScore = scoresWithValues.length > 0
-          ? scoresWithValues.reduce((sum, a) => sum + a.score, 0) / scoresWithValues.length
-          : 0;
-
-        // Calculate completion rate
-        const questionsData = await apiClient.get(`/api/questions/by-module?module_id=${moduleId}&status=all`);
-        const totalPossibleSubmissions = moduleData.totalStudents * (Array.isArray(questionsData) ? questionsData.length : 0);
-        const completionRate = totalPossibleSubmissions > 0
-          ? (answersData.length / totalPossibleSubmissions) * 100
-          : 0;
-
-        // Count AI feedback instances
-        const aiFeedbackCount = answersData.filter(a => a.ai_feedback && a.ai_feedback.length > 0).length;
-
-        setPerformanceMetrics({
-          averageScore: Math.round(averageScore),
-          completionRate: Math.round(completionRate),
-          aiFeedbackCount,
-          totalSubmissions: answersData.length
-        });
-      }
-    } catch (error) {
-      console.error('Failed to load performance metrics:', error);
-    } finally {
-      setLoadingMetrics(false);
-    }
-  }, [moduleData.totalStudents]);
-
-  // Load progress data for chart
-  const loadProgressData = useCallback(async (moduleId, prefetchedAnswers = null) => {
-    try {
-      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
-
-      if (Array.isArray(answersData) && answersData.length > 0) {
-        // Group submissions by date (last 7 days)
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (6 - i));
-          d.setHours(0, 0, 0, 0);
-          return d;
-        });
-
-        const submissionsByDate = {};
-        last7Days.forEach(date => {
-          const dateKey = date.toISOString().split('T')[0];
-          submissionsByDate[dateKey] = 0;
-        });
-
-        answersData.forEach(answer => {
-          if (!answer.created_at) return; // Skip if no created_at date
-
-          const answerDate = new Date(answer.created_at);
-
-          // Check if date is valid
-          if (isNaN(answerDate.getTime())) {
-            console.warn('Invalid date found:', answer.created_at);
-            return; // Skip invalid dates
-          }
-
-          const dateKey = answerDate.toISOString().split('T')[0];
-          if (submissionsByDate.hasOwnProperty(dateKey)) {
-            submissionsByDate[dateKey]++;
-          }
-        });
-
-        // Convert to chart data with proper date objects
-        const chartData = last7Days.map(date => {
-          const dateKey = date.toISOString().split('T')[0];
-          return {
-            date: date,
-            dateKey: dateKey,
-            dayName: date.toLocaleDateString('en-US', { weekday: 'short' }),
-            count: submissionsByDate[dateKey] || 0
-          };
-        });
-
-        console.log('📊 Chart data prepared:', chartData);
-        setProgressData(chartData);
-      } else {
-        // No data - show empty 7 days
-        const last7Days = Array.from({ length: 7 }, (_, i) => {
-          const d = new Date();
-          d.setDate(d.getDate() - (6 - i));
-          return {
-            date: d,
-            dateKey: d.toISOString().split('T')[0],
-            dayName: d.toLocaleDateString('en-US', { weekday: 'short' }),
-            count: 0
-          };
-        });
-        console.log('📊 No submission data - showing empty 7 days:', last7Days);
-        setProgressData(last7Days);
-      }
-    } catch (error) {
-      console.error('Failed to load progress data:', error);
-      setProgressData([]);
-    }
-  }, []);
-
-  // Load score distribution for chart
-  const loadScoreDistribution = useCallback(async (moduleId, prefetchedAnswers = null) => {
-    try {
-      const answersData = prefetchedAnswers ?? await apiClient.get(`/api/student-answers/?module_id=${moduleId}`);
-
-      if (Array.isArray(answersData) && answersData.length > 0) {
-        // Filter answers with scores
-        const scoredAnswers = answersData.filter(a => a.score !== null && a.score !== undefined);
-
-        if (scoredAnswers.length > 0) {
-          // Create score ranges
-          const ranges = [
-            { range: '0-20%', min: 0, max: 20, count: 0, color: 'bg-red-500 dark:bg-red-600' },
-            { range: '21-40%', min: 21, max: 40, count: 0, color: 'bg-orange-500 dark:bg-orange-600' },
-            { range: '41-60%', min: 41, max: 60, count: 0, color: 'bg-yellow-500 dark:bg-yellow-600' },
-            { range: '61-80%', min: 61, max: 80, count: 0, color: 'bg-gray-800 dark:bg-gray-900' },
-            { range: '81-100%', min: 81, max: 100, count: 0, color: 'bg-emerald-500 dark:bg-emerald-600' }
-          ];
-
-          scoredAnswers.forEach(answer => {
-            const score = answer.score;
-            const rangeIndex = ranges.findIndex(r => score >= r.min && score <= r.max);
-            if (rangeIndex >= 0) {
-              ranges[rangeIndex].count++;
-            }
-          });
-
-          setScoreDistribution(ranges);
-        } else {
-          setScoreDistribution([]);
-        }
-      } else {
-        setScoreDistribution([]);
-      }
-    } catch (error) {
-      console.error('Failed to load score distribution:', error);
-      setScoreDistribution([]);
-    }
-  }, []);
 
   const loadModuleData = useCallback(async () => {
     const userId = user?.id || user?.sub;
@@ -358,6 +72,7 @@ const DashboardContent = memo(function DashboardContent() {
       return;
     }
 
+    setDashboardError(null);
     setLoadingModuleData(true);
     setLoadingActivities(true);
     setLoadingActions(true);
@@ -375,6 +90,7 @@ const DashboardContent = memo(function DashboardContent() {
             `/api/modules/${currentModule.id}/dashboard-metrics?teacher_id=${userId}`
           );
 
+          setStudentInsights(metrics.student_insights || null);
           setModuleData({
             accessCode: metrics.access_code,
             totalStudents: metrics.total_students,
@@ -400,7 +116,7 @@ const DashboardContent = memo(function DashboardContent() {
             'bg-red-500 dark:bg-red-600',
             'bg-orange-500 dark:bg-orange-600',
             'bg-yellow-500 dark:bg-yellow-600',
-            'bg-gray-800 dark:bg-gray-900',
+            'bg-primary text-primary-foreground',
             'bg-emerald-500 dark:bg-emerald-600'
           ];
           setScoreDistribution(
@@ -427,11 +143,8 @@ const DashboardContent = memo(function DashboardContent() {
             }))
           );
 
-          // Rubric summary
-          if (metrics.rubric_summary) {
-            setRubricSummary(metrics.rubric_summary);
-          }
         } catch (error) {
+          setDashboardError('Module statistics could not be loaded. Please try again.');
           console.error('Failed to load dashboard metrics:', error);
           setModuleData(prev => ({
             ...prev,
@@ -440,6 +153,7 @@ const DashboardContent = memo(function DashboardContent() {
         }
       }
     } catch (error) {
+      setDashboardError('Could not load this module. Please try again.');
       console.error('Failed to load module data:', error);
     } finally {
       setLoadingModuleData(false);
@@ -515,13 +229,14 @@ const DashboardContent = memo(function DashboardContent() {
     return then.toLocaleDateString();
   };
 
-  // Function to check if a navigation item is active
-  const isActiveSection = (section) => {
-    return pathname.includes(`/dashboard/${section}`);
-  };
-
-  // Check if we're on the main dashboard
-  const isMainDashboard = pathname === '/dashboard' || (!pathname.includes('/dashboard/') && pathname.includes('/dashboard'));
+  const dashboardLink = (section) => `/dashboard/${section}?${new URLSearchParams({module: moduleName || '', ...(moduleId ? {moduleId} : {})})}`;
+  const attentionItems = [
+    {count: actionItems.pendingGrades, title: 'Answers awaiting review', detail: 'Review and finalize student grades.', route: 'grading'},
+    {count: actionItems.inactiveStudents, title: 'Students without submissions', detail: 'Check participation and follow up.', route: 'students'},
+    {count: actionItems.lowPerformanceQuestions, title: 'Questions averaging below 60%', detail: 'Review difficult questions and their answer keys.', route: 'questions'},
+    ...(!loadingModuleData && !moduleData.totalDocuments ? [{count: '→', title: 'Add course materials', detail: 'Upload documents for question generation and the tutor.', route: 'documents'}] : []),
+    ...(!loadingModuleData && !moduleData.totalQuestions ? [{count: '→', title: 'Create your first questions', detail: 'Build an assessment for your students.', route: 'questions'}] : []),
+  ].filter(item => item.count);
 
   if (loading) {
     return (
@@ -548,17 +263,17 @@ const DashboardContent = memo(function DashboardContent() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full border border-gray-200 dark:border-gray-800 shadow-lg">
+      <div className="min-h-screen bg-muted/50 dark:bg-card flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border border-border shadow-lg">
           <CardContent className="pt-12 pb-8 px-8 text-center">
             <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
               <Shield className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h1>
-            <p className="text-gray-600 dark:text-gray-400 mb-8">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground mb-2">Access Denied</h1>
+            <p className="text-gray-600 dark:text-muted-foreground mb-8">
               You need to be signed in to access the dashboard.
             </p>
-            <Button asChild size="lg" className="w-full bg-emerald-600 hover:bg-emerald-700">
+            <Button asChild size="lg" className="w-full bg-emerald-700 hover:bg-emerald-700 text-white">
               <Link href="/sign-in">
                 Sign In to Continue
               </Link>
@@ -571,17 +286,17 @@ const DashboardContent = memo(function DashboardContent() {
 
   if (!moduleName) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center p-4">
-        <Card className="max-w-md w-full border border-gray-200 dark:border-gray-800 shadow-lg">
+      <div className="min-h-screen bg-muted/50 dark:bg-card flex items-center justify-center p-4">
+        <Card className="max-w-md w-full border border-border shadow-lg">
           <CardContent className="pt-12 pb-8 px-8 text-center">
             <div className="w-20 h-20 bg-emerald-100 dark:bg-emerald-900/30 rounded-full flex items-center justify-center mx-auto mb-6">
               <BookOpen className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">No Module Selected</h1>
-            <p className="text-gray-600 dark:text-gray-400 mb-8">
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-foreground mb-2">No Module Selected</h1>
+            <p className="text-gray-600 dark:text-muted-foreground mb-8">
               Please select a module from your modules list to view the dashboard.
             </p>
-            <Button asChild size="lg" className="w-full bg-emerald-600 hover:bg-emerald-700">
+            <Button asChild size="lg" className="w-full bg-emerald-700 hover:bg-emerald-700 text-white">
               <Link href="/mymodules">
                 <BookOpen className="w-4 h-4 mr-2" />
                 Go to My Modules
@@ -605,603 +320,114 @@ const DashboardContent = memo(function DashboardContent() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-          <div className="max-w-[1600px] mx-auto px-6 py-8">
-            {/* Clean Header */}
-            <div className="mb-8">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-1">
-                    {moduleName}
-                  </h1>
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    Module Overview
-                  </p>
-                </div>
-                <Badge variant="outline" className="px-4 py-2 border-emerald-300 dark:border-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300">
-                  <div className="w-2 h-2 bg-emerald-500 rounded-full mr-2 animate-pulse"></div>
-                  Active
-                </Badge>
+        <main id="main-content" className="min-w-0 flex-1 bg-muted/20">
+          <div className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
+            <header className="flex flex-wrap items-end justify-between gap-4">
+              <div className="min-w-0">
+                <p className="mb-2 text-sm text-muted-foreground">Module overview</p>
+                <h1 className="break-words text-3xl font-semibold tracking-tight text-foreground">{moduleName}</h1>
+                <p className="mt-2 text-sm text-muted-foreground">Your teaching workspace. See progress and decide what needs attention.</p>
               </div>
-            </div>
-            {/* Compact Stats Row - Inspired by Screenshot */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-              {/* Total Students */}
-              <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg">
-                      <Users className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wide font-semibold">Students</p>
-                  {loadingModuleData ? (
-                    <Skeleton className="h-9 w-16" />
-                  ) : (
-                    <p className="text-3xl font-bold text-slate-900 dark:text-white">{moduleData.totalStudents}</p>
-                  )}
-                </CardContent>
-              </Card>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" onClick={loadModuleData} disabled={loadingModuleData}><RotateCcw className={`size-4 ${loadingModuleData ? 'animate-spin' : ''}`} />Refresh</Button>
+                <Button asChild className="bg-teal-700 text-white hover:bg-teal-800"><Link href={dashboardLink('questions')}><PlusCircle className="size-4" />Manage questions</Link></Button>
+              </div>
+            </header>
 
-              {/* Total Questions */}
-              <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="p-2 bg-gray-100 dark:bg-muted/20 rounded-lg">
-                      <FileText className="w-5 h-5 text-gray-900 dark:text-gray-300" />
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wide font-semibold">Questions</p>
-                  {loadingModuleData ? (
-                    <Skeleton className="h-9 w-16" />
-                  ) : (
-                    <p className="text-3xl font-bold text-slate-900 dark:text-white">{moduleData.totalQuestions}</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Avg Score */}
-              <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md transition-all">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="p-2 bg-gray-100 dark:bg-muted/20 rounded-lg">
-                      <Award className="w-5 h-5 text-gray-700 dark:text-gray-400" />
-                    </div>
-                  </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-1 uppercase tracking-wide font-semibold">Avg Score</p>
-                  {loadingMetrics ? (
-                    <Skeleton className="h-9 w-20" />
-                  ) : (
-                    <p className="text-3xl font-bold text-slate-900 dark:text-white">{performanceMetrics.averageScore}%</p>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Student Access Card - Premium Interactive Design */}
-              {loadingModuleData ? (
-                <Card className="relative overflow-hidden border-2 border-emerald-200 dark:border-emerald-700 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/30 shadow-lg">
-                  <CardContent className="p-5 relative">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <Skeleton className="h-3 w-24 mb-2" />
-                        <Skeleton className="h-8 w-32" />
-                      </div>
-                      <Skeleton className="w-10 h-10 rounded-lg" />
-                    </div>
-                    <div className="flex items-center gap-2 mb-3">
-                      <Skeleton className="w-3 h-3 rounded-full" />
-                      <Skeleton className="h-3 w-32" />
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Skeleton className="h-9 w-full rounded" />
-                      <Skeleton className="h-9 w-full rounded" />
-                      <Skeleton className="h-9 w-full rounded" />
-                    </div>
-                  </CardContent>
-                </Card>
-              ) : (
-                <Card className="relative overflow-hidden border-2 border-emerald-200 dark:border-emerald-700 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/30 dark:to-emerald-900/30 shadow-lg hover:shadow-xl transition-all duration-300">
-                  <CardContent className="p-5 relative">
-                    <div className="flex items-start justify-between mb-4">
-                      <div className="flex-1">
-                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-wide mb-2">Access Code</p>
-                        <div className="font-mono text-2xl font-black text-emerald-700 dark:text-emerald-300">
-                          {moduleData.accessCode}
-                        </div>
-                      </div>
-                      <div className="p-2 bg-emerald-600 dark:bg-emerald-700 rounded-lg">
-                        <Share2 className="w-5 h-5 text-white" />
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-300 mb-3">
-                      <Globe className="w-3 h-3" />
-                      <span className="text-xs font-semibold">For student access</span>
-                    </div>
-                    <div className="flex flex-col gap-2">
-                      <Button
-                        size="sm"
-                        onClick={() => copyToClipboard(moduleData.accessCode, 'code')}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white border-0 shadow-md hover:shadow-lg h-9 text-xs font-semibold transition-all"
-                      >
-                        {copiedItems.code ? (
-                          <>
-                            <Check className="w-3 h-3 mr-2" />
-                            Code Copied!
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-3 h-3 mr-2" />
-                            Copy Code
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        onClick={() => copyToClipboard(generateModuleUrl(), 'link')}
-                        variant="outline"
-                        className="w-full h-9 text-xs font-semibold border-2 border-emerald-600 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-600 hover:text-white transition-all"
-                      >
-                        {copiedItems.link ? (
-                          <>
-                            <Check className="w-3 h-3 mr-2" />
-                            Link Copied!
-                          </>
-                        ) : (
-                          <>
-                            <ExternalLink className="w-3 h-3 mr-2" />
-                            Copy Link
-                          </>
-                        )}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setShowRegenerateDialog(true)}
-                        className="w-full h-9 text-xs font-semibold border-2 border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
-                      >
-                        <RotateCcw className="w-3 h-3 mr-2" />
-                        Regenerate
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Action Items Alert - Only Show if There Are Items */}
-            {loadingActions ? (
-              <div className="bg-gradient-to-br from-amber-50/50 to-orange-50/30 dark:from-amber-950/10 dark:to-orange-950/5 border border-amber-200 dark:border-amber-900/40 rounded-xl p-4 mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <Skeleton className="w-4 h-4 rounded" />
-                  <Skeleton className="h-4 w-48" />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {Array.from({ length: 3 }).map((_, i) => (
-                    <div key={i} className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-                      <div className="flex items-center gap-3">
-                        <Skeleton className="w-10 h-10 rounded-lg flex-shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-4 w-32" />
-                          <Skeleton className="h-3 w-24" />
-                        </div>
-                      </div>
-                    </div>
-                  ))}
+            <section aria-label="Student access" className="flex flex-col gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between dark:border-emerald-800 dark:bg-emerald-950/30">
+              <div className="flex min-w-0 items-center gap-4">
+                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-700 text-white"><Share2 className="size-5" /></div>
+                <div className="min-w-0">
+                  <h2 className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">Student access code</h2>
+                  {loadingModuleData ? <Skeleton className="mt-2 h-8 w-32" /> : <p className="mt-1 break-all font-mono text-2xl font-bold tracking-wider text-emerald-900 dark:text-emerald-200">{moduleData.accessCode || 'Unavailable'}</p>}
+                  <p className="mt-1 text-xs text-muted-foreground">Share this code or the invite link with your students.</p>
                 </div>
               </div>
-            ) : (actionItems.pendingGrades > 0 || actionItems.inactiveStudents > 0 || actionItems.lowPerformanceQuestions > 0) && (
-              <div className="bg-orange-50 dark:bg-orange-950/20 border border-orange-200 dark:border-orange-800 rounded-xl p-4 mb-6">
-                <div className="flex items-center gap-2 mb-3">
-                  <Bell className="w-4 h-4 text-orange-600 dark:text-orange-400" />
-                  <p className="text-sm font-semibold text-orange-900 dark:text-orange-100">Needs Your Attention</p>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                  {actionItems.pendingGrades > 0 && (
-                    <Link href={`/dashboard/grading?module=${moduleName}`}>
-                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-600 cursor-pointer transition-all">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-red-100 dark:bg-red-900/30 rounded-lg">
-                            <ClipboardList className="w-4 h-4 text-red-600 dark:text-red-400" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{actionItems.pendingGrades} Pending Grades</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Review needed</p>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  )}
-                  {actionItems.inactiveStudents > 0 && (
-                    <Link href={`/dashboard/students?module=${moduleName}${moduleId ? `&moduleId=${moduleId}` : ''}`}>
-                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-600 cursor-pointer transition-all">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
-                            <Users className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{actionItems.inactiveStudents} Inactive</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">No submissions yet</p>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  )}
-                  {actionItems.lowPerformanceQuestions > 0 && (
-                    <Link href={`/dashboard/questions?module=${moduleName}`}>
-                      <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700 hover:border-emerald-400 dark:hover:border-emerald-600 cursor-pointer transition-all">
-                        <div className="flex items-center gap-3">
-                          <div className="p-2 bg-gray-100 dark:bg-muted/20 rounded-lg">
-                            <Target className="w-4 h-4 text-gray-900 dark:text-gray-300" />
-                          </div>
-                          <div className="flex-1">
-                            <p className="text-sm font-semibold text-slate-900 dark:text-white">{actionItems.lowPerformanceQuestions} Low Scores</p>
-                            <p className="text-xs text-slate-500 dark:text-slate-400">Review questions</p>
-                          </div>
-                        </div>
-                      </div>
-                    </Link>
-                  )}
-                </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" disabled={loadingModuleData || !moduleData.accessCode} onClick={() => copyToClipboard(moduleData.accessCode, 'code')} className="bg-emerald-700 text-white hover:bg-emerald-800">
+                  {copiedItems.code ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  {copiedItems.code ? 'Code Copied!' : 'Copy Code'}
+                </Button>
+                <Button size="sm" variant="outline" disabled={loadingModuleData || !moduleData.accessCode} onClick={() => copyToClipboard(generateModuleUrl(), 'link')}>
+                  {copiedItems.link ? <Check className="size-4" /> : <ExternalLink className="size-4" />}
+                  {copiedItems.link ? 'Link Copied!' : 'Copy Link'}
+                </Button>
+                <Button size="sm" variant="outline" disabled={loadingModuleData || !moduleData.accessCode} onClick={() => setShowRegenerateDialog(true)}><RotateCcw className="size-4" />Regenerate</Button>
               </div>
-            )}
+            </section>
 
-            {/* Score Distribution Chart - New Addition */}
-            {scoreDistribution.length > 0 && (
-              <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm mb-6">
-                <CardHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">
-                      Score Distribution
-                    </CardTitle>
-                    <Badge variant="outline" className="text-xs">Performance Overview</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  <div className="flex flex-col md:flex-row items-center gap-6">
-                    <div className="relative w-48 h-48 flex-shrink-0">
-                      <Doughnut
-                        data={{
-                          labels: scoreDistribution.map(r => r.range),
-                          datasets: [{
-                            data: scoreDistribution.map(r => r.count),
-                            backgroundColor: ['#ef4444', '#f97316', '#eab308', '#3b82f6', '#10b981'],
-                            borderColor: ['#dc2626', '#ea580c', '#ca8a04', '#2563eb', '#059669'],
-                            borderWidth: 2,
-                            hoverOffset: 8,
-                          }]
-                        }}
-                        options={{
-                          responsive: true,
-                          maintainAspectRatio: true,
-                          cutout: '65%',
-                          plugins: {
-                            legend: { display: false },
-                            tooltip: {
-                              backgroundColor: '#1e293b',
-                              titleColor: '#f8fafc',
-                              bodyColor: '#94a3b8',
-                              padding: 10,
-                              callbacks: {
-                                label: (ctx) => ` ${ctx.parsed} submission${ctx.parsed !== 1 ? 's' : ''}`
-                              }
-                            }
-                          }
-                        }}
-                      />
-                      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <p className="text-2xl font-bold text-slate-900 dark:text-white">
-                          {scoreDistribution.reduce((s, r) => s + r.count, 0)}
-                        </p>
-                        <p className="text-xs text-slate-500 dark:text-slate-400">total</p>
-                      </div>
-                    </div>
-                    <div className="flex-1 space-y-3 w-full">
-                      {scoreDistribution.map((range) => (
-                        <div key={range.range} className="flex items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-3 h-3 rounded-full flex-shrink-0 ${range.color}`}></div>
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{range.range}</span>
-                          </div>
-                          <span className="text-sm font-bold text-slate-900 dark:text-white tabular-nums">{range.count}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="mt-6 pt-4 border-t border-slate-200 dark:border-slate-700">
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                      <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Highest Score</p>
-                        <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">
-                          {Math.max(...scoreDistribution.flatMap(r => r.count > 0 ? [r.max] : [0]))}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Avg Score</p>
-                        <p className="text-lg font-bold text-gray-900 dark:text-gray-300">
-                          {performanceMetrics.averageScore}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Total Graded</p>
-                        <p className="text-lg font-bold text-gray-700 dark:text-gray-400">
-                          {scoreDistribution.reduce((sum, r) => sum + r.count, 0)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {dashboardError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">{dashboardError}</div>}
 
-            {/* Main Content Grid */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-              {/* Activity Chart - Takes 2 columns */}
-              <Card className="lg:col-span-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-                <CardHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">
-                      Activity Overview
-                    </CardTitle>
-                    <Badge variant="outline" className="text-xs">Last 7 Days</Badge>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-6">
-                  {loadingMetrics ? (
-                    <>
-                      {/* Metrics Row Skeleton */}
-                      <div className="grid grid-cols-4 gap-4 mb-6">
-                        {Array.from({ length: 4 }).map((_, i) => (
-                          <div key={i}>
-                            <Skeleton className="h-3 w-24 mb-2" />
-                            <Skeleton className="h-8 w-16" />
-                          </div>
-                        ))}
-                      </div>
-                      {/* Chart Skeleton */}
-                      <div>
-                        <Skeleton className="h-4 w-32 mb-4" />
-                        <div className="flex items-end justify-between gap-3 h-40">
-                          {Array.from({ length: 7 }).map((_, i) => (
-                            <div key={i} className="flex-1 flex flex-col items-center gap-2">
-                              <Skeleton className="w-full rounded-t-lg" style={{ height: `${Math.random() * 100}%`, minHeight: '20px' }} />
-                              <Skeleton className="h-3 w-8" />
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {/* Metrics Row */}
-                      <div className="grid grid-cols-4 gap-4 mb-6">
-                        <div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Total Submissions</p>
-                          <p className="text-2xl font-bold text-slate-900 dark:text-white">{performanceMetrics.totalSubmissions}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">AI Feedback</p>
-                          <p className="text-2xl font-bold text-gray-700 dark:text-gray-400">{performanceMetrics.aiFeedbackCount}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Documents</p>
-                          <p className="text-2xl font-bold text-gray-900 dark:text-gray-300">{moduleData.totalDocuments}</p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">Avg Score</p>
-                          <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{performanceMetrics.averageScore}%</p>
-                        </div>
-                      </div>
+            <section aria-label="Module statistics" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+              {[
+                ['Submitting students', moduleData.totalStudents, 'Students with at least one answer', 'students', Users],
+                ['Answer submissions', performanceMetrics.totalSubmissions, 'Includes repeat attempts', 'grading', ClipboardList],
+                ['Average score', `${performanceMetrics.averageScore}%`, 'Across scored answers', 'analytics', BarChart3],
+                ['AI feedback', performanceMetrics.aiFeedbackCount, 'Feedback records available', 'students', Brain],
+              ].map(([label, value, detail, route, Icon]) => <Link key={label} href={dashboardLink(route)} className="rounded-xl border bg-background p-5 transition-colors hover:border-teal-500/50 focus-visible:outline-2 focus-visible:outline-teal-600">
+                <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground"><span>{label}</span><Icon className="size-4 shrink-0" /></div>
+                {loadingModuleData ? <Skeleton className="my-3 h-9 w-20" /> : <p className="my-2 text-3xl font-semibold tracking-tight tabular-nums">{dashboardError ? '—' : value}</p>}
+                <p className="text-xs text-muted-foreground">{detail}</p>
+              </Link>)}
+            </section>
 
-                      {/* Chart */}
-                      {progressData.length > 0 ? (
-                        <div className="h-44">
-                          <Line
-                            data={{
-                              labels: progressData.map(d =>
-                                d.dayName || (d.date ? new Date(d.date).toLocaleDateString('en-US', { weekday: 'short' }) : '')
-                              ),
-                              datasets: [{
-                                label: 'Submissions',
-                                data: progressData.map(d => d.count),
-                                borderColor: '#10b981',
-                                backgroundColor: 'rgba(16,185,129,0.12)',
-                                fill: true,
-                                tension: 0.4,
-                                pointBackgroundColor: '#10b981',
-                                pointBorderColor: '#fff',
-                                pointBorderWidth: 2,
-                                pointRadius: 5,
-                                pointHoverRadius: 7,
-                              }]
-                            }}
-                            options={{
-                              responsive: true,
-                              maintainAspectRatio: false,
-                              plugins: {
-                                legend: { display: false },
-                                tooltip: {
-                                  backgroundColor: '#1e293b',
-                                  titleColor: '#f8fafc',
-                                  bodyColor: '#94a3b8',
-                                  padding: 10,
-                                  callbacks: {
-                                    label: (ctx) => ` ${ctx.parsed.y} submission${ctx.parsed.y !== 1 ? 's' : ''}`
-                                  }
-                                }
-                              },
-                              scales: {
-                                x: {
-                                  grid: { display: false },
-                                  ticks: { color: '#94a3b8', font: { size: 11 } },
-                                  border: { display: false }
-                                },
-                                y: {
-                                  beginAtZero: true,
-                                  grid: { color: 'rgba(148,163,184,0.1)' },
-                                  ticks: { color: '#94a3b8', font: { size: 11 }, stepSize: 1, precision: 0 },
-                                  border: { display: false }
-                                }
-                              }
-                            }}
-                          />
-                        </div>
-                      ) : (
-                        <div className="text-center py-8">
-                          <BarChart3 className="w-12 h-12 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
-                          <p className="text-sm text-slate-500 dark:text-slate-400">No activity data yet</p>
-                        </div>
-                      )}
-                    </>
-                  )}
-                </CardContent>
-              </Card>
-
-              {/* Recent Activity Feed */}
-              <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-                <CardHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
-                  <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">
-                    Recent Activity
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  {loadingActivities ? (
-                    <div className="space-y-3">
-                      {Array.from({ length: 5 }).map((_, i) => (
-                        <div key={i} className="pb-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
-                          <div className="flex items-start gap-3">
-                            <Skeleton className="w-10 h-10 rounded-lg flex-shrink-0" />
-                            <div className="flex-1 space-y-2">
-                              <Skeleton className="h-4 w-3/4" />
-                              <Skeleton className="h-3 w-1/2" />
-                              <div className="flex items-center gap-2">
-                                <Skeleton className="h-3 w-16" />
-                                <Skeleton className="h-5 w-12 rounded" />
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : recentActivities.length > 0 ? (
-                    <div className="space-y-3 max-h-[500px] overflow-y-auto pr-2">
-                      {recentActivities.map((activity) => {
-                        const timeAgo = getTimeAgo(activity.timestamp);
-                        const scoreColor = activity.score >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300' :
-                                          activity.score >= 60 ? 'bg-gray-100 dark:bg-muted/20 text-gray-800 dark:text-gray-400' :
-                                          'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300';
-
-                        return (
-                          <div key={activity.id} className="pb-3 border-b border-gray-100 dark:border-gray-700 last:border-0">
-                            <div className="flex items-start gap-3">
-                              <div className="p-2 bg-emerald-100 dark:bg-emerald-900/30 rounded-lg flex-shrink-0">
-                                <FileText className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <p className="font-semibold text-sm text-gray-900 dark:text-white mb-0.5 truncate">
-                                  {activity.studentName}
-                                </p>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2 truncate">
-                                  {activity.questionText}
-                                </p>
-                                <div className="flex items-center gap-2">
-                                  <span className="text-xs text-gray-400 dark:text-gray-500">{timeAgo}</span>
-                                  {activity.score !== null && activity.score !== undefined && (
-                                    <>
-                                      <span className="text-gray-300 dark:text-gray-600">•</span>
-                                      <span className={`text-xs font-semibold px-2 py-0.5 rounded ${scoreColor}`}>
-                                        {activity.score}%
-                                      </span>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    <div className="text-center py-12">
-                      <div className="w-12 h-12 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Activity className="w-6 h-6 text-gray-400" />
-                      </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">No recent activity</p>
-                      <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Submissions will appear here</p>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Quick Links Section */}
-            <Card className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 shadow-sm">
-              <CardHeader className="border-b border-slate-200 dark:border-slate-700 pb-4">
-                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">
-                  Quick Actions
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6">
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Link href={`/dashboard/questions?module=${moduleName}`} className="group">
-                    <div className="p-5 bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-900/20 dark:to-emerald-800/20 border border-emerald-200 dark:border-emerald-800 rounded-xl hover:shadow-lg transition-all cursor-pointer">
-                      <div className="flex flex-col items-center text-center gap-3">
-                        <div className="p-3 bg-emerald-600 dark:bg-emerald-700 rounded-lg">
-                          <PlusCircle className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">Add Question</p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">Create new</p>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-
-                  <Link href={`/dashboard/students?module=${moduleName}${moduleId ? `&moduleId=${moduleId}` : ''}`} className="group">
-                    <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:shadow-lg hover:border-emerald-400 dark:hover:border-emerald-600 transition-all cursor-pointer">
-                      <div className="flex flex-col items-center text-center gap-3">
-                        <div className="p-3 bg-gray-100 dark:bg-muted/20 rounded-lg">
-                          <Users className="w-6 h-6 text-gray-900 dark:text-gray-300" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">Students</p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">View all</p>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-
-                  <Link href={`/dashboard/grading?module=${moduleName}`} className="group">
-                    <div className="p-5 bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-900/20 dark:to-amber-800/10 border border-amber-200 dark:border-amber-800 rounded-xl hover:shadow-lg transition-all cursor-pointer">
-                      <div className="flex flex-col items-center text-center gap-3">
-                        <div className="p-3 bg-amber-600 dark:bg-amber-700 rounded-lg">
-                          <ClipboardList className="w-6 h-6 text-white" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">Grade</p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">Review work</p>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
-
-                  <Link href={`/dashboard/analytics?module=${moduleName}`} className="group">
-                    <div className="p-5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-xl hover:shadow-lg hover:border-purple-400 dark:hover:border-purple-600 transition-all cursor-pointer">
-                      <div className="flex flex-col items-center text-center gap-3">
-                        <div className="p-3 bg-gray-100 dark:bg-muted/20 rounded-lg">
-                          <BarChart3 className="w-6 h-6 text-gray-700 dark:text-gray-400" />
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900 dark:text-white">Analytics</p>
-                          <p className="text-xs text-slate-600 dark:text-slate-400">View data</p>
-                        </div>
-                      </div>
-                    </div>
-                  </Link>
+            <section className="space-y-4" aria-label="Student learning analytics">
+              <div><h2 className="text-lg font-semibold">Student learning</h2><p className="mt-1 text-sm text-muted-foreground">Based on students who have submitted. Completed AI scores on each latest answer; these are not final teacher grades.</p></div>
+              {loadingMetrics ? <Skeleton className="h-32 w-full" /> : !studentInsights || dashboardError ? <p className="rounded-xl border bg-background p-5 text-sm text-muted-foreground">Student analytics are unavailable. Refresh after the backend has loaded the updated analytics service.</p> : <>
+                <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                  {[
+                    ['Question coverage', `${studentInsights.question_coverage}%`, 'Unique questions answered; retries counted once'],
+                    ['Below 60%', studentInsights.students_below_60, 'Students with a latest scored average below 60%'],
+                    ['Repeat attempts', studentInsights.repeat_students, 'Students who submitted more than one attempt'],
+                    ['Score change', studentInsights.average_score_change == null ? '—' : `${studentInsights.average_score_change > 0 ? '+' : ''}${studentInsights.average_score_change} pp`, `First to latest on the same questions · ${studentInsights.comparable_students} students`],
+                  ].map(([label,value,detail]) => <div key={label} className="rounded-xl border bg-background p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="my-2 text-2xl font-semibold tabular-nums">{value}</p><p className="text-xs leading-relaxed text-muted-foreground">{detail}</p></div>)}
                 </div>
-              </CardContent>
-            </Card>
+                <div className="grid gap-4 lg:grid-cols-2">
+                  <section className="overflow-hidden rounded-xl border bg-background"><div className="border-b p-5"><h3 className="font-semibold">Student overview</h3><p className="mt-1 text-xs text-muted-foreground">Lowest scored averages first. Open a student for their answers and feedback.</p></div><div className="max-h-80 overflow-auto"><table className="w-full text-left text-sm"><thead className="bg-muted/40 text-xs text-muted-foreground"><tr><th className="px-5 py-3">Student</th><th className="p-3">Answered</th><th className="p-3">AI average</th><th className="p-3">Attempts</th></tr></thead><tbody className="divide-y">{studentInsights.students.map(student => <tr key={student.student_id}><td className="max-w-48 break-words px-5 py-3"><Link className="text-teal-700 underline-offset-4 hover:underline dark:text-teal-400" href={`/dashboard/students/${encodeURIComponent(student.student_id)}?${new URLSearchParams({module:moduleName,moduleId})}`}>{student.student_id}</Link></td><td className="p-3 tabular-nums">{student.answered_questions}/{moduleData.totalQuestions}</td><td className="p-3 tabular-nums">{student.average_score == null ? 'Pending' : `${student.average_score}%`}<span className="block text-xs text-muted-foreground">{student.scored_questions} scored</span></td><td className="p-3 tabular-nums">{student.attempts}</td></tr>)}</tbody></table>{!studentInsights.students.length && <p className="p-5 text-sm text-muted-foreground">Students will appear after their first submission.</p>}</div></section>
+                  <section className="rounded-xl border bg-background p-5"><h3 className="font-semibold">Questions to review</h3><p className="mt-1 text-xs text-muted-foreground">Lowest averages using each student’s latest answer. Small samples may not reflect question difficulty.</p><div className="mt-4 space-y-4">{studentInsights.question_difficulty.slice(0,5).map(question => <Link key={question.question_id} href={dashboardLink('questions')} className="block rounded-lg p-2 -mx-2 hover:bg-muted/50"><div className="mb-2 flex justify-between gap-3 text-sm"><span className="min-w-0"><MathText>{question.question_text || "Question"}</MathText><span className="text-xs text-muted-foreground">{question.student_count} scored students</span></span><span className="tabular-nums">{question.average_score}%</span></div><div className="h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-teal-600" style={{width:`${Math.max(0,Math.min(100,question.average_score))}%`}} /></div></Link>)}{!studentInsights.question_difficulty.length && <p className="text-sm text-muted-foreground">Available after feedback is successfully graded.</p>}</div></section>
+                </div>
+              </>}
+            </section>
+
+            <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0 space-y-6">
+                <section className="rounded-xl border bg-background p-5 sm:p-6">
+                  <div className="mb-4 flex items-center justify-between gap-3"><h2 className="font-semibold">Needs attention</h2><span className="text-xs text-muted-foreground">Recommended next steps</span></div>
+                  {loadingActions ? <Skeleton className="h-24 w-full" /> : dashboardError ? <p className="text-sm text-muted-foreground">Review tasks are unavailable until statistics load.</p> : <div className="divide-y">
+                    {attentionItems.length ? attentionItems.map(item => <Link key={item.title} href={dashboardLink(item.route)} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0 group">
+                      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-sm font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item.count}</span>
+                      <div className="min-w-0 flex-1"><p className="text-sm font-medium group-hover:text-teal-700 dark:group-hover:text-teal-400">{item.title}</p><p className="mt-1 text-sm text-muted-foreground">{item.detail}</p></div><ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
+                    </Link>) : <div className="flex items-center gap-3 py-2"><CheckCircle className="size-5 text-emerald-600 dark:text-emerald-300" /><div><p className="text-sm font-medium">You’re up to date</p><p className="mt-1 text-sm text-muted-foreground">No review tasks flagged for this module.</p></div></div>}
+                  </div>}
+                </section>
+
+                <section className="rounded-xl border bg-background p-5 sm:p-6">
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Submission activity</h2><p className="mt-1 text-sm text-muted-foreground">Answer submissions over the last 7 days</p></div><Link href={dashboardLink('analytics')} className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-400">View analytics ↗</Link></div>
+                  {loadingMetrics ? <Skeleton className="mt-6 h-40 w-full" /> : dashboardError ? <p className="py-10 text-sm text-muted-foreground">Activity could not be loaded.</p> : <div className="mt-6 grid grid-cols-7 gap-2 sm:gap-4" aria-label="Daily answer submissions">
+                    {progressData.map(day => <div key={day.dateKey} className="min-w-0 text-center"><div className="flex h-32 flex-col justify-end gap-2"><span className="text-xs tabular-nums text-muted-foreground">{day.count}</span><div className="mx-auto w-full max-w-12 rounded-t-md bg-teal-600/80 dark:bg-teal-500/70" style={{height: `${Math.max(2, day.count / Math.max(1, ...progressData.map(d => d.count)) * 94)}px`}} /></div><p className="mt-3 text-xs text-muted-foreground">{day.dayName}</p></div>)}
+                  </div>}
+                </section>
+
+                <section className="overflow-hidden rounded-xl border bg-background">
+                  <div className="flex items-center justify-between gap-3 border-b px-5 py-4"><h2 className="font-semibold">Recent submissions</h2><Link href={dashboardLink('students')} className="text-sm text-teal-700 hover:underline dark:text-teal-400">View students ↗</Link></div>
+                  {loadingActivities ? <div className="space-y-3 p-5"><Skeleton className="h-12" /><Skeleton className="h-12" /></div> : dashboardError ? <p className="p-5 text-sm text-muted-foreground">Recent submissions could not be loaded.</p> : recentActivities.length ? <ul className="divide-y">{recentActivities.slice(0,5).map(activity => <li key={activity.id} className="flex items-center gap-3 px-5 py-4"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{activity.studentName}</p><p className="mt-1 text-xs text-muted-foreground">Answer submitted · {getTimeAgo(activity.timestamp)}</p></div><span className="rounded-md bg-muted px-2.5 py-1 text-sm tabular-nums">{activity.score == null ? 'Not scored' : `${activity.score}%`}</span></li>)}</ul> : <div className="p-6"><p className="text-sm font-medium">No submissions yet</p><p className="mt-1 text-sm text-muted-foreground">Share the module link to invite students. Their activity will appear here.</p></div>}
+                </section>
+              </div>
+
+              <aside className="min-w-0 space-y-6" aria-label="Module tools">
+                <section className="rounded-xl border bg-background p-5"><h2 className="mb-3 font-semibold">Module workspace</h2><nav aria-label="Module shortcuts" className="divide-y">{[
+                  ['documents', 'Documents', `${moduleData.totalDocuments} course files`, FileText],
+                  ['questions', 'Questions', `${moduleData.totalQuestions} questions`, BookOpen],
+                  ['grading', 'Grading', 'Review student answers', ClipboardList],
+                  ['survey/responses', 'Survey responses', 'Hear from your students', MessageSquare],
+                  ['rubric', 'Feedback rubric', 'Manage grading guidance', Settings],
+                ].map(([route,label,detail,Icon]) => <Link key={route} href={dashboardLink(route)} className="group flex items-center gap-3 py-3"><Icon className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="text-sm font-medium group-hover:text-teal-700 dark:group-hover:text-teal-400">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{dashboardError && ['documents','questions'].includes(route) ? 'Open to view' : detail}</p></div><ArrowUpRight className="size-3.5 text-muted-foreground" /></Link>)}</nav></section>
+
+                <section className="rounded-xl border bg-background p-5"><h2 className="font-semibold">Score distribution</h2><p className="mt-1 text-xs text-muted-foreground">Scored answers across all attempts</p><div className="mt-4 space-y-3">{loadingMetrics ? <Skeleton className="h-24" /> : dashboardError ? <p className="text-sm text-muted-foreground">Scores unavailable.</p> : scoreDistribution.some(range => range.count > 0) ? scoreDistribution.map(range => <div key={range.range}><div className="mb-1.5 flex justify-between text-xs"><span className="text-muted-foreground">{range.range}</span><span className="tabular-nums">{range.count}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-teal-600/70" style={{width: `${range.count / Math.max(1, scoreDistribution.reduce((total, r) => total + r.count, 0)) * 100}%`}} /></div></div>) : <p className="text-sm text-muted-foreground">Scores will appear after answers are graded.</p>}</div></section>
+              </aside>
+            </div>
           </div>
-        </div>
+        </main>
       </SidebarInset>
 
       {/* Confirmation Dialog for Regenerating Access Code */}
@@ -1228,7 +454,7 @@ const DashboardContent = memo(function DashboardContent() {
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={regenerateAccessCode}
-              className="bg-orange-600 hover:bg-orange-700 focus:ring-orange-600"
+              className="bg-orange-700 text-white hover:bg-orange-800 focus:ring-orange-600"
             >
               Yes, Regenerate Code
             </AlertDialogAction>

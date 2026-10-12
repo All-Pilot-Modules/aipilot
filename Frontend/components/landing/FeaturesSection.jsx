@@ -9,25 +9,25 @@ import { FadeIn, SlideInLeft, SlideInRight, ScaleIn, RotateIn } from './Animatio
 function AnalyticCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform -rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-card dark:bg-muted rounded-xl shadow-2xl p-6 w-[80%] transform -rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-12 h-12 bg-orange-100 dark:bg-orange-900/40 rounded-full flex items-center justify-center">
             <BarChart3 className="text-orange-500 w-6 h-6" />
           </div>
           <div className="space-y-1">
-            <div className="h-2 w-24 bg-slate-100 dark:bg-slate-600 rounded" />
-            <div className="h-2 w-16 bg-slate-50 dark:bg-slate-600/70 rounded" />
+            <div className="h-2 w-24 bg-muted dark:bg-slate-600 rounded" />
+            <div className="h-2 w-16 bg-muted/50 dark:bg-slate-600/70 rounded" />
           </div>
         </div>
         <div className="space-y-2">
-          <div className="h-4 w-full bg-slate-100 dark:bg-slate-600 rounded" />
-          <div className="h-4 w-[90%] bg-slate-100 dark:bg-slate-600 rounded" />
-          <div className="h-4 w-[60%] bg-slate-50 dark:bg-slate-600/70 rounded" />
+          <div className="h-4 w-full bg-muted dark:bg-slate-600 rounded" />
+          <div className="h-4 w-[90%] bg-muted dark:bg-slate-600 rounded" />
+          <div className="h-4 w-[60%] bg-muted/50 dark:bg-slate-600/70 rounded" />
         </div>
       </div>
       {/* Decorative floating bits */}
       <div className="absolute top-10 right-10 w-12 h-12 bg-orange-300 rounded-lg rotate-12 opacity-50" />
-      <div className="absolute bottom-10 left-10 w-8 h-8 bg-white dark:bg-slate-600 rounded-full opacity-40" />
+      <div className="absolute bottom-10 left-10 w-8 h-8 bg-card dark:bg-slate-600 rounded-full opacity-40" />
     </div>
   );
 }
@@ -35,15 +35,15 @@ function AnalyticCard() {
 function TestCreationCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-card dark:bg-muted rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex justify-between items-center mb-6">
-          <div className="h-4 w-32 bg-slate-900 dark:bg-slate-300 rounded-full" />
+          <div className="h-4 w-32 bg-primary dark:bg-slate-300 rounded-full text-primary-foreground" />
           <Sparkles className="text-blue-500 w-5 h-5" />
         </div>
         {[1, 2, 3].map((i) => (
           <div key={i} className="flex items-center gap-3 mb-3">
-            <div className="w-4 h-4 border-2 border-slate-200 dark:border-slate-500 rounded" />
-            <div className={`h-2 bg-slate-100 dark:bg-slate-600 rounded ${i === 1 ? 'w-full' : 'w-2/3'}`} />
+            <div className="w-4 h-4 border-2 border-border dark:border-slate-500 rounded" />
+            <div className={`h-2 bg-muted dark:bg-slate-600 rounded ${i === 1 ? 'w-full' : 'w-2/3'}`} />
           </div>
         ))}
       </div>
@@ -54,20 +54,20 @@ function TestCreationCard() {
 function FeedbackCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform -rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-card dark:bg-muted rounded-xl shadow-2xl p-6 w-[80%] transform -rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex items-center gap-3 mb-4">
           <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900/40 rounded-full flex items-center justify-center">
             <MessageSquare className="text-purple-500 w-5 h-5" />
           </div>
           <div className="flex-1">
-            <div className="h-3 w-24 bg-slate-900 dark:bg-slate-300 rounded mb-1" />
-            <div className="h-2 w-16 bg-slate-200 dark:bg-slate-500 rounded" />
+            <div className="h-3 w-24 bg-primary dark:bg-slate-300 rounded mb-1 text-primary-foreground" />
+            <div className="h-2 w-16 bg-muted dark:bg-slate-500 rounded" />
           </div>
         </div>
         <div className="space-y-2 mb-4">
-          <div className="h-3 w-full bg-slate-100 dark:bg-slate-600 rounded" />
-          <div className="h-3 w-[85%] bg-slate-100 dark:bg-slate-600 rounded" />
-          <div className="h-3 w-[70%] bg-slate-50 dark:bg-slate-600/70 rounded" />
+          <div className="h-3 w-full bg-muted dark:bg-slate-600 rounded" />
+          <div className="h-3 w-[85%] bg-muted dark:bg-slate-600 rounded" />
+          <div className="h-3 w-[70%] bg-muted/50 dark:bg-slate-600/70 rounded" />
         </div>
         <div className="flex gap-2">
           <div className="h-6 w-16 bg-green-100 dark:bg-green-900/40 rounded-full" />
@@ -75,7 +75,7 @@ function FeedbackCard() {
         </div>
       </div>
       <div className="absolute top-12 right-8 w-10 h-10 bg-purple-300 rounded-full opacity-40" />
-      <div className="absolute bottom-12 left-8 w-6 h-6 bg-white dark:bg-slate-600 rounded-lg rotate-45 opacity-30" />
+      <div className="absolute bottom-12 left-8 w-6 h-6 bg-card dark:bg-slate-600 rounded-lg rotate-45 opacity-30" />
     </div>
   );
 }
@@ -83,23 +83,23 @@ function FeedbackCard() {
 function ModuleCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-card dark:bg-muted rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <BookOpen className="text-teal-500 w-5 h-5" />
-            <div className="h-3 w-24 bg-slate-900 dark:bg-slate-300 rounded" />
+            <div className="h-3 w-24 bg-primary dark:bg-slate-300 rounded text-primary-foreground" />
           </div>
           <div className="h-6 w-6 bg-teal-100 dark:bg-teal-900/40 rounded flex items-center justify-center">
             <div className="h-1 w-3 bg-teal-500" />
           </div>
         </div>
         {[1, 2, 3].map((i) => (
-          <div key={i} className="bg-slate-50 dark:bg-slate-600/50 rounded-lg p-3 mb-2">
+          <div key={i} className="bg-muted/50 dark:bg-slate-600/50 rounded-lg p-3 mb-2">
             <div className="flex items-center gap-2 mb-1">
               <Layers className="text-slate-400 w-4 h-4" />
-              <div className={`h-2 bg-slate-200 dark:bg-slate-500 rounded ${i === 1 ? 'w-28' : i === 2 ? 'w-20' : 'w-24'}`} />
+              <div className={`h-2 bg-muted dark:bg-slate-500 rounded ${i === 1 ? 'w-28' : i === 2 ? 'w-20' : 'w-24'}`} />
             </div>
-            <div className="h-1.5 w-16 bg-slate-100 dark:bg-slate-600 rounded ml-6" />
+            <div className="h-1.5 w-16 bg-muted dark:bg-slate-600 rounded ml-6" />
           </div>
         ))}
       </div>
@@ -111,36 +111,36 @@ function ModuleCard() {
 function QuestionTypesCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform -rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-card dark:bg-muted rounded-xl shadow-2xl p-6 w-[80%] transform -rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="space-y-3">
           {/* MCQ */}
-          <div className="border-2 border-slate-100 dark:border-slate-600 rounded-lg p-3">
-            <div className="h-2 w-32 bg-slate-900 dark:bg-slate-300 rounded mb-2" />
+          <div className="border-2 border-border rounded-lg p-3">
+            <div className="h-2 w-32 bg-primary dark:bg-slate-300 rounded mb-2 text-primary-foreground" />
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 border-2 border-slate-300 dark:border-slate-500 rounded-full" />
-              <div className="h-1.5 w-24 bg-slate-100 dark:bg-slate-600 rounded" />
+              <div className="w-3 h-3 border-2 border-border dark:border-slate-500 rounded-full" />
+              <div className="h-1.5 w-24 bg-muted dark:bg-slate-600 rounded" />
             </div>
           </div>
           {/* True/False */}
-          <div className="border-2 border-slate-100 dark:border-slate-600 rounded-lg p-3">
-            <div className="h-2 w-28 bg-slate-900 dark:bg-slate-300 rounded mb-2" />
+          <div className="border-2 border-border rounded-lg p-3">
+            <div className="h-2 w-28 bg-primary dark:bg-slate-300 rounded mb-2 text-primary-foreground" />
             <div className="flex gap-3">
               <div className="flex items-center gap-1">
                 <CheckCircle2 className="w-4 h-4 text-green-400" />
-                <div className="h-1.5 w-8 bg-slate-100 dark:bg-slate-600 rounded" />
+                <div className="h-1.5 w-8 bg-muted dark:bg-slate-600 rounded" />
               </div>
               <div className="flex items-center gap-1">
-                <div className="w-4 h-4 border-2 border-slate-200 dark:border-slate-500 rounded-full" />
-                <div className="h-1.5 w-10 bg-slate-100 dark:bg-slate-600 rounded" />
+                <div className="w-4 h-4 border-2 border-border dark:border-slate-500 rounded-full" />
+                <div className="h-1.5 w-10 bg-muted dark:bg-slate-600 rounded" />
               </div>
             </div>
           </div>
           {/* Essay */}
-          <div className="border-2 border-slate-100 dark:border-slate-600 rounded-lg p-3">
-            <div className="h-2 w-20 bg-slate-900 dark:bg-slate-300 rounded mb-2" />
+          <div className="border-2 border-border rounded-lg p-3">
+            <div className="h-2 w-20 bg-primary dark:bg-slate-300 rounded mb-2 text-primary-foreground" />
             <div className="space-y-1">
-              <div className="h-1.5 w-full bg-slate-50 dark:bg-slate-600/70 rounded" />
-              <div className="h-1.5 w-[90%] bg-slate-50 dark:bg-slate-600/70 rounded" />
+              <div className="h-1.5 w-full bg-muted/50 dark:bg-slate-600/70 rounded" />
+              <div className="h-1.5 w-[90%] bg-muted/50 dark:bg-slate-600/70 rounded" />
             </div>
           </div>
         </div>
@@ -153,11 +153,11 @@ function QuestionTypesCard() {
 function MasteryCard() {
   return (
     <div className="relative w-full h-full flex items-center justify-center">
-      <div className="bg-white dark:bg-slate-700 rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
+      <div className="bg-card dark:bg-muted rounded-xl shadow-2xl p-6 w-[80%] transform rotate-2 hover:rotate-0 transition-transform duration-500">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-2">
             <Zap className="text-pink-500 w-5 h-5" />
-            <div className="h-3 w-20 bg-slate-900 dark:bg-slate-300 rounded" />
+            <div className="h-3 w-20 bg-primary dark:bg-slate-300 rounded text-primary-foreground" />
           </div>
           <div className="px-3 py-1 bg-pink-100 dark:bg-pink-900/40 rounded-full">
             <div className="h-2 w-12 bg-pink-500 rounded" />
@@ -165,7 +165,7 @@ function MasteryCard() {
         </div>
         {/* Progress bar */}
         <div className="mb-4">
-          <div className="h-2 w-full bg-slate-100 dark:bg-slate-600 rounded-full overflow-hidden">
+          <div className="h-2 w-full bg-muted dark:bg-slate-600 rounded-full overflow-hidden">
             <div className="h-full w-[70%] bg-gradient-to-r from-pink-400 to-pink-600 rounded-full" />
           </div>
         </div>
@@ -175,7 +175,7 @@ function MasteryCard() {
             <div
               key={i}
               className={`w-8 h-8 rounded-lg ${
-                i <= 3 ? 'bg-gradient-to-br from-pink-400 to-pink-500' : 'bg-slate-100 dark:bg-slate-600'
+                i <= 3 ? 'bg-gradient-to-br from-pink-400 to-pink-500' : 'bg-muted dark:bg-slate-600'
               } flex items-center justify-center`}
             >
               {i <= 3 && <CheckCircle2 className="w-4 h-4 text-white" />}
@@ -184,7 +184,7 @@ function MasteryCard() {
         </div>
       </div>
       <div className="absolute top-8 left-12 w-6 h-6 bg-pink-300 rounded-full opacity-50" />
-      <div className="absolute bottom-8 right-8 w-10 h-10 bg-white dark:bg-slate-600 rounded-lg -rotate-12 opacity-40" />
+      <div className="absolute bottom-8 right-8 w-10 h-10 bg-card dark:bg-slate-600 rounded-lg -rotate-12 opacity-40" />
     </div>
   );
 }
@@ -242,7 +242,7 @@ const features = [
 
 export default function FeaturesSection() {
   return (
-    <section className="py-20 bg-white dark:bg-slate-900">
+    <section className="py-20 bg-card ">
       <div className="max-w-6xl mx-auto px-6">
         <div className="space-y-48">
           {features.map((feature, index) => {
@@ -267,17 +267,17 @@ export default function FeaturesSection() {
                 <TextWrapper className={`${feature.reverse ? 'lg:order-1' : 'lg:order-2'}`}>
                   <div className="max-w-md">
                     <FadeIn delay={0.3}>
-                      <p className="text-[11px] font-black tracking-[0.2em] text-slate-900 dark:text-slate-300 uppercase mb-4">
+                      <p className="text-[11px] font-black tracking-[0.2em] text-slate-900 dark:text-foreground uppercase mb-4">
                         {feature.label}
                       </p>
                     </FadeIn>
                     <FadeIn delay={0.4}>
-                      <h3 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-white tracking-tighter leading-[1.1] mb-6">
+                      <h3 className="text-4xl md:text-5xl font-bold text-slate-900 dark:text-foreground tracking-tighter leading-[1.1] mb-6">
                         {feature.headline}
                       </h3>
                     </FadeIn>
                     <FadeIn delay={0.5}>
-                      <p className="text-lg text-slate-600 dark:text-slate-300 leading-relaxed mb-8">
+                      <p className="text-lg text-slate-600 dark:text-foreground leading-relaxed mb-8">
                         {feature.description}
                       </p>
                     </FadeIn>
@@ -285,7 +285,7 @@ export default function FeaturesSection() {
                       <Button
                         asChild
                         variant="ghost"
-                        className="group h-auto p-0 hover:bg-transparent text-slate-900 font-bold text-lg inline-flex items-center"
+                        className="group h-auto p-0 hover:bg-transparent text-foreground font-bold text-lg inline-flex items-center"
                       >
                         <Link href="/user-manual">
                           <span className="bg-[#2d201c] text-white px-6 py-3 rounded-full flex items-center group-hover:bg-slate-800 transition-colors">

@@ -3,6 +3,7 @@
 import { useAuth } from "@/context/AuthContext";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
 import dynamic from 'next/dynamic';
+import StudentLearningMemory from '@/components/StudentLearningMemory';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MathText } from "@/components/MathText";
@@ -22,7 +23,10 @@ function StudentDetailPageContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   
-  const studentId = params.studentId;
+  const studentId = useMemo(() => {
+    try { return decodeURIComponent(params.studentId || ''); }
+    catch { return params.studentId || ''; }
+  }, [params.studentId]);
   const moduleName = searchParams.get('module');
   
   const [student, setStudent] = useState(null);
@@ -117,7 +121,7 @@ function StudentDetailPageContent() {
         // Student answers
         apiClient.get(`/api/student-answers?module_id=${module.id}`),
         // AI feedback
-        apiClient.get(`/api/ai-feedback/teacher/module/${module.id}/released?student_id=${studentId}`, { skipAuthLogout: true })
+        apiClient.get(`/api/ai-feedback/teacher/module/${module.id}/released?student_id=${encodeURIComponent(studentId)}`, { skipAuthLogout: true })
           .catch(() => ({ data: [] }))
       ]);
 
@@ -508,7 +512,7 @@ function StudentDetailPageContent() {
     const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice' || qHasOptions;
 
     if (questionData.student_answer === null) {
-      return { label: 'Unanswered', color: 'bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400', points: null };
+      return { label: 'Unanswered', color: 'bg-muted text-slate-500 dark:text-muted-foreground', points: null };
     }
 
     if (isMCQ) {
@@ -788,12 +792,12 @@ function StudentDetailPageContent() {
           <div className="@container/main flex flex-1 flex-col gap-2">
             <div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
               <div className="px-4 lg:px-6">
-                {/* Professional Header with Gradient Banner */}
-                <div className="mb-8 relative">
-                  <div className="absolute inset-0 bg-gradient-to-r from-gray-800/10 via-gray-800/10 to-pink-500/10 dark:from-gray-800/5 dark:via-gray-800/5 dark:to-pink-500/5 rounded-2xl"></div>
-                  <div className="relative p-6 md:p-8 rounded-2xl border border-border/50 backdrop-blur-sm">
+                {/* Student overview */}
+                <div className="mb-6 relative">
+
+                  <div className="relative p-5 sm:p-6 rounded-xl border bg-muted/20">
                     {/* Top Row: Back + Breadcrumb + Prev/Next Nav */}
-                    <div className="flex items-center justify-between mb-6">
+                    <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
                       <div className="flex items-center gap-3">
                         <Button
                           variant="outline"
@@ -804,7 +808,7 @@ function StudentDetailPageContent() {
                           Students
                         </Button>
                         <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
-                          <Link href="/dashboard" className="hover:text-foreground">Dashboard</Link>
+                          <Link href={`/dashboard?module=${encodeURIComponent(moduleName)}`} className="hover:text-foreground">Dashboard</Link>
                           <span>/</span>
                           <Link href={`/dashboard/students?module=${moduleName}`} className="hover:text-foreground">Students</Link>
                           <span>/</span>
@@ -841,28 +845,15 @@ function StudentDetailPageContent() {
 
                     {/* Main Header Content */}
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-                      {/* Score Ring */}
-                      <div className="relative flex-shrink-0">
-                        <div className={`w-24 h-24 rounded-2xl flex flex-col items-center justify-center font-bold shadow-lg ${
-                          (student?.avg_score || 0) >= 80 ? 'bg-gradient-to-br from-green-400 to-green-600' :
-                          (student?.avg_score || 0) >= 60 ? 'bg-gradient-to-br from-yellow-400 to-yellow-600' :
-                          'bg-gradient-to-br from-red-400 to-red-600'
-                        } text-white`}>
-                          <span className="text-3xl leading-none">{student?.avg_score || 0}</span>
-                          <span className="text-xs opacity-80 mt-0.5">%</span>
-                        </div>
-                        {(student?.avg_score || 0) >= 80 && (
-                          <div className="absolute -top-2 -right-2">
-                            <Award className="w-7 h-7 text-yellow-500 fill-yellow-400 drop-shadow" />
-                          </div>
-                        )}
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background text-teal-700 dark:text-teal-300">
+                        <User className="size-6" aria-hidden="true" />
                       </div>
 
                       {/* Student Info */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-3 mb-1 flex-wrap">
-                          <h1 className="text-2xl md:text-3xl font-bold text-foreground">{student?.student_id}</h1>
-                          <span className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
+                          <h1 className="break-all text-2xl font-semibold tracking-tight text-foreground">{student?.student_id}</h1>
+                          <span className="px-2.5 py-1 bg-background border text-muted-foreground rounded-md text-xs font-medium">
                             {moduleData?.name || moduleName}
                           </span>
                         </div>
@@ -886,8 +877,8 @@ function StudentDetailPageContent() {
                               {student?.teacher_graded_count > 0
                                 ? <strong className="text-green-600 dark:text-green-400">{student.teacher_graded_count} Teacher Graded</strong>
                                 : student?.ai_only_count > 0
-                                  ? <strong className="text-gray-700 dark:text-gray-500">AI Graded</strong>
-                                  : <strong className="text-gray-500">Pending</strong>
+                                  ? <strong className="text-gray-700 dark:text-muted-foreground">AI Graded</strong>
+                                  : <strong className="text-muted-foreground">Pending</strong>
                               }
                             </span>
                           </div>
@@ -908,20 +899,20 @@ function StudentDetailPageContent() {
                         {showDownloadMenu && (
                           <>
                             <div className="fixed inset-0 z-40" onClick={() => setShowDownloadMenu(false)} />
-                            <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg shadow-xl z-50">
+                            <div className="absolute right-0 mt-2 w-48 bg-card dark:bg-muted border border-border rounded-lg shadow-xl z-50">
                               <div className="py-1">
                                 <button
                                   onClick={() => { downloadStudentReport(); setShowDownloadMenu(false); }}
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                                 >
-                                  <FileText className="w-4 h-4 text-green-600" />
+                                  <FileText className="w-4 h-4 text-green-600 dark:text-green-300" />
                                   Export as CSV
                                 </button>
                                 <button
                                   onClick={() => { downloadStudentReportJSON(); setShowDownloadMenu(false); }}
-                                  className="w-full text-left px-4 py-2 text-sm hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center gap-2"
+                                  className="w-full text-left px-4 py-2 text-sm hover:bg-muted flex items-center gap-2"
                                 >
-                                  <FileJson className="w-4 h-4 text-gray-700" />
+                                  <FileJson className="w-4 h-4 text-foreground" />
                                   Export as JSON
                                 </button>
                               </div>
@@ -934,9 +925,9 @@ function StudentDetailPageContent() {
                 </div>
 
                 {/* Performance Summary Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
                   {/* Score Overview */}
-                  <Card className="border-border bg-card text-card-foreground overflow-hidden">
+                  <Card className="border-border bg-background text-foreground overflow-hidden py-0 gap-0 shadow-none">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-sm font-medium text-card-foreground">Score Overview</p>
@@ -946,7 +937,7 @@ function StudentDetailPageContent() {
                         {/* Circular Progress */}
                         <div className="relative w-16 h-16 flex-shrink-0">
                           <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="6" className="text-gray-200 dark:text-gray-700" />
+                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="6" className="text-gray-200 dark:text-muted-foreground" />
                             <circle cx="32" cy="32" r="28" fill="none" strokeWidth="6" strokeLinecap="round"
                               strokeDasharray={`${(student?.avg_score || 0) * 1.759} 175.9`}
                               className={`${(student?.avg_score || 0) >= 80 ? 'text-green-500' : (student?.avg_score || 0) >= 60 ? 'text-yellow-500' : 'text-red-500'}`}
@@ -959,7 +950,7 @@ function StudentDetailPageContent() {
                         </div>
                         <div className="text-xs text-muted-foreground">
                           <p className="font-semibold text-foreground">
-                            {(student?.avg_score || 0) >= 80 ? 'Excellent' : (student?.avg_score || 0) >= 60 ? 'Good' : 'Needs Work'}
+                            {student?.completed_questions ? 'Average score' : 'No answers yet'}
                           </p>
                           <p>{student?.progress || 0}% complete</p>
                         </div>
@@ -968,10 +959,10 @@ function StudentDetailPageContent() {
                   </Card>
 
                   {/* Questions Breakdown */}
-                  <Card className="border-border bg-gradient-to-br from-green-50 to-green-100 dark:from-green-950/30 dark:to-green-900/30 overflow-hidden">
+                  <Card className="border-border bg-background text-foreground overflow-hidden py-0 gap-0 shadow-none">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-green-700 dark:text-green-300">Questions</p>
+                        <p className="text-sm font-medium text-muted-foreground">Questions</p>
                         <BookOpen className="w-5 h-5 text-green-500" />
                       </div>
                       <div className="space-y-2">
@@ -988,7 +979,7 @@ function StudentDetailPageContent() {
                           <span className="font-bold text-foreground">{student?.unanswered || 0}</span>
                         </div>
                         {/* Mini bar chart */}
-                        <div className="flex h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-gray-700 mt-1">
+                        <div className="flex h-2 rounded-full overflow-hidden bg-muted mt-1">
                           {(student?.correct_answers || 0) > 0 && (
                             <div className="bg-green-500 h-full" style={{width: `${(student.correct_answers / student.total_questions) * 100}%`}}></div>
                           )}
@@ -1001,7 +992,7 @@ function StudentDetailPageContent() {
                   </Card>
 
                   {/* Attempts Used */}
-                  <Card className="border-border bg-card text-card-foreground overflow-hidden">
+                  <Card className="border-border bg-background text-foreground overflow-hidden py-0 gap-0 shadow-none">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-sm font-medium text-card-foreground">Attempts Used</p>
@@ -1015,8 +1006,8 @@ function StudentDetailPageContent() {
                       </div>
                       {moduleData?.max_attempts ? (
                         <>
-                          <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-2 overflow-hidden">
-                            <div className={`h-full rounded-full ${(student?.total_attempts || 1) >= moduleData.max_attempts ? 'bg-red-500' : 'bg-gray-800'}`}
+                          <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                            <div className={`h-full rounded-full ${(student?.total_attempts || 1) >= moduleData.max_attempts ? 'bg-red-500' : 'bg-primary text-primary-foreground'}`}
                               style={{width: `${Math.min(100, ((student?.total_attempts || 1) / moduleData.max_attempts) * 100)}%`}}
                             ></div>
                           </div>
@@ -1031,10 +1022,10 @@ function StudentDetailPageContent() {
                   </Card>
 
                   {/* Grade Status */}
-                  <Card className="border-border bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-950/30 dark:to-orange-900/30 overflow-hidden">
+                  <Card className="border-border bg-background text-foreground overflow-hidden py-0 gap-0 shadow-none">
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
-                        <p className="text-sm font-medium text-orange-700 dark:text-orange-300">Grade Status</p>
+                        <p className="text-sm font-medium text-muted-foreground">Grade Status</p>
                         <GraduationCap className="w-5 h-5 text-orange-500" />
                       </div>
                       <div className="space-y-2">
@@ -1043,7 +1034,7 @@ function StudentDetailPageContent() {
                           <span className="font-bold text-foreground">{student?.teacher_graded_count || 0}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-800 inline-block"></span> AI Only</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block text-primary-foreground"></span> AI Only</span>
                           <span className="font-bold text-foreground">{student?.ai_only_count || 0}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
@@ -1078,8 +1069,8 @@ function StudentDetailPageContent() {
                                 onClick={() => setSelectedAttempt(attempt.attempt)}
                                 className={`flex-shrink-0 p-4 rounded-xl border-2 transition-all min-w-[140px] text-left ${
                                   selectedAttempt === attempt.attempt
-                                    ? 'border-gray-400 bg-gray-50 dark:bg-gray-950/30 shadow-md'
-                                    : 'border-border hover:border-gray-300 hover:bg-muted/50'
+                                    ? 'border-gray-400 bg-muted/50 dark:bg-background/30 shadow-md'
+                                    : 'border-border hover:border-border hover:bg-muted/50'
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-2">
@@ -1112,54 +1103,31 @@ function StudentDetailPageContent() {
                 {/* Survey Response Section */}
                 {surveyData && surveyData.survey_questions && surveyData.survey_questions.length > 0 && (
                   <div className="mb-8">
-                    <Card className="border-2 border-gray-200 dark:border-gray-700">
-                      <CardHeader
-                        className="bg-gradient-to-r from-gray-800 to-pink-50 dark:from-gray-800/20 dark:to-pink-950/20 border-b border-gray-200 dark:border-gray-700 cursor-pointer hover:from-gray-800 hover:to-pink-100 dark:hover:from-gray-800/30 dark:hover:to-pink-950/30 transition-colors"
-                        onClick={() => setShowSurvey(!showSurvey)}
+                    <Card className="overflow-hidden border-border bg-background py-0 gap-0 shadow-none">
+                      <button
+                        type="button"
+                        className="flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-teal-600 focus-visible:-outline-offset-2"
+                        aria-expanded={showSurvey}
+                        aria-controls="student-survey-details"
+                        onClick={() => setShowSurvey(value => !value)}
                       >
-                        <CardTitle className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-gradient-to-br from-gray-800 to-pink-500 rounded-lg flex items-center justify-center">
-                              <ClipboardList className="w-6 h-6 text-white" />
-                            </div>
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <span>Student Feedback Survey</span>
-                                {surveyResponse ? (
-                                  <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-400" />
-                                ) : (
-                                  <XCircle className="w-5 h-5 text-gray-400" />
-                                )}
-                              </div>
-                              <p className="text-sm font-normal text-muted-foreground mt-1">
-                                {surveyResponse
-                                  ? `Submitted on ${new Date(surveyResponse.submitted_at).toLocaleString()}`
-                                  : 'Not submitted yet'}
-                              </p>
-                            </div>
-                          </div>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="hover:bg-gray-100 dark:hover:bg-gray-900 dark:bg-gray-900/30"
-                          >
-                            {showSurvey ? (
-                              <ChevronUp className="w-5 h-5" />
-                            ) : (
-                              <ChevronDown className="w-5 h-5" />
-                            )}
-                          </Button>
-                        </CardTitle>
-                      </CardHeader>
+                        <span className="flex min-w-0 items-center gap-3">
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300"><ClipboardList className="size-5" /></span>
+                          <span><span className="block text-base font-semibold text-foreground">Student feedback survey</span>
+                            <span className="mt-1 block text-sm text-muted-foreground">{surveyResponse ? `Submitted on ${new Date(surveyResponse.submitted_at).toLocaleString()}` : 'Not submitted yet'}</span>
+                          </span>
+                        </span>
+                        {showSurvey ? <ChevronUp className="size-4 shrink-0 text-muted-foreground" /> : <ChevronDown className="size-4 shrink-0 text-muted-foreground" />}
+                      </button>
                       {showSurvey && (
-                        <CardContent className="pt-6">
+                        <CardContent id="student-survey-details" className="border-t p-5">
                         {surveyResponse ? (
                           <div className="space-y-6">
                             {surveyData.survey_questions.map((question, qIdx) => (
-                              <div key={question.id} className="border-b border-gray-200 dark:border-gray-800 pb-6 last:border-0 last:pb-0">
+                              <div key={question.id} className="border-b border-border pb-6 last:border-0 last:pb-0">
                                 <div className="flex items-start gap-3 mb-3">
-                                  <div className="w-8 h-8 bg-gray-100 dark:bg-gray-900 dark:bg-gray-900/30 rounded-lg flex items-center justify-center flex-shrink-0">
-                                    <span className="text-sm font-bold text-gray-700 dark:text-gray-500">Q{qIdx + 1}</span>
+                                  <div className="w-8 h-8 bg-muted dark:bg-card dark:bg-card/30 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <span className="text-sm font-bold text-gray-700 dark:text-muted-foreground">Q{qIdx + 1}</span>
                                   </div>
                                   <div className="flex-1">
                                     <p className="font-semibold text-base text-foreground mb-1">
@@ -1169,8 +1137,8 @@ function StudentDetailPageContent() {
                                     <div className="flex items-center gap-2 mt-2">
                                       <div className={`text-xs px-2 py-1 rounded ${
                                         question.type === 'short'
-                                          ? 'bg-gray-100 dark:bg-gray-900/30 text-gray-800 dark:text-gray-400'
-                                          : 'bg-gray-100 dark:bg-gray-900 dark:bg-gray-900/30 text-gray-800 dark:text-gray-400'
+                                          ? 'bg-muted dark:bg-card/30 text-gray-800 dark:text-muted-foreground'
+                                          : 'bg-muted dark:bg-card dark:bg-card/30 text-gray-800 dark:text-muted-foreground'
                                       }`}>
                                         {question.type === 'short' ? 'Short Answer' : 'Long Answer'}
                                       </div>
@@ -1181,7 +1149,7 @@ function StudentDetailPageContent() {
                                 <div className="ml-11">
                                   <div className="flex items-start gap-2">
                                     <MessageSquare className="w-4 h-4 text-muted-foreground mt-1 flex-shrink-0" />
-                                    <div className="flex-1 p-4 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-800">
+                                    <div className="flex-1 p-4 rounded-lg bg-muted/50 dark:bg-card border border-border ">
                                       {surveyResponse.responses[question.id] ? (
                                         <p className="text-foreground whitespace-pre-wrap break-words leading-relaxed">
                                           {surveyResponse.responses[question.id]}
@@ -1212,7 +1180,7 @@ function StudentDetailPageContent() {
 
                 {/* Attempt Selector Tabs */}
                 {Object.keys(answersByAttempt).length > 1 && (
-                  <div className="mb-6 bg-slate-50 dark:bg-slate-800 rounded-lg p-2 border border-slate-200 dark:border-slate-700">
+                  <div className="mb-6 bg-muted/50 dark:bg-muted rounded-lg p-2 border border-border ">
                     <div className="flex gap-2">
                       {Object.keys(answersByAttempt).sort((a, b) => Number(a) - Number(b)).map(attempt => (
                         <button
@@ -1220,8 +1188,8 @@ function StudentDetailPageContent() {
                           onClick={() => setSelectedAttempt(Number(attempt))}
                           className={`px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
                             selectedAttempt === Number(attempt)
-                              ? 'bg-gray-900 text-white shadow-lg'
-                              : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-600'
+                              ? 'bg-primary text-primary-foreground shadow-lg'
+                              : 'bg-card dark:bg-muted text-slate-600 dark:text-foreground hover:bg-muted dark:hover:bg-slate-600'
                           }`}
                         >
                           Attempt {attempt}
@@ -1233,6 +1201,8 @@ function StudentDetailPageContent() {
                     </div>
                   </div>
                 )}
+
+                <StudentLearningMemory moduleId={resolvedModuleId} studentId={studentId} onAttempt={setSelectedAttempt} />
 
                 {/* Question Analysis */}
                 <div>
@@ -1339,7 +1309,7 @@ function StudentDetailPageContent() {
                           return (
                             <div
                               key={`${questionData.question_id}-${questionData.attempt}`}
-                              className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-sm"
+                              className="rounded-xl border border-border bg-card shadow-sm"
                             >
                               {/* ── Question header ── */}
                               <div className="flex items-start gap-3 p-4 pb-3"
@@ -1347,7 +1317,7 @@ function StudentDetailPageContent() {
                                 {/* Number badge */}
                                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
                                   isUnanswered
-                                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                                    ? 'bg-muted text-muted-foreground'
                                     : isCorrectish
                                       ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
                                       : 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
@@ -1357,7 +1327,7 @@ function StudentDetailPageContent() {
 
                                 {/* Question text */}
                                 <div className="flex-1 min-w-0">
-                                  <MathText className="text-sm font-medium text-foreground leading-relaxed">{questionData.question_text}</MathText>
+                                  <MathText embedLinks className="text-sm font-medium text-foreground leading-relaxed">{questionData.question_text}</MathText>
                                   {questionData.image_url && (
                                     <div className="mt-2" style={{ maxHeight: '140px' }}>
                                       <Image
@@ -1373,10 +1343,10 @@ function StudentDetailPageContent() {
                                   <div className="flex items-center gap-2 mt-1.5">
                                     <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
                                       isMCQ
-                                        ? 'bg-gray-50 dark:bg-gray-900/30 text-gray-700 dark:text-gray-500'
+                                        ? 'bg-muted/50 dark:bg-card/30 text-gray-700 dark:text-muted-foreground'
                                         : questionType === 'essay'
                                           ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
-                                          : 'bg-gray-50 dark:bg-gray-900 dark:bg-gray-900/30 text-gray-700 dark:text-gray-500'
+                                          : 'bg-muted/50 dark:bg-card dark:bg-card/30 text-gray-700 dark:text-muted-foreground'
                                     }`}>
                                       {isMCQ ? 'MCQ' : questionType === 'essay' ? 'Essay' : 'Short Answer'}
                                     </span>
@@ -1391,7 +1361,7 @@ function StudentDetailPageContent() {
 
                                 {/* Unanswered indicator */}
                                 {isUnanswered && (
-                                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500">
+                                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted text-muted-foreground">
                                     <HelpCircle className="w-3.5 h-3.5" /> Unanswered
                                   </span>
                                 )}
@@ -1436,8 +1406,8 @@ function StudentDetailPageContent() {
                                               }`}>
                                                 {/* Letter */}
                                                 <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                                                  isStudentCorrect ? 'bg-emerald-500 text-white'
-                                                  : isStudentWrong ? 'bg-rose-500 text-white'
+                                                  isStudentCorrect ? 'bg-emerald-700 text-white'
+                                                  : isStudentWrong ? 'bg-rose-600 text-white'
                                                   : isCorrectOpt ? 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200'
                                                   : 'text-muted-foreground'
                                                 }`}>
@@ -1519,7 +1489,7 @@ function StudentDetailPageContent() {
                                               {entries.map(([idx, val]) => (
                                                 <div key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${
                                                   isCorrectish
-                                                    ? 'bg-gray-50 dark:bg-gray-950/20 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200'
+                                                    ? 'bg-muted/50 dark:bg-background/20 border-border text-gray-700 dark:text-foreground'
                                                     : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
                                                 }`}>
                                                   <span className="text-[10px] font-bold text-muted-foreground">Blank {Number(idx) + 1}:</span>
@@ -1569,11 +1539,11 @@ function StudentDetailPageContent() {
                                             </div>
                                             <div className={`border rounded-lg p-3 ${
                                               isCorrectish
-                                                ? 'bg-gray-50/70 dark:bg-gray-950/20 border-gray-200 dark:border-gray-700'
+                                                ? 'bg-muted/70 dark:bg-background/20 border-border '
                                                 : 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800'
                                             }`}>
                                               <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${
-                                                isCorrectish ? 'text-gray-700 dark:text-gray-500' : 'text-rose-600 dark:text-rose-400'
+                                                isCorrectish ? 'text-gray-700 dark:text-muted-foreground' : 'text-rose-600 dark:text-rose-400'
                                               }`}>
                                                 <User className="w-3 h-3" /> Student&apos;s Answer
                                               </p>
@@ -1605,21 +1575,21 @@ function StudentDetailPageContent() {
                                 <div className="px-4 pb-3">
                                   <div className="relative inline-block group/feedback">
                                     {/* Eye icon trigger */}
-                                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-gray-700 dark:text-gray-500 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-950/30 transition-colors">
+                                    <button type="button" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-gray-700 dark:text-foreground cursor-pointer hover:bg-muted/50 dark:hover:bg-background/30 focus-visible:outline-2 focus-visible:outline-primary transition-colors">
                                       <Eye className="w-3.5 h-3.5" />
                                       View Feedback
-                                    </div>
+                                    </button>
 
                                     {/* Popover — opens to the right */}
-                                    <div className="invisible group-hover/feedback:visible opacity-0 group-hover/feedback:opacity-100 transition-all duration-150 absolute left-full bottom-0 ml-3 z-[60] w-[500px]">
+                                    <div className="invisible group-hover/feedback:visible group-focus-within/feedback:visible opacity-0 group-hover/feedback:opacity-100 group-focus-within/feedback:opacity-100 transition-opacity duration-150 absolute left-0 top-full pt-2 sm:left-full sm:top-auto sm:bottom-0 sm:pl-3 sm:pt-0 z-[60] w-[min(500px,calc(100vw-4rem))]">
                                       {/* Arrow pointing left */}
-                                      <div className="w-3 h-3 bg-white dark:bg-slate-900 border-l border-b border-slate-300 dark:border-slate-600 rotate-45 absolute -left-[7px] bottom-3 z-10"></div>
-                                      <div className="rounded-xl border border-slate-300 dark:border-slate-600 shadow-2xl bg-white dark:bg-slate-900 max-h-[450px] overflow-y-auto">
+                                      <div className="w-3 h-3 bg-card border-l border-b border-border rotate-45 absolute left-[6px] bottom-3 z-10 hidden sm:block"></div>
+                                      <div tabIndex={0} role="region" aria-label="Question feedback" className="rounded-xl border border-border shadow-xl bg-card max-h-[min(450px,60dvh)] overflow-y-auto overscroll-contain [scrollbar-gutter:stable] focus-visible:outline-2 focus-visible:outline-primary">
                                         <div className="p-4 space-y-3">
                                           {feedback?.explanation && (
-                                            <div className="bg-gray-50 dark:bg-gray-950/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-blue-900 dark:text-gray-400 mb-1">Feedback</p>
-                                              <MathText className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{feedback.explanation}</MathText>
+                                            <div className="bg-muted/50 dark:bg-background/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-blue-900 dark:text-muted-foreground mb-1">Feedback</p>
+                                              <MathText className="text-sm text-gray-700 dark:text-foreground leading-relaxed">{feedback.explanation}</MathText>
                                             </div>
                                           )}
 
@@ -1657,9 +1627,9 @@ function StudentDetailPageContent() {
                                           )}
 
                                           {feedback?.concept_explanation && (
-                                            <div className="bg-gray-50 dark:bg-gray-950/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-gray-900 dark:text-gray-100 mb-1">Key concept</p>
-                                              <MathText className="text-sm text-gray-700 dark:text-gray-200 leading-relaxed">{feedback.concept_explanation}</MathText>
+                                            <div className="bg-muted/50 dark:bg-background/20 p-4 rounded-lg">
+                                              <p className="text-sm font-medium text-gray-900 dark:text-foreground mb-1">Key concept</p>
+                                              <MathText className="text-sm text-gray-700 dark:text-foreground leading-relaxed">{feedback.concept_explanation}</MathText>
                                             </div>
                                           )}
 
@@ -1674,7 +1644,7 @@ function StudentDetailPageContent() {
                                                     {teacherGrade.points_awarded}{feedback?.points_possible ? ` / ${feedback.points_possible}` : ''} points
                                                   </p>
                                                   {teacherGrade.feedback_text && (
-                                                    <p className="text-sm text-gray-700 dark:text-gray-300 mt-1">{teacherGrade.feedback_text}</p>
+                                                    <p className="text-sm text-gray-700 dark:text-foreground mt-1">{teacherGrade.feedback_text}</p>
                                                   )}
                                                 </div>
                                               </div>

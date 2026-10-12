@@ -137,13 +137,13 @@ export default function FeedbackCritiquesPage() {
   const getCategoryIcon = (category) => {
     switch (category) {
       case 'helpful':
-        return <ThumbsUp className="w-3 h-3 text-green-600" />;
+        return <ThumbsUp className="w-3 h-3 text-green-600 dark:text-green-300" />;
       case 'not_helpful':
-        return <ThumbsDown className="w-3 h-3 text-red-600" />;
+        return <ThumbsDown className="w-3 h-3 text-red-600 dark:text-red-300" />;
       case 'incorrect':
-        return <AlertCircle className="w-3 h-3 text-orange-600" />;
+        return <AlertCircle className="w-3 h-3 text-orange-600 dark:text-orange-300" />;
       default:
-        return <MessageSquare className="w-3 h-3 text-gray-600" />;
+        return <MessageSquare className="w-3 h-3 text-muted-foreground" />;
     }
   };
 
@@ -258,7 +258,7 @@ export default function FeedbackCritiquesPage() {
         <SidebarInset>
           <SiteHeader />
           <div className="p-6">
-            <Card className="border-red-200 bg-red-50 dark:bg-red-950/20">
+            <Card className="border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20">
               <CardContent className="pt-6">
                 <p className="text-red-600 dark:text-red-400">{error}</p>
               </CardContent>
@@ -277,42 +277,42 @@ export default function FeedbackCritiquesPage() {
         <div className="p-6 space-y-6">
           {/* Header */}
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-3">
-              <MessageSquare className="w-8 h-8 text-gray-900" />
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground flex items-center gap-3">
+              <MessageSquare className="w-8 h-8 text-foreground" />
               Feedback Critiques
             </h1>
-            <p className="text-gray-600 dark:text-gray-400 mt-1">
+            <p className="text-gray-600 dark:text-muted-foreground mt-1">
               Student reviews of AI-generated feedback for {moduleName}
             </p>
           </div>
 
           {/* Statistics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <Card className="bg-gray-900 dark:from-gray-800/50 dark:to-gray-900/50 border-gray-200 dark:border-border">
+            <Card className="bg-card text-card-foreground border-border">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-800 dark:text-gray-400 font-medium">Total Students</p>
-                    <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">{studentCritiques.length}</p>
+                    <p className="text-sm text-gray-800 dark:text-muted-foreground font-medium">Total Students</p>
+                    <p className="text-3xl font-bold text-foreground">{studentCritiques.length}</p>
                   </div>
-                  <User className="w-8 h-8 text-gray-900 dark:text-gray-300" />
+                  <User className="w-8 h-8 text-gray-900 dark:text-foreground" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-900 dark:from-gray-800/50 dark:to-gray-900/50 border-gray-200 dark:border-border">
+            <Card className="bg-card text-card-foreground border-border">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-800 dark:text-gray-400 font-medium">Total Critiques</p>
-                    <p className="text-3xl font-bold text-purple-900 dark:text-gray-100">{critiquesData?.total_critiques || 0}</p>
+                    <p className="text-sm text-gray-800 dark:text-muted-foreground font-medium">Total Critiques</p>
+                    <p className="text-3xl font-bold text-foreground">{critiquesData?.total_critiques || 0}</p>
                   </div>
-                  <MessageSquare className="w-8 h-8 text-gray-700 dark:text-gray-400" />
+                  <MessageSquare className="w-8 h-8 text-gray-700 dark:text-muted-foreground" />
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-950/50 dark:to-amber-900/50 border-amber-200 dark:border-amber-800">
+            <Card className="bg-gradient-to-br from-amber-50 to-amber-100 border-amber-200 dark:border-amber-800 dark:bg-none dark:bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -326,7 +326,7 @@ export default function FeedbackCritiquesPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 dark:from-emerald-950/50 dark:to-emerald-900/50 border-emerald-200 dark:border-emerald-800">
+            <Card className="bg-gradient-to-br from-emerald-50 to-emerald-100 border-emerald-200 dark:border-emerald-800 dark:bg-none dark:bg-card">
               <CardContent className="pt-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -369,22 +369,22 @@ export default function FeedbackCritiquesPage() {
               </CardHeader>
               <CardContent className="space-y-3">
                 {filteredStudents.map((student) => (
-                  <div key={student.student_id} className="border border-gray-200 dark:border-gray-700 rounded-lg">
+                  <div key={student.student_id} className="border border-border rounded-lg">
                     {/* Student Header */}
                     <button
                       onClick={() => toggleStudent(student.student_id)}
-                      className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors rounded-lg"
+                      className="w-full p-4 flex items-center justify-between hover:bg-muted/50 transition-colors rounded-lg"
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-gray-100 dark:bg-muted/20 rounded-full flex items-center justify-center">
-                          <User className="w-6 h-6 text-gray-900 dark:text-gray-300" />
+                        <div className="w-12 h-12 bg-muted dark:bg-muted/20 rounded-full flex items-center justify-center">
+                          <User className="w-6 h-6 text-gray-900 dark:text-foreground" />
                         </div>
                         <div className="text-left">
-                          <p className="font-semibold text-gray-900 dark:text-white">
+                          <p className="font-semibold text-gray-900 dark:text-foreground">
                             Student {student.student_id}
                           </p>
                           <div className="flex items-center gap-3 mt-1">
-                            <span className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="text-sm text-gray-600 dark:text-muted-foreground">
                               {student.count} critique{student.count !== 1 ? 's' : ''}
                             </span>
                             <div className="flex items-center gap-1">
@@ -405,25 +405,25 @@ export default function FeedbackCritiquesPage() {
 
                     {/* Student Critiques (Expanded) */}
                     {expandedStudents.has(student.student_id) && (
-                      <div className="border-t border-gray-200 dark:border-gray-700 p-4 space-y-4 bg-gray-50 dark:bg-gray-800/30">
+                      <div className="border-t border-border p-4 space-y-4 bg-muted/50 dark:bg-muted/30">
                         {student.critiques.map((critique, index) => {
                           return (
-                            <div key={critique.id} className="bg-white dark:bg-gray-900 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
+                            <div key={critique.id} className="bg-card p-4 rounded-lg border border-border ">
                               {/* Question */}
                               <div className="mb-3">
                                 <div className="flex items-start gap-2 mb-2">
-                                  <FileText className="w-4 h-4 text-gray-900 mt-1 flex-shrink-0" />
+                                  <FileText className="w-4 h-4 text-foreground mt-1 flex-shrink-0" />
                                   <div className="flex-1">
-                                    <p className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Question:</p>
-                                    <p className="text-sm text-gray-900 dark:text-white mb-2">
+                                    <p className="text-sm font-medium text-gray-700 dark:text-foreground mb-1">Question:</p>
+                                    <p className="text-sm text-gray-900 dark:text-foreground mb-2">
                                       {critique.question?.text || "Question not found"}
                                     </p>
                                     {critique.question?.options && Object.keys(critique.question.options).length > 0 && (
                                       <div className="mt-2 space-y-1">
-                                        <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Options:</p>
+                                        <p className="text-xs font-medium text-gray-600 dark:text-muted-foreground">Options:</p>
                                         <div className="space-y-1">
                                           {Object.entries(critique.question.options).map(([key, value]) => (
-                                            <div key={key} className="text-xs text-gray-700 dark:text-gray-300">
+                                            <div key={key} className="text-xs text-gray-700 dark:text-foreground">
                                               <span className="font-medium">{key}:</span> {value}
                                             </div>
                                           ))}
@@ -437,9 +437,9 @@ export default function FeedbackCritiquesPage() {
                               {/* Student Answer */}
                               {critique.answer && (
                                 <div className="mb-3 pl-6">
-                                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Student Answer:</p>
-                                  <div className="bg-gray-50 dark:bg-muted/20/20 p-3 rounded border border-gray-200 dark:border-border">
-                                    <p className="text-sm text-gray-800 dark:text-gray-200">
+                                  <p className="text-xs font-medium text-gray-600 dark:text-muted-foreground mb-1">Student Answer:</p>
+                                  <div className="bg-muted/50 dark:bg-muted/20 p-3 rounded border border-border ">
+                                    <p className="text-sm text-gray-800 dark:text-foreground">
                                       {formatAnswer(critique.answer.answer, critique.question?.options) || 'No answer provided'}
                                     </p>
                                   </div>
@@ -449,9 +449,9 @@ export default function FeedbackCritiquesPage() {
                               {/* AI Feedback */}
                               {critique.feedback && (
                                 <div className="mb-3 pl-6">
-                                  <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">AI Feedback:</p>
-                                  <div className="bg-gray-50 dark:bg-muted/20/20 p-3 rounded border border-gray-200 dark:border-border">
-                                    <p className="text-sm text-gray-800 dark:text-gray-200">
+                                  <p className="text-xs font-medium text-gray-600 dark:text-muted-foreground mb-1">AI Feedback:</p>
+                                  <div className="bg-muted/50 dark:bg-muted/20 p-3 rounded border border-border ">
+                                    <p className="text-sm text-gray-800 dark:text-foreground">
                                       {critique.feedback.feedback_text || 'No feedback text'}
                                     </p>
                                   </div>
@@ -459,8 +459,8 @@ export default function FeedbackCritiquesPage() {
                               )}
 
                               {/* Student Critique */}
-                              <div className="pl-6 pt-3 border-t border-gray-200 dark:border-gray-700">
-                                <p className="text-xs font-medium text-gray-600 dark:text-gray-400 mb-2">Student&apos;s Critique:</p>
+                              <div className="pl-6 pt-3 border-t border-border ">
+                                <p className="text-xs font-medium text-gray-600 dark:text-muted-foreground mb-2">Student&apos;s Critique:</p>
 
                                 <div className="flex items-center gap-3 mb-2">
                                   <div className="flex items-center gap-1">
@@ -470,7 +470,7 @@ export default function FeedbackCritiquesPage() {
                                         className={`w-4 h-4 ${
                                           i < critique.rating
                                             ? 'fill-yellow-400 text-yellow-400'
-                                            : 'text-gray-300 dark:text-gray-600'
+                                            : 'text-gray-300 dark:text-muted-foreground'
                                         }`}
                                       />
                                     ))}
@@ -489,13 +489,13 @@ export default function FeedbackCritiquesPage() {
 
                                 {critique.comment && (
                                   <div className="bg-yellow-50 dark:bg-yellow-950/20 p-3 rounded border border-yellow-200 dark:border-yellow-800">
-                                    <p className="text-sm text-gray-800 dark:text-gray-200 italic">
+                                    <p className="text-sm text-gray-800 dark:text-foreground italic">
                                       &quot;{critique.comment}&quot;
                                     </p>
                                   </div>
                                 )}
 
-                                <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                                <p className="text-xs text-gray-500 dark:text-muted-foreground mt-2">
                                   Submitted on {new Date(critique.created_at).toLocaleDateString('en-US', {
                                     year: 'numeric',
                                     month: 'short',
@@ -518,10 +518,10 @@ export default function FeedbackCritiquesPage() {
             <Card>
               <CardContent className="py-12 text-center">
                 <MessageSquare className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">
+                <h3 className="text-lg font-medium text-gray-900 dark:text-foreground mb-2">
                   {searchTerm ? 'No students found' : 'No Feedback Critiques Yet'}
                 </h3>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-muted-foreground">
                   {searchTerm
                     ? 'Try adjusting your search terms'
                     : 'Students haven\'t submitted any critiques for AI feedback in this module yet.'

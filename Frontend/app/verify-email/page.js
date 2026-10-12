@@ -168,21 +168,21 @@ function VerifyEmailContent() {
 
   if (verifyingToken) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-950">
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-lg shadow-lg text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-card dark:to-background">
+        <div className="bg-card dark:bg-muted p-8 rounded-lg shadow-lg text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-slate-300">Verifying your email...</p>
+          <p className="text-gray-600 dark:text-foreground">Verifying your email...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-950 p-4">
-      <div className="bg-white dark:bg-slate-800 p-8 rounded-lg shadow-lg max-w-md w-full">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-card dark:to-background p-4">
+      <div className="bg-card dark:bg-muted p-8 rounded-lg shadow-lg max-w-md w-full">
         <div className="text-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800 dark:text-white mb-2">Verify Your Email</h1>
-          <p className="text-gray-600 dark:text-slate-300">
+          <h1 className="text-3xl font-bold text-gray-800 dark:text-foreground mb-2">Verify Your Email</h1>
+          <p className="text-gray-600 dark:text-foreground">
             We sent a verification code to
           </p>
           <p className="font-semibold text-indigo-600 dark:text-indigo-400">{email || 'your email'}</p>
@@ -203,7 +203,7 @@ function VerifyEmailContent() {
         {!success && (
           <>
             <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2 text-center">
+              <label className="block text-sm font-medium text-gray-700 dark:text-foreground mb-2 text-center">
                 Enter 6-digit code
               </label>
               <div className="flex gap-2 justify-center">
@@ -217,7 +217,7 @@ function VerifyEmailContent() {
                     onChange={(e) => handleCodeChange(index, e.target.value)}
                     onKeyDown={(e) => handleKeyDown(index, e)}
                     onPaste={index === 0 ? handlePaste : undefined}
-                    className="w-12 h-14 text-center text-2xl font-bold border-2 border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-gray-900 dark:text-white rounded-lg focus:border-indigo-500 dark:focus:border-indigo-400 focus:outline-none transition"
+                    className="w-12 h-14 text-center text-2xl font-bold border-2 border-border bg-card dark:bg-muted text-gray-900 dark:text-foreground rounded-lg focus:border-indigo-500 dark:focus:border-indigo-400 focus:outline-none transition"
                     disabled={loading}
                   />
                 ))}
@@ -233,20 +233,20 @@ function VerifyEmailContent() {
             </button>
 
             <div className="text-center">
-              <p className="text-sm text-gray-600 dark:text-slate-300 mb-2">
+              <p className="text-sm text-gray-600 dark:text-foreground mb-2">
                 Didn&apos;t receive the code?
               </p>
               <button
                 onClick={handleResendEmail}
                 disabled={resending}
-                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold text-sm disabled:text-gray-400 dark:disabled:text-slate-500"
+                className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold text-sm disabled:text-gray-400 dark:disabled:text-muted-foreground"
               >
                 {resending ? 'Sending...' : 'Resend Email'}
               </button>
             </div>
 
-            <div className="mt-6 pt-6 border-t border-gray-200 dark:border-slate-700 text-center">
-              <p className="text-sm text-gray-600 dark:text-slate-300">
+            <div className="mt-6 pt-6 border-t border-border text-center">
+              <p className="text-sm text-gray-600 dark:text-foreground">
                 Wrong email?{' '}
                 <Link href="/sign-up" className="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-semibold">
                   Register again
@@ -263,10 +263,10 @@ function VerifyEmailContent() {
 export default function VerifyEmail() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-slate-900 dark:to-slate-950">
-        <div className="bg-white dark:bg-slate-800 p-8 rounded-lg shadow-lg text-center">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-card dark:to-background">
+        <div className="bg-card dark:bg-muted p-8 rounded-lg shadow-lg text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-600 dark:border-indigo-400 mx-auto mb-4"></div>
-          <p className="text-gray-600 dark:text-slate-300">Loading...</p>
+          <p className="text-gray-600 dark:text-foreground">Loading...</p>
         </div>
       </div>
     }>

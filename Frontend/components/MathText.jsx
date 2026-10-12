@@ -1,3 +1,4 @@
+import { QuestionEmbeds } from "@/components/QuestionEmbeds";
 import ReactMarkdown from "react-markdown";
 import remarkMath from "remark-math";
 import rehypeKatex from "rehype-katex";
@@ -9,7 +10,7 @@ import { normalizeMathText } from "@/lib/mathText.mjs";
 // Plain text with no $ delimiters renders unchanged.
 // Pass `inline` when embedding inside a <span>/<p> (e.g. an MCQ option chip)
 // so it doesn't emit a block-level <p>, which isn't valid inside those.
-export function MathText({ children, className, inline = false }) {
+export function MathText({ children, className, inline = false, embedLinks = false }) {
   if (!children) return null;
 
   const Wrapper = inline ? "span" : "div";
@@ -23,6 +24,7 @@ export function MathText({ children, className, inline = false }) {
       >
         {normalizeMathText(children)}
       </ReactMarkdown>
+      {embedLinks && !inline && <QuestionEmbeds text={children} />}
     </Wrapper>
   );
 }

@@ -77,7 +77,7 @@ export default function QuestionTypeSettings({ value, onChange }) {
           const enabled = settings.enabled ?? true;
 
           return (
-            <Card key={type} className="border-2 border-slate-200 dark:border-slate-700 hover:border-purple-400 dark:hover:border-purple-600 transition-all duration-300 bg-white dark:bg-slate-900 shadow-md hover:shadow-lg">
+            <Card key={type} className="border-2 border-border hover:border-purple-400 dark:hover:border-purple-600 transition-all duration-300 bg-card shadow-md hover:shadow-lg">
               <CardContent className="pt-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -85,8 +85,8 @@ export default function QuestionTypeSettings({ value, onChange }) {
                       {typeIcons[type]}
                     </div>
                     <div>
-                      <Label className="text-base font-bold text-slate-900 dark:text-slate-100">{label}</Label>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
+                      <Label className="text-base font-bold text-slate-900 dark:text-foreground">{label}</Label>
+                      <p className="text-xs text-slate-600 dark:text-muted-foreground mt-0.5">
                         Configure grading for {label.toLowerCase()} questions
                       </p>
                     </div>
@@ -99,7 +99,7 @@ export default function QuestionTypeSettings({ value, onChange }) {
                 </div>
 
                 {enabled && (
-                  <div className="space-y-4 pt-4 border-t-2 border-slate-200 dark:border-slate-700">
+                  <div className="space-y-4 pt-4 border-t-2 border-border ">
                     <div className="space-y-3 p-4 rounded-lg bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 border-2 border-blue-200 dark:border-blue-800">
                       <div className="flex items-center justify-between">
                         <Label className="text-sm font-bold text-blue-900 dark:text-blue-100">Default Points</Label>
@@ -109,7 +109,7 @@ export default function QuestionTypeSettings({ value, onChange }) {
                           onChange={(e) => handleTypeSettingChange(type, 'default_points', parseInt(e.target.value) || 0)}
                           min={0}
                           max={100}
-                          className="w-28 h-10 text-center text-lg font-bold border-2 border-blue-300 dark:border-blue-700 focus:border-blue-500 dark:focus:border-blue-500"
+                          className="w-28 h-10 text-center text-lg font-bold border-2 border-blue-300 dark:border-blue-700 focus:border-blue-500 "
                         />
                       </div>
                       <p className="text-xs text-blue-800 dark:text-blue-300 font-medium">

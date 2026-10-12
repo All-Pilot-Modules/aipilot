@@ -21,9 +21,9 @@ export default function DocumentsPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center">
             <FileText className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Documents</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Documents</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Upload course materials for AI processing, question generation, and chatbot training.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Upload course materials for AI processing, question generation, and chatbot training.</p>
       </div>
 
       {/* Uploading Documents */}
@@ -34,7 +34,7 @@ export default function DocumentsPage() {
             Uploading Documents
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>To upload course materials:</p>
           <ol className="space-y-3 list-decimal list-inside">
             <li>Navigate to the <strong>Documents</strong> section in your module</li>
@@ -49,11 +49,11 @@ export default function DocumentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <File className="w-5 h-5 text-blue-600" />
+            <File className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Supported File Formats
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The following file formats are supported:</p>
           <div className="flex flex-wrap gap-2 mt-3">
             <Badge variant="outline" className="bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800">
@@ -62,7 +62,7 @@ export default function DocumentsPage() {
             <Badge variant="outline" className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
               Word (.docx)
             </Badge>
-            <Badge variant="outline" className="bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700">
+            <Badge variant="outline" className="bg-muted/50 dark:bg-muted border-border ">
               Text (.txt)
             </Badge>
           </div>
@@ -78,11 +78,11 @@ export default function DocumentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-purple-600" />
+            <Bot className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             AI Processing
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>When you upload a document, the AI automatically:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
@@ -105,11 +105,11 @@ export default function DocumentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Clock className="w-5 h-5 text-amber-600" />
+            <Clock className="w-5 h-5 text-amber-600 dark:text-amber-300" />
             Processing Status
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Each document shows its processing status:</p>
           <div className="space-y-3 mt-3">
             <div className="flex items-center gap-3">
@@ -132,11 +132,11 @@ export default function DocumentsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Trash2 className="w-5 h-5 text-red-600" />
+            <Trash2 className="w-5 h-5 text-red-600 dark:text-red-300" />
             Managing Documents
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>You can manage your uploaded documents:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>View</strong> - Click on a document to see its details and extracted content</li>
@@ -145,7 +145,7 @@ export default function DocumentsPage() {
           </ul>
           <div className="bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4 mt-4">
             <div className="flex items-start gap-2">
-              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <AlertCircle className="w-5 h-5 text-amber-600 dark:text-amber-300 flex-shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700 dark:text-amber-300">
                 <strong>Note:</strong> Deleting a document will not remove questions that were already generated from it.
               </p>

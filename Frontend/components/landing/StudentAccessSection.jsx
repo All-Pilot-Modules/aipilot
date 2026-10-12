@@ -7,7 +7,7 @@ import { FadeIn, ScaleIn } from './AnimationWrapper';
 
 export default function StudentAccessSection() {
   return (
-    <section className="py-24 bg-white dark:bg-slate-950">
+    <section className="py-24 bg-card dark:bg-background">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
         <ScaleIn delay={0.2}>
           <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -20,7 +20,7 @@ export default function StudentAccessSection() {
           </h2>
         </FadeIn>
         <FadeIn delay={0.4}>
-          <p className="text-lg text-slate-600 dark:text-slate-400 mb-8">
+          <p className="text-lg text-slate-600 dark:text-muted-foreground mb-8">
             Join a learning module with your instructor's access code and start learning
           </p>
         </FadeIn>

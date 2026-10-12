@@ -164,13 +164,16 @@ class QuestionGenerationService:
             for i, q in enumerate(generated_questions, 1):
                 print(f"\n--- Question {i} ---")
                 print(f"Type: {q.get('type')}")
-                print(f"Text: {q.get('text')[:100]}..." if len(q.get('text', '')) > 100 else f"Text: {q.get('text')}")
+                text = q.get('text') or ''
+                print(f"Text: {text[:100]}..." if len(text) > 100 else f"Text: {text}")
                 if q.get('type') == 'mcq':
                     print(f"Options: {list(q.get('options', {}).keys())}")
                     print(f"Correct: {q.get('correct_option_id')}")
                 else:
-                    print(f"Correct Answer: {q.get('correct_answer', '')[:80]}..." if len(q.get('correct_answer', '')) > 80 else f"Correct Answer: {q.get('correct_answer', '')}")
-                print(f"Learning Outcome: {q.get('learning_outcome', 'N/A')[:60]}...")
+                    correct_answer = q.get('correct_answer') or ''
+                    print(f"Correct Answer: {correct_answer[:80]}..." if len(correct_answer) > 80 else f"Correct Answer: {correct_answer}")
+                learning_outcome = q.get('learning_outcome') or 'N/A'
+                print(f"Learning Outcome: {learning_outcome[:60]}...")
             print("="*80 + "\n")
 
             logger.info(f"Successfully generated {len(generated_questions)} questions")

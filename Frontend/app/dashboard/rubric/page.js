@@ -163,7 +163,7 @@ function RubricSettingsContent() {
         <AppSidebar />
         <SidebarInset>
           <SiteHeader />
-          <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-100 dark:from-slate-950 dark:via-blue-950/10 dark:to-slate-900">
+          <div className="min-h-screen bg-gradient-to-br from-muted/50 via-blue-50/20 to-muted dark:from-background dark:via-blue-950/10 dark:to-card">
             <div className="p-8 max-w-[1600px] mx-auto">
               {/* Header Skeleton */}
               <div className="mb-10">

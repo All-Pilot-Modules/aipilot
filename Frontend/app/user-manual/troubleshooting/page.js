@@ -21,23 +21,23 @@ export default function TroubleshootingPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-red-500 to-rose-600 flex items-center justify-center">
             <Wrench className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Troubleshooting</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Troubleshooting</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Common issues and solutions for the AI Education Pilot platform.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Common issues and solutions for the AI Education Pilot platform.</p>
       </div>
 
       {/* Document Processing Issues */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileX className="w-5 h-5 text-red-600" />
+            <FileX className="w-5 h-5 text-red-600 dark:text-red-300" />
             Document Processing Issues
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <div className="space-y-4">
             <div className="border-l-4 border-amber-400 pl-4">
-              <h4 className="font-medium text-gray-900 dark:text-white">Document stuck on &quot;Processing&quot;</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Document stuck on &quot;Processing&quot;</h4>
               <p className="text-sm mt-1">If a document remains in processing for more than 10 minutes:</p>
               <ul className="text-sm list-disc list-inside mt-2 space-y-1">
                 <li>Try deleting and re-uploading the document</li>
@@ -46,7 +46,7 @@ export default function TroubleshootingPage() {
               </ul>
             </div>
             <div className="border-l-4 border-amber-400 pl-4">
-              <h4 className="font-medium text-gray-900 dark:text-white">Document processing failed</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Document processing failed</h4>
               <p className="text-sm mt-1">Common causes:</p>
               <ul className="text-sm list-disc list-inside mt-2 space-y-1">
                 <li>Scanned PDFs without OCR text layer</li>
@@ -62,14 +62,14 @@ export default function TroubleshootingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bot className="w-5 h-5 text-purple-600" />
+            <Bot className="w-5 h-5 text-purple-600 dark:text-purple-300" />
             AI Grading Issues
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <div className="space-y-4">
             <div className="border-l-4 border-purple-400 pl-4">
-              <h4 className="font-medium text-gray-900 dark:text-white">Grades seem inaccurate</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Grades seem inaccurate</h4>
               <ul className="text-sm list-disc list-inside mt-2 space-y-1">
                 <li>Review and update your rubric settings</li>
                 <li>Add more specific custom instructions</li>
@@ -78,7 +78,7 @@ export default function TroubleshootingPage() {
               </ul>
             </div>
             <div className="border-l-4 border-purple-400 pl-4">
-              <h4 className="font-medium text-gray-900 dark:text-white">Feedback not generating</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Feedback not generating</h4>
               <ul className="text-sm list-disc list-inside mt-2 space-y-1">
                 <li>Check the feedback status in the Feedback section</li>
                 <li>Try clicking &quot;Retry&quot; on failed feedback</li>
@@ -93,14 +93,14 @@ export default function TroubleshootingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-green-600" />
+            <Users className="w-5 h-5 text-green-600 dark:text-green-300" />
             Student Access Issues
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <div className="space-y-4">
             <div className="border-l-4 border-green-400 pl-4">
-              <h4 className="font-medium text-gray-900 dark:text-white">Student can&apos;t join with access code</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Student can&apos;t join with access code</h4>
               <ul className="text-sm list-disc list-inside mt-2 space-y-1">
                 <li>Verify the code hasn&apos;t been regenerated</li>
                 <li>Check for typos in the code</li>
@@ -108,7 +108,7 @@ export default function TroubleshootingPage() {
               </ul>
             </div>
             <div className="border-l-4 border-green-400 pl-4">
-              <h4 className="font-medium text-gray-900 dark:text-white">Student not seeing questions</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Student not seeing questions</h4>
               <ul className="text-sm list-disc list-inside mt-2 space-y-1">
                 <li>Verify questions are approved (not pending)</li>
                 <li>Check if questions are set to visible</li>
@@ -123,14 +123,14 @@ export default function TroubleshootingPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Mail className="w-5 h-5 text-blue-600" />
+            <Mail className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Account Issues
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <div className="space-y-4">
             <div className="border-l-4 border-blue-400 pl-4">
-              <h4 className="font-medium text-gray-900 dark:text-white">Verification email not received</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Verification email not received</h4>
               <ul className="text-sm list-disc list-inside mt-2 space-y-1">
                 <li>Check spam/junk folder</li>
                 <li>Add our email domain to your whitelist</li>
@@ -138,7 +138,7 @@ export default function TroubleshootingPage() {
               </ul>
             </div>
             <div className="border-l-4 border-blue-400 pl-4">
-              <h4 className="font-medium text-gray-900 dark:text-white">Can&apos;t log in</h4>
+              <h4 className="font-medium text-gray-900 dark:text-foreground">Can&apos;t log in</h4>
               <ul className="text-sm list-disc list-inside mt-2 space-y-1">
                 <li>Use the &quot;Forgot Password&quot; feature to reset</li>
                 <li>Ensure your email is verified</li>
@@ -157,7 +157,7 @@ export default function TroubleshootingPage() {
             General Tips
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
               <RefreshCw className="w-4 h-4 text-emerald-500 mt-1 flex-shrink-0" />
@@ -183,13 +183,13 @@ export default function TroubleshootingPage() {
       <Card className="bg-gradient-to-br from-blue-50/50 to-indigo-50/30 dark:from-blue-950/20 dark:to-indigo-950/10">
         <CardContent className="p-6">
           <div className="flex items-start gap-3">
-            <HelpCircle className="w-6 h-6 text-blue-600 flex-shrink-0" />
+            <HelpCircle className="w-6 h-6 text-blue-600 dark:text-blue-300 flex-shrink-0" />
             <div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">Still need help?</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+              <h3 className="font-semibold text-gray-900 dark:text-foreground mb-2">Still need help?</h3>
+              <p className="text-sm text-gray-600 dark:text-muted-foreground mb-3">
                 If you&apos;re experiencing an issue not covered here, please contact our support team. Include:
               </p>
-              <ul className="text-sm text-gray-600 dark:text-gray-400 list-disc list-inside space-y-1">
+              <ul className="text-sm text-gray-600 dark:text-muted-foreground list-disc list-inside space-y-1">
                 <li>A description of the problem</li>
                 <li>Steps to reproduce the issue</li>
                 <li>Screenshots if applicable</li>

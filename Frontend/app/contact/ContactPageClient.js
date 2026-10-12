@@ -37,16 +37,16 @@ export default function ContactPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-950 dark:via-blue-950/10 dark:to-purple-950/10">
+    <div className="min-h-screen bg-gradient-to-br from-muted/50 via-blue-50/30 to-purple-50/20 dark:from-background dark:via-blue-950/10 dark:to-purple-950/10">
       {/* Header */}
-      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-lg border-b border-gray-200 dark:border-gray-800 sticky top-0 z-50">
+      <header className="bg-card/80 backdrop-blur-lg border-b border-border sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Link href="/" className="flex items-center gap-3">
               <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center">
                 <span className="text-white font-bold text-lg">AI</span>
               </div>
-              <span className="text-xl font-bold text-gray-900 dark:text-white">AI Education Pilot</span>
+              <span className="text-xl font-bold text-gray-900 dark:text-foreground">AI Education Pilot</span>
             </Link>
             <Button variant="outline" asChild>
               <Link href="/">
@@ -65,13 +65,13 @@ export default function ContactPage() {
             <MessageSquare className="w-4 h-4 mr-2 text-blue-500" />
             Get in Touch
           </Badge>
-          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-white mb-6">
+          <h1 className="text-5xl md:text-6xl font-bold text-gray-900 dark:text-foreground mb-6">
             Contact
-            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-purple-600">
+            <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-600 dark:from-blue-300 to-purple-600 dark:to-purple-300">
               Our Team
             </span>
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 dark:text-muted-foreground max-w-2xl mx-auto">
             Have questions, suggestions, or need help? We&apos;d love to hear from you!
           </p>
         </div>
@@ -80,7 +80,7 @@ export default function ContactPage() {
           {/* Contact Form */}
           <Card className="border-0 shadow-lg">
             <CardContent className="p-8">
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Send us a message</h2>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-foreground mb-6">Send us a message</h2>
 
               {submitted && (
                 <div className="mb-6 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
@@ -164,11 +164,11 @@ export default function ContactPage() {
                     <Mail className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Email Us</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">Email Us</h3>
+                    <p className="text-gray-600 dark:text-muted-foreground mb-4">
                       For general inquiries and support
                     </p>
-                    <a href="mailto:support@aieducationpilot.com" className="text-blue-600 hover:underline font-medium">
+                    <a href="mailto:support@aieducationpilot.com" className="text-blue-600 dark:text-blue-300 hover:underline font-medium">
                       support@aieducationpilot.com
                     </a>
                   </div>
@@ -183,8 +183,8 @@ export default function ContactPage() {
                     <Github className="w-6 h-6 text-white" />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">GitHub Issues</h3>
-                    <p className="text-gray-600 dark:text-gray-400 mb-4">
+                    <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-2">GitHub Issues</h3>
+                    <p className="text-gray-600 dark:text-muted-foreground mb-4">
                       Report bugs or request features
                     </p>
                     <Button asChild variant="outline">
@@ -200,21 +200,21 @@ export default function ContactPage() {
 
             <Card className="border-0 shadow-lg">
               <CardContent className="p-8">
-                <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Common Topics</h3>
+                <h3 className="text-xl font-bold text-gray-900 dark:text-foreground mb-4">Common Topics</h3>
                 <div className="space-y-3">
-                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-muted-foreground">
                     <HelpCircle className="w-5 h-5 text-blue-500" />
                     <span>General support and questions</span>
                   </div>
-                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-muted-foreground">
                     <Bug className="w-5 h-5 text-red-500" />
                     <span>Bug reports and issues</span>
                   </div>
-                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-muted-foreground">
                     <Lightbulb className="w-5 h-5 text-yellow-500" />
                     <span>Feature requests and suggestions</span>
                   </div>
-                  <div className="flex items-center gap-3 text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-3 text-gray-600 dark:text-muted-foreground">
                     <Github className="w-5 h-5 text-purple-500" />
                     <span>Contributing to the project</span>
                   </div>
@@ -227,32 +227,32 @@ export default function ContactPage() {
         {/* FAQ Section */}
         <Card className="border-0 shadow-lg">
           <CardContent className="p-12">
-            <h2 className="text-3xl font-bold text-gray-900 dark:text-white text-center mb-12">
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-foreground text-center mb-12">
               Frequently Asked Questions
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Is AI Education Pilot really free?</h3>
-                <p className="text-gray-600 dark:text-gray-400">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-foreground mb-2">Is AI Education Pilot really free?</h3>
+                <p className="text-gray-600 dark:text-muted-foreground">
                   Yes! AI Education Pilot is 100% free and open source under the MIT License. You can use it, modify it, and even sell services based on it without any fees.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Can I self-host this platform?</h3>
-                <p className="text-gray-600 dark:text-gray-400">
+                <h3 className="text-lg font-bold text-gray-900 dark:text-foreground mb-2">Can I self-host this platform?</h3>
+                <p className="text-gray-600 dark:text-muted-foreground">
                   Absolutely! Download the source code from GitHub and deploy it on your own servers. You have complete control over your data.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">How do I report a bug?</h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Please open an issue on our <Link href="https://github.com/All-Pilot-Modules/ai-pilot/issues" className="text-blue-600 hover:underline">GitHub repository</Link>. Include steps to reproduce the issue and any error messages.
+                <h3 className="text-lg font-bold text-gray-900 dark:text-foreground mb-2">How do I report a bug?</h3>
+                <p className="text-gray-600 dark:text-muted-foreground">
+                  Please open an issue on our <Link href="https://github.com/All-Pilot-Modules/ai-pilot/issues" className="text-blue-600 dark:text-blue-300 hover:underline">GitHub repository</Link>. Include steps to reproduce the issue and any error messages.
                 </p>
               </div>
               <div>
-                <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-2">Can I contribute to the project?</h3>
-                <p className="text-gray-600 dark:text-gray-400">
-                  Yes! We welcome contributions. Check out our <Link href="https://github.com/All-Pilot-Modules/ai-pilot" className="text-blue-600 hover:underline">GitHub repository</Link> for contribution guidelines.
+                <h3 className="text-lg font-bold text-gray-900 dark:text-foreground mb-2">Can I contribute to the project?</h3>
+                <p className="text-gray-600 dark:text-muted-foreground">
+                  Yes! We welcome contributions. Check out our <Link href="https://github.com/All-Pilot-Modules/ai-pilot" className="text-blue-600 dark:text-blue-300 hover:underline">GitHub repository</Link> for contribution guidelines.
                 </p>
               </div>
             </div>
@@ -261,7 +261,7 @@ export default function ContactPage() {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-300 border-t border-gray-800 mt-20">
+      <footer className="bg-primary text-primary-foreground border-t border-gray-800 mt-20">
         <div className="max-w-7xl mx-auto px-4 py-8">
           <div className="text-center text-sm">
             <p>© 2024 AI Education Pilot. Open source and free forever.</p>

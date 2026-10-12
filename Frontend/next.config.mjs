@@ -72,6 +72,8 @@ const nextConfig = {
 
   // ========== HEADERS FOR CACHING ==========
   async headers() {
+    // Development bundles change at stable URLs during hot reload.
+    if (process.env.NODE_ENV !== 'production') return [];
     return [
       {
         source: '/:all*(svg|jpg|jpeg|png|gif|ico|webp|avif)',

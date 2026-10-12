@@ -24,11 +24,11 @@ export default function FinalCTA() {
         </FadeIn>
         <ScaleIn delay={0.4}>
           {isAuthenticated ? (
-            <Button asChild size="lg" className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-6 text-lg">
+            <Button asChild size="lg" className="bg-card text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 px-8 py-6 text-lg">
               <Link href={dashboardHref}>Go to Dashboard</Link>
             </Button>
           ) : (
-            <Button asChild size="lg" className="bg-white text-blue-600 hover:bg-blue-50 px-8 py-6 text-lg">
+            <Button asChild size="lg" className="bg-card text-blue-600 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40 px-8 py-6 text-lg">
               <Link href="/sign-up">Get Started Free - No Credit Card Required</Link>
             </Button>
           )}

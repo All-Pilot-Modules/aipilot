@@ -13,13 +13,13 @@ export default function HeroSection() {
   const dashboardLabel = user?.role === 'student' ? 'Go to My Dashboard' : 'Go to Dashboard';
 
   return (
-    <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white to-slate-50 dark:from-slate-900 dark:to-slate-950 px-4 py-12 md:py-20">
+    <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-card to-muted/50 dark:to-background px-4 py-12 md:py-20">
       <div className="max-w-6xl w-full mx-auto grid grid-cols-1 md:grid-cols-2 gap-12 md:gap-16 lg:gap-20 items-center">
         
         {/* Left: Playful 3D Visual */}
         <SlideInLeft duration={0.8} className="order-2 md:order-1 flex justify-center items-center px-4 md:px-0">
           <Float duration={4}>
-            <div className="relative w-full max-w-sm sm:max-w-md md:max-w-lg transition-transform hover:scale-105 duration-300 dark:bg-slate-800 dark:rounded-[2rem] dark:overflow-hidden dark:shadow-2xl">
+            <div className="relative w-full max-w-sm sm:max-w-md md:max-w-lg transition-transform hover:scale-105 duration-300 dark:bg-muted dark:rounded-[2rem] dark:overflow-hidden dark:shadow-2xl">
               <Image
                 src="/images/10312453.png"
                 alt="AI Education Platform Illustration"
@@ -53,7 +53,7 @@ export default function HeroSection() {
 
              */}
               {/* Soft Shadow */}
-              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-48 h-6 bg-slate-300/60 dark:bg-slate-700/30 rounded-[100%] blur-xl" />
+              <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 w-48 h-6 bg-slate-300/60 dark:bg-muted/30 rounded-[100%] blur-xl" />
             </div>
           </Float>
         </SlideInLeft>
@@ -61,14 +61,14 @@ export default function HeroSection() {
         {/* Right: Bold Minimalist Content */}
         <SlideInRight duration={0.8} className="order-1 md:order-2 flex flex-col items-center md:items-start text-center md:text-left space-y-6 px-4 md:px-0">
           <FadeIn delay={0.2} duration={0.8}>
-            <h1 className="text-3xl sm:text-4xl md:text-4xl lg:text-5xl xl:text-5xl font-black tracking-tight text-slate-900 dark:text-white leading-[1.1]">
+            <h1 className="text-3xl sm:text-4xl md:text-4xl lg:text-5xl xl:text-5xl font-black tracking-tight text-slate-900 dark:text-foreground leading-[1.1]">
               <span className="whitespace-nowrap">AI-powered learning</span><br />
               that actually works.
             </h1>
           </FadeIn>
 
           <FadeIn delay={0.4} duration={0.8}>
-            <p className="text-base sm:text-lg md:text-xl font-medium text-slate-600 dark:text-slate-300 max-w-md">
+            <p className="text-base sm:text-lg md:text-xl font-medium text-slate-600 dark:text-foreground max-w-md">
               Integrate AI in your teaching and learning
             </p>
           </FadeIn>
@@ -94,7 +94,7 @@ export default function HeroSection() {
                 <Button
                   asChild
                   variant="outline"
-                  className="h-12 sm:h-14 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-emerald-700 dark:text-emerald-400 border-2 border-b-4 border-emerald-700 dark:border-emerald-600 hover:border-emerald-800 active:border-b-2 active:translate-y-1 transition-all rounded-2xl text-base sm:text-lg font-bold uppercase tracking-wider"
+                  className="h-12 sm:h-14 bg-card dark:bg-muted hover:bg-muted/50 dark:hover:bg-muted text-emerald-700 dark:text-emerald-400 border-2 border-b-4 border-emerald-700 dark:border-emerald-600 hover:border-emerald-800 active:border-b-2 active:translate-y-1 transition-all rounded-2xl text-base sm:text-lg font-bold uppercase tracking-wider"
                 >
                   <Link href="/sign-in">I already have an account</Link>
                 </Button>

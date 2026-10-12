@@ -11,7 +11,7 @@ const Footer = dynamic(() => import('./Footer'));
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-950">
+    <div className="min-h-screen bg-card dark:bg-background">
       <main id="main-content">
         <HeroSection />
         <HowItWorksSection />

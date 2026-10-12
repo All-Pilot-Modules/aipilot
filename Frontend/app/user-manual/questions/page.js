@@ -22,9 +22,9 @@ export default function QuestionsPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center">
             <HelpCircle className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Questions</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Questions</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Generate questions from documents, create manual questions, and manage your question bank.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Generate questions from documents, create manual questions, and manage your question bank.</p>
       </div>
 
       {/* AI Question Generation */}
@@ -35,7 +35,7 @@ export default function QuestionsPage() {
             AI Question Generation
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>To generate questions automatically:</p>
           <ol className="space-y-3 list-decimal list-inside">
             <li>Ensure you have uploaded and processed documents</li>
@@ -57,32 +57,32 @@ export default function QuestionsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ListChecks className="w-5 h-5 text-blue-600" />
+            <ListChecks className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Question Types
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>The platform supports multiple question types:</p>
           <div className="space-y-3 mt-3">
-            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
               <FileText className="w-5 h-5 text-blue-500 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white text-sm">Short Answer</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Students provide a brief text response. AI grades based on rubric criteria.</p>
+                <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">Short Answer</h4>
+                <p className="text-xs text-gray-500 dark:text-muted-foreground">Students provide a brief text response. AI grades based on rubric criteria.</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
               <FileText className="w-5 h-5 text-purple-500 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white text-sm">Long Answer / Essay</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Extended responses for deeper analysis. AI provides detailed feedback.</p>
+                <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">Long Answer / Essay</h4>
+                <p className="text-xs text-gray-500 dark:text-muted-foreground">Extended responses for deeper analysis. AI provides detailed feedback.</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
               <ListChecks className="w-5 h-5 text-green-500 flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white text-sm">Multiple Choice</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Select from predefined options. Auto-graded instantly.</p>
+                <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">Multiple Choice</h4>
+                <p className="text-xs text-gray-500 dark:text-muted-foreground">Select from predefined options. Auto-graded instantly.</p>
               </div>
             </div>
           </div>
@@ -93,11 +93,11 @@ export default function QuestionsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Plus className="w-5 h-5 text-emerald-600" />
+            <Plus className="w-5 h-5 text-emerald-600 dark:text-emerald-300" />
             Creating Questions Manually
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>To create a question manually:</p>
           <ol className="space-y-2 list-decimal list-inside">
             <li>Click <strong>&quot;Add Question&quot;</strong> in the Questions section</li>
@@ -114,11 +114,11 @@ export default function QuestionsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <CheckCircle className="w-5 h-5 text-green-600" />
+            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300" />
             Reviewing & Approving Questions
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>AI-generated questions require review before students can see them:</p>
           <div className="space-y-3 mt-3">
             <div className="flex items-center gap-3">
@@ -147,11 +147,11 @@ export default function QuestionsPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Edit className="w-5 h-5 text-amber-600" />
+            <Edit className="w-5 h-5 text-amber-600 dark:text-amber-300" />
             Editing & Deleting Questions
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>You can modify questions at any time:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">

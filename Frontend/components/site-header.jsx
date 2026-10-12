@@ -28,7 +28,7 @@ export function SiteHeader() {
   
   return (
     (<header
-      className="flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-gradient-to-r from-white to-gray-50/50 dark:from-gray-900 dark:to-gray-800/50 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
+      className="flex h-(--header-height) shrink-0 items-center gap-2 border-b bg-gradient-to-r from-card to-muted/50 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-(--header-height)">
       <div className="flex w-full items-center gap-1 px-4 lg:gap-2 lg:px-6">
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mx-2 data-[orientation=vertical]:h-4" />
@@ -45,7 +45,7 @@ export function SiteHeader() {
           {moduleName && (
             <>
               <span className="text-muted-foreground">•</span>
-              <span className="px-2 py-1 text-xs bg-gray-100 dark:bg-muted/20 text-gray-800 dark:text-gray-400 rounded-full font-medium">
+              <span className="px-2 py-1 text-xs bg-muted dark:bg-muted/20 text-gray-800 dark:text-muted-foreground rounded-full font-medium">
                 {moduleName}
               </span>
             </>

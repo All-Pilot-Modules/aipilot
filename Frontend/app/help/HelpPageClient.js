@@ -7,7 +7,7 @@ import { HelpCircle, Book, MessageCircle, FileText, ArrowLeft, Users, Graduation
 
 export default function HelpPage() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50/30 to-purple-50/30 dark:from-gray-950 dark:via-blue-950/10 dark:to-purple-950/10">
+    <div className="min-h-screen bg-gradient-to-br from-muted/50 via-blue-50/30 to-purple-50/30 dark:from-background dark:via-blue-950/10 dark:to-purple-950/10">
       {/* Simple Header */}
      
 
@@ -18,10 +18,10 @@ export default function HelpPage() {
           <div className="inline-flex w-20 h-20 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl items-center justify-center mx-auto mb-6 shadow-xl">
             <HelpCircle className="w-10 h-10 text-white" />
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-white mb-4">
+          <h1 className="text-4xl md:text-5xl font-bold text-gray-900 dark:text-foreground mb-4">
             Help Center
           </h1>
-          <p className="text-xl text-gray-600 dark:text-gray-400 max-w-2xl mx-auto">
+          <p className="text-xl text-gray-600 dark:text-muted-foreground max-w-2xl mx-auto">
             Everything you need to know about using AI Education Pilot
           </p>
         </div>
@@ -36,40 +36,40 @@ export default function HelpPage() {
           </CardHeader>
           <CardContent className="pt-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="flex items-start gap-4 p-6 rounded-xl bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-start gap-4 p-6 rounded-xl bg-card dark:bg-muted border border-emerald-200 dark:border-emerald-800">
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold text-lg">
                   1
                 </div>
                 <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 text-lg">Create Your Account</h4>
-                  <p className="text-gray-600 dark:text-gray-400">Sign up for free and create your educator or student account</p>
+                  <h4 className="font-semibold text-gray-900 dark:text-foreground mb-2 text-lg">Create Your Account</h4>
+                  <p className="text-gray-600 dark:text-muted-foreground">Sign up for free and create your educator or student account</p>
                 </div>
               </div>
-              <div className="flex items-start gap-4 p-6 rounded-xl bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-start gap-4 p-6 rounded-xl bg-card dark:bg-muted border border-emerald-200 dark:border-emerald-800">
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold text-lg">
                   2
                 </div>
                 <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 text-lg">Create a Module</h4>
-                  <p className="text-gray-600 dark:text-gray-400">Set up your first learning module and add questions</p>
+                  <h4 className="font-semibold text-gray-900 dark:text-foreground mb-2 text-lg">Create a Module</h4>
+                  <p className="text-gray-600 dark:text-muted-foreground">Set up your first learning module and add questions</p>
                 </div>
               </div>
-              <div className="flex items-start gap-4 p-6 rounded-xl bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-start gap-4 p-6 rounded-xl bg-card dark:bg-muted border border-emerald-200 dark:border-emerald-800">
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold text-lg">
                   3
                 </div>
                 <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 text-lg">Configure AI Grading</h4>
-                  <p className="text-gray-600 dark:text-gray-400">Set up your rubric and AI feedback settings</p>
+                  <h4 className="font-semibold text-gray-900 dark:text-foreground mb-2 text-lg">Configure AI Grading</h4>
+                  <p className="text-gray-600 dark:text-muted-foreground">Set up your rubric and AI feedback settings</p>
                 </div>
               </div>
-              <div className="flex items-start gap-4 p-6 rounded-xl bg-white dark:bg-gray-800 border border-emerald-200 dark:border-emerald-800">
+              <div className="flex items-start gap-4 p-6 rounded-xl bg-card dark:bg-muted border border-emerald-200 dark:border-emerald-800">
                 <div className="flex-shrink-0 w-10 h-10 rounded-full bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center text-emerald-700 dark:text-emerald-300 font-bold text-lg">
                   4
                 </div>
                 <div>
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-2 text-lg">Invite Students</h4>
-                  <p className="text-gray-600 dark:text-gray-400">Share your module access code with students</p>
+                  <h4 className="font-semibold text-gray-900 dark:text-foreground mb-2 text-lg">Invite Students</h4>
+                  <p className="text-gray-600 dark:text-muted-foreground">Share your module access code with students</p>
                 </div>
               </div>
             </div>
@@ -78,7 +78,7 @@ export default function HelpPage() {
 
         {/* Main Features */}
         <div className="mb-12">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-8 text-center">Main Features</h2>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-foreground mb-8 text-center">Main Features</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <Card className="border-2 border-blue-200 dark:border-blue-800 hover:shadow-lg transition-shadow">
               <CardHeader>
@@ -88,7 +88,7 @@ export default function HelpPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-muted-foreground">
                   Create and manage educational modules. Organize courses and track student progress all in one place.
                 </p>
               </CardContent>
@@ -102,7 +102,7 @@ export default function HelpPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-muted-foreground">
                   Create MCQ, short answer, and long answer questions with AI-powered grading and instant feedback.
                 </p>
               </CardContent>
@@ -116,7 +116,7 @@ export default function HelpPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-muted-foreground">
                   Monitor student performance, view submissions, and provide personalized feedback with AI assistance.
                 </p>
               </CardContent>
@@ -130,7 +130,7 @@ export default function HelpPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-muted-foreground">
                   Configure AI rubrics with custom criteria, weights, and thresholds for automated grading.
                 </p>
               </CardContent>
@@ -144,7 +144,7 @@ export default function HelpPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-muted-foreground">
                   View comprehensive performance metrics and insights across all your modules and students.
                 </p>
               </CardContent>
@@ -158,7 +158,7 @@ export default function HelpPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-gray-600 dark:text-muted-foreground">
                   Access learning materials, documentation, and support from our research lab.
                 </p>
               </CardContent>
@@ -167,7 +167,7 @@ export default function HelpPage() {
         </div>
 
         {/* FAQ Section */}
-        <Card className="mb-12 border-2 border-gray-200 dark:border-gray-700">
+        <Card className="mb-12 border-2 border-border ">
           <CardHeader className="border-b">
             <CardTitle className="flex items-center gap-2 text-2xl">
               <HelpCircle className="w-6 h-6 text-blue-600 dark:text-blue-400" />
@@ -177,25 +177,25 @@ export default function HelpPage() {
           <CardContent className="space-y-6 pt-6">
             <div className="p-5 rounded-lg bg-blue-50 dark:bg-blue-950/20 border-l-4 border-blue-500">
               <h4 className="font-bold mb-2 text-blue-900 dark:text-blue-100 text-lg">How do I get started?</h4>
-              <p className="text-gray-700 dark:text-gray-300">
+              <p className="text-gray-700 dark:text-foreground">
                 Sign up for a free account, create your first module, add questions, configure AI grading, and share the access code with students.
               </p>
             </div>
             <div className="p-5 rounded-lg bg-green-50 dark:bg-green-950/20 border-l-4 border-green-500">
               <h4 className="font-bold mb-2 text-green-900 dark:text-green-100 text-lg">How do students join?</h4>
-              <p className="text-gray-700 dark:text-gray-300">
+              <p className="text-gray-700 dark:text-foreground">
                 Students can join using the unique access code provided for each module. They can enter the code at the /join page.
               </p>
             </div>
             <div className="p-5 rounded-lg bg-purple-50 dark:bg-purple-950/20 border-l-4 border-purple-500">
               <h4 className="font-bold mb-2 text-purple-900 dark:text-purple-100 text-lg">How does AI grading work?</h4>
-              <p className="text-gray-700 dark:text-gray-300">
+              <p className="text-gray-700 dark:text-foreground">
                 Configure your rubric with grading criteria and weights. The AI evaluates answers based on your settings and provides detailed feedback.
               </p>
             </div>
             <div className="p-5 rounded-lg bg-orange-50 dark:bg-orange-950/20 border-l-4 border-orange-500">
               <h4 className="font-bold mb-2 text-orange-900 dark:text-orange-100 text-lg">Is it really free?</h4>
-              <p className="text-gray-700 dark:text-gray-300">
+              <p className="text-gray-700 dark:text-foreground">
                 Yes! AI Education Pilot is 100% free and open source under the MIT license. You can self-host it or use our hosted version.
               </p>
             </div>
@@ -206,12 +206,12 @@ export default function HelpPage() {
         <Card className="border-2 border-blue-200 dark:border-blue-800 bg-gradient-to-br from-blue-50/50 to-indigo-50/30 dark:from-blue-950/20 dark:to-indigo-950/10">
           <CardContent className="p-8 text-center">
             <MessageCircle className="w-16 h-16 mx-auto mb-4 text-blue-600 dark:text-blue-400" />
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white mb-3">Need More Help?</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-6 max-w-2xl mx-auto">
+            <h3 className="text-2xl font-bold text-gray-900 dark:text-foreground mb-3">Need More Help?</h3>
+            <p className="text-gray-600 dark:text-muted-foreground mb-6 max-w-2xl mx-auto">
               Visit our research lab for comprehensive documentation and community support.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700">
+              <Button asChild size="lg" className="bg-blue-600 hover:bg-blue-700 text-white">
                 <a href="https://brockportsigai.org" target="_blank" rel="noopener noreferrer">
                   <BookOpen className="w-5 h-5 mr-2" />
                   Visit Research Lab
@@ -229,9 +229,9 @@ export default function HelpPage() {
       </main>
 
       {/* Simple Footer */}
-      <footer className="border-t bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm mt-12">
+      <footer className="border-t bg-card/50 backdrop-blur-sm mt-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          <div className="text-center text-gray-600 dark:text-gray-400">
+          <div className="text-center text-gray-600 dark:text-muted-foreground">
             <p className="mb-4">AI Education Pilot - Open Source Education Platform</p>
             <div className="flex justify-center gap-6 text-sm">
               <Link href="/" className="hover:text-blue-600 dark:hover:text-blue-400">Home</Link>

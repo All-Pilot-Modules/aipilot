@@ -21,9 +21,9 @@ export default function ModulesPage() {
           <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center">
             <FolderOpen className="w-5 h-5 text-white" />
           </div>
-          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">Modules</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-foreground">Modules</h1>
         </div>
-        <p className="text-gray-600 dark:text-gray-400">Create and manage course modules, configure settings, and share access codes with students.</p>
+        <p className="text-gray-600 dark:text-muted-foreground">Create and manage course modules, configure settings, and share access codes with students.</p>
       </div>
 
       {/* Creating a Module */}
@@ -34,7 +34,7 @@ export default function ModulesPage() {
             Creating a Module
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>To create a new module:</p>
           <ol className="space-y-3 list-decimal list-inside">
             <li>Click the <strong>&quot;Create Module&quot;</strong> button on the dashboard</li>
@@ -54,11 +54,11 @@ export default function ModulesPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Settings className="w-5 h-5 text-blue-600" />
+            <Settings className="w-5 h-5 text-blue-600 dark:text-blue-300" />
             Module Settings
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Access module settings by clicking the settings icon or navigating to the Settings page within a module:</p>
           <ul className="space-y-2 list-disc list-inside">
             <li><strong>Module Name</strong> - Update the display name</li>
@@ -73,25 +73,25 @@ export default function ModulesPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Key className="w-5 h-5 text-amber-600" />
+            <Key className="w-5 h-5 text-amber-600 dark:text-amber-300" />
             Access Codes
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>Access codes allow students to join your module:</p>
           <div className="space-y-3">
-            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-              <Copy className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+              <Copy className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white text-sm">Copy Code</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Click the copy button next to the code to copy it to your clipboard</p>
+                <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">Copy Code</h4>
+                <p className="text-xs text-gray-500 dark:text-muted-foreground">Click the copy button next to the code to copy it to your clipboard</p>
               </div>
             </div>
-            <div className="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg">
-              <Share2 className="w-5 h-5 text-gray-500 flex-shrink-0 mt-0.5" />
+            <div className="flex items-start gap-3 p-3 bg-muted/50 rounded-lg">
+              <Share2 className="w-5 h-5 text-muted-foreground flex-shrink-0 mt-0.5" />
               <div>
-                <h4 className="font-medium text-gray-900 dark:text-white text-sm">Share with Students</h4>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Share the code via email, LMS, or in class. Students enter it at the join page.</p>
+                <h4 className="font-medium text-gray-900 dark:text-foreground text-sm">Share with Students</h4>
+                <p className="text-xs text-gray-500 dark:text-muted-foreground">Share the code via email, LMS, or in class. Students enter it at the join page.</p>
               </div>
             </div>
           </div>
@@ -107,11 +107,11 @@ export default function ModulesPage() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FolderOpen className="w-5 h-5 text-green-600" />
+            <FolderOpen className="w-5 h-5 text-green-600 dark:text-green-300" />
             Managing Modules
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>From your module list, you can:</p>
           <ul className="space-y-2">
             <li className="flex items-start gap-2">
@@ -138,7 +138,7 @@ export default function ModulesPage() {
             Deleting a Module
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300">
+        <CardContent className="space-y-4 text-gray-700 dark:text-foreground">
           <p>To delete a module:</p>
           <ol className="space-y-2 list-decimal list-inside">
             <li>Open the module settings</li>

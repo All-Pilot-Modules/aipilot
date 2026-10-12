@@ -57,7 +57,7 @@ function LivePreview({ questionForm, isMcq, showOptions, showCorrectAnswer }) {
         )}
 
         {questionForm.text?.trim() ? (
-          <MathText className="text-[15px] font-medium leading-relaxed text-foreground">{questionForm.text}</MathText>
+          <MathText embedLinks className="text-[15px] font-medium leading-relaxed text-foreground">{questionForm.text}</MathText>
         ) : (
           <p className="text-sm italic text-muted-foreground">
             Start typing the question stem on the left — it&apos;ll appear here exactly as a student sees it.
@@ -94,7 +94,7 @@ function LivePreview({ questionForm, isMcq, showOptions, showCorrectAnswer }) {
                   <span
                     className={cn(
                       "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                      highlight ? "bg-green-600 text-white" : "bg-muted text-muted-foreground"
+                      highlight ? "bg-green-700 text-white" : "bg-muted text-muted-foreground"
                     )}
                   >
                     {letter}
@@ -102,7 +102,7 @@ function LivePreview({ questionForm, isMcq, showOptions, showCorrectAnswer }) {
                   <MathText inline className="flex-1 min-w-0 text-sm">
                     {option}
                   </MathText>
-                  {highlight && <CircleCheck className="h-4 w-4 flex-shrink-0 text-green-600" />}
+                  {highlight && <CircleCheck className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-300" />}
                 </div>
               );
             })}
@@ -196,7 +196,7 @@ export function MathQuestionEditorBody({
       <div className="flex-shrink-0 border-b border-border bg-background/95 px-6 py-4 pr-16 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-gray-900 text-white dark:bg-gray-800">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground ">
               <Sigma className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0">
@@ -304,7 +304,7 @@ export function MathQuestionEditorBody({
                             <span
                               className={cn(
                                 "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full text-xs font-bold",
-                                isCorrect ? "bg-green-600 text-white" : "bg-muted text-muted-foreground"
+                                isCorrect ? "bg-green-700 text-white" : "bg-muted text-muted-foreground"
                               )}
                             >
                               {letter}
@@ -316,7 +316,7 @@ export function MathQuestionEditorBody({
                                 <span className="text-sm italic text-muted-foreground">(empty)</span>
                               )}
                             </span>
-                            {isCorrect && <CircleCheck className="h-4 w-4 flex-shrink-0 text-green-600" />}
+                            {isCorrect && <CircleCheck className="h-4 w-4 flex-shrink-0 text-green-600 dark:text-green-300" />}
                           </button>
                         );
                       })}

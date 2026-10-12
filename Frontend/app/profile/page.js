@@ -39,7 +39,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-muted/50 via-blue-50/30 to-purple-50/20 dark:from-card dark:via-muted dark:to-card">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
       </div>
     );
@@ -47,7 +47,7 @@ export default function ProfilePage() {
 
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-muted/50 via-blue-50/30 to-purple-50/20 dark:from-card dark:via-muted dark:to-card">
         <Card className="w-full max-w-md">
           <CardContent className="p-8 text-center">
             <h1 className="text-xl mb-4">Access Denied</h1>
@@ -142,7 +142,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-purple-50/20 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+    <div className="min-h-screen bg-gradient-to-br from-muted/50 via-blue-50/30 to-purple-50/20 dark:from-card dark:via-muted dark:to-card">
       {/* Top Navigation Bar */}
       <div className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="max-w-7xl mx-auto px-6 py-4">
@@ -205,7 +205,7 @@ export default function ProfilePage() {
                 <div className="absolute inset-0 bg-gradient-to-r from-emerald-500 via-teal-500 to-emerald-500 opacity-90"></div>
                 <div className="relative p-4 text-white">
                   <div className="flex items-center gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-card/20 backdrop-blur-sm border border-white/30 flex items-center justify-center">
                       <CheckCircle className="w-5 h-5 text-white" />
                     </div>
                     <div>
@@ -223,7 +223,7 @@ export default function ProfilePage() {
                 <div className="absolute inset-0 bg-gradient-to-r from-red-500 via-rose-500 to-red-500 opacity-90"></div>
                 <div className="relative p-4 text-white">
                   <div className="flex items-center gap-3">
-                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm border border-white/30 flex items-center justify-center">
+                    <div className="flex-shrink-0 w-10 h-10 rounded-xl bg-card/20 backdrop-blur-sm border border-white/30 flex items-center justify-center">
                       <AlertCircle className="w-5 h-5 text-white" />
                     </div>
                     <div>

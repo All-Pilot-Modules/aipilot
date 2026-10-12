@@ -169,7 +169,7 @@ function StudentAssignmentContent() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/20 to-slate-100 dark:from-slate-950 dark:via-blue-950/10 dark:to-slate-900 py-12">
+      <div className="min-h-screen bg-gradient-to-br from-muted/50 via-blue-50/20 to-muted dark:from-background dark:via-blue-950/10 dark:to-card py-12">
         <div className="max-w-5xl mx-auto px-6">
           {/* Header Skeleton */}
           <div className="mb-8">
@@ -186,8 +186,8 @@ function StudentAssignmentContent() {
           </div>
 
           {/* Question Card Skeleton */}
-          <Card className="border-2 border-slate-200 dark:border-slate-700 shadow-lg">
-            <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100/50 dark:from-slate-900/50 dark:to-slate-800/30 border-b-2">
+          <Card className="border-2 border-border shadow-lg">
+            <CardHeader className="bg-gradient-to-r from-muted/50 to-muted/50 dark:from-card/50 dark:to-muted/30 border-b-2">
               <Skeleton className="h-8 w-3/4 mb-2" />
               <Skeleton className="h-4 w-1/2" />
             </CardHeader>
@@ -200,14 +200,14 @@ function StudentAssignmentContent() {
               {/* Answer options skeleton */}
               <div className="space-y-3">
                 {Array.from({ length: 4 }).map((_, i) => (
-                  <div key={i} className="p-4 border-2 border-slate-200 dark:border-slate-700 rounded-lg">
+                  <div key={i} className="p-4 border-2 border-border rounded-lg">
                     <Skeleton className="h-5 w-full" />
                   </div>
                 ))}
               </div>
 
               {/* Submit button skeleton */}
-              <div className="pt-6 border-t-2 border-slate-200 dark:border-slate-700">
+              <div className="pt-6 border-t-2 border-border ">
                 <Skeleton className="h-12 w-full rounded-lg" />
               </div>
             </CardContent>
@@ -219,12 +219,12 @@ function StudentAssignmentContent() {
 
   if (error && !question) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
+      <div className="min-h-screen bg-muted/50 dark:bg-card flex items-center justify-center">
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center">
             <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">Loading Error</h3>
-            <p className="text-gray-600 dark:text-gray-400 mb-4">{error}</p>
+            <p className="text-gray-600 dark:text-muted-foreground mb-4">{error}</p>
             <Button onClick={() => router.back()}>
               Go Back
             </Button>
@@ -238,9 +238,9 @@ function StudentAssignmentContent() {
   const canEdit = !isCompleted;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen bg-muted/50 dark:bg-card">
       {/* Header */}
-      <div className="bg-white dark:bg-gray-800 border-b shadow-sm">
+      <div className="bg-card dark:bg-muted border-b shadow-sm">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <Button
@@ -253,7 +253,7 @@ function StudentAssignmentContent() {
             </Button>
             
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+              <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-muted-foreground">
                 <Clock className="w-4 h-4" />
                 Time: {formatTime(timeSpent)}
               </div>
@@ -280,7 +280,7 @@ function StudentAssignmentContent() {
                   <CardTitle className="text-xl mb-2">
                     Assignment Question
                   </CardTitle>
-                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-gray-400">
+                  <div className="flex items-center gap-4 text-sm text-gray-600 dark:text-muted-foreground">
                     <Badge variant="outline">
                       {question?.type === 'mcq' ? 'Multiple Choice' : 
                        question?.type === 'short' ? 'Short Answer' : 'Essay Question'}
@@ -301,13 +301,13 @@ function StudentAssignmentContent() {
             <CardContent>
               <div className="space-y-4">
                 <div className="prose dark:prose-invert max-w-none">
-                  <MathText className="text-lg leading-relaxed whitespace-pre-wrap">{question?.text}</MathText>
+                  <MathText embedLinks className="text-lg leading-relaxed whitespace-pre-wrap">{question?.text}</MathText>
                 </div>
 
                 {question?.learning_outcome && (
                   <div className="bg-blue-50 dark:bg-blue-950/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
                     <div className="flex items-start gap-2">
-                      <Target className="w-4 h-4 text-blue-600 mt-1" />
+                      <Target className="w-4 h-4 text-blue-600 dark:text-blue-300 mt-1" />
                       <div>
                         <h4 className="font-medium text-blue-900 dark:text-blue-100">Learning Outcome</h4>
                         <p className="text-sm text-blue-700 dark:text-blue-300"><MathText inline>{question.learning_outcome}</MathText></p>
@@ -348,7 +348,7 @@ function StudentAssignmentContent() {
                 {question?.type === 'mcq' ? (
                   <div className="space-y-3">
                     {question.options && Object.entries(question.options).map(([key, option]) => (
-                      <div key={key} className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-gray-50 dark:hover:bg-gray-800">
+                      <div key={key} className="flex items-center space-x-2 p-3 rounded-lg border hover:bg-muted/50 dark:hover:bg-muted">
                         <input
                           type="radio"
                           id={`option-${key}`}
@@ -357,7 +357,7 @@ function StudentAssignmentContent() {
                           checked={selectedOption === key}
                           onChange={(e) => canEdit && setSelectedOption(e.target.value)}
                           disabled={!canEdit}
-                          className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                          className="h-4 w-4 text-blue-600 dark:text-blue-300 focus:ring-blue-500 border-border"
                         />
                         <Label 
                           htmlFor={`option-${key}`} 
@@ -396,7 +396,7 @@ function StudentAssignmentContent() {
                 {isCompleted && question?.correct_answer && question.type !== 'mcq' && (
                   <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
                     <div className="flex items-start gap-2">
-                      <CheckCircle className="w-4 h-4 text-green-600 mt-1" />
+                      <CheckCircle className="w-4 h-4 text-green-600 dark:text-green-300 mt-1" />
                       <div>
                         <h4 className="font-medium text-green-900 dark:text-green-100">Correct Answer</h4>
                         <MathText className="text-sm text-green-700 dark:text-green-300">{question.correct_answer}</MathText>
@@ -442,7 +442,7 @@ function StudentAssignmentContent() {
               <Button
                 onClick={handleSubmit}
                 disabled={submitting || (!selectedOption && !answer.trim())}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 {submitting ? (
                   <>

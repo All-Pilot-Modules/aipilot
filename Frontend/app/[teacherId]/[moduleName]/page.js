@@ -169,7 +169,7 @@ export default function ModuleAccessPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-card to-indigo-50 dark:from-card dark:via-muted dark:to-card">
       <div className="container mx-auto px-4 py-16">
         <div className="max-w-md mx-auto">
           {/* Header */}
@@ -177,14 +177,14 @@ export default function ModuleAccessPage() {
             <div className="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
               <GraduationCap className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-foreground mb-2">
               {moduleInfo?.name || moduleName?.charAt(0).toUpperCase() + moduleName?.slice(1)}
             </h1>
-            <p className="text-gray-600 dark:text-gray-400">
+            <p className="text-gray-600 dark:text-muted-foreground">
               {moduleInfo?.description || "Enter your access code to join this module"}
             </p>
             {moduleInfo?.teacher_name && (
-              <p className="text-sm text-gray-500 dark:text-gray-500 mt-2">
+              <p className="text-sm text-gray-500 dark:text-muted-foreground mt-2">
                 Instructor: {moduleInfo.teacher_name}
               </p>
             )}
@@ -241,7 +241,7 @@ export default function ModuleAccessPage() {
 
                 <Button 
                   type="submit" 
-                  className="w-full bg-blue-600 hover:bg-blue-700" 
+                  className="w-full bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={loading || !accessCode.trim() || !studentId.trim()}
                 >
                   {loading ? (
@@ -262,7 +262,7 @@ export default function ModuleAccessPage() {
             <Card className="mt-6 bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-800">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <BookOpen className="w-5 h-5 text-blue-600 mt-0.5" />
+                  <BookOpen className="w-5 h-5 text-blue-600 dark:text-blue-300 mt-0.5" />
                   <div>
                     <h3 className="font-medium text-blue-900 dark:text-blue-100">
                       Module Information
@@ -286,7 +286,7 @@ export default function ModuleAccessPage() {
             <Card className="bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <Users className="w-5 h-5 text-green-600 mt-0.5" />
+                  <Users className="w-5 h-5 text-green-600 dark:text-green-300 mt-0.5" />
                   <div>
                     <h3 className="font-medium text-green-900 dark:text-green-100">
                       Student Access
@@ -299,15 +299,15 @@ export default function ModuleAccessPage() {
               </CardContent>
             </Card>
 
-            <Card className="bg-gray-50 dark:bg-gray-900/20 border-gray-200 dark:border-gray-700">
+            <Card className="bg-muted/50 dark:bg-card/20 border-border ">
               <CardContent className="p-4">
                 <div className="flex items-start gap-3">
-                  <Lock className="w-5 h-5 text-gray-600 mt-0.5" />
+                  <Lock className="w-5 h-5 text-muted-foreground mt-0.5" />
                   <div>
-                    <h3 className="font-medium text-gray-900 dark:text-gray-100">
+                    <h3 className="font-medium text-gray-900 dark:text-foreground">
                       Secure Access
                     </h3>
-                    <p className="text-sm text-gray-700 dark:text-gray-300">
+                    <p className="text-sm text-gray-700 dark:text-foreground">
                       Each access code is unique to this module and provides secure entry to course content
                     </p>
                   </div>
@@ -318,7 +318,7 @@ export default function ModuleAccessPage() {
 
           {/* Help Text */}
           <div className="text-center mt-6">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-gray-500 dark:text-muted-foreground">
               Do not have a student ID or access code? Contact your instructor for access to this module.
             </p>
           </div>

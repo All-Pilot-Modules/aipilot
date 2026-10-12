@@ -106,7 +106,7 @@ export default function ModuleConsentModal({
               className={`cursor-pointer transition-all ${
                 selectedOption === 1
                   ? 'border-green-500 border-2 bg-green-50 dark:bg-green-950/20'
-                  : 'border-border hover:border-green-300'
+                  : 'border-border hover:border-green-300 dark:hover:border-green-800'
               }`}
               onClick={() => setSelectedOption(1)}
             >
@@ -132,7 +132,7 @@ export default function ModuleConsentModal({
               className={`cursor-pointer transition-all ${
                 selectedOption === 2
                   ? 'border-orange-500 border-2 bg-orange-50 dark:bg-orange-950/20'
-                  : 'border-border hover:border-orange-300'
+                  : 'border-border hover:border-orange-300 dark:hover:border-orange-800'
               }`}
               onClick={() => setSelectedOption(2)}
             >
@@ -158,7 +158,7 @@ export default function ModuleConsentModal({
               className={`cursor-pointer transition-all ${
                 selectedOption === 3
                   ? 'border-red-500 border-2 bg-red-50 dark:bg-red-950/20'
-                  : 'border-border hover:border-red-300'
+                  : 'border-border hover:border-red-300 dark:hover:border-red-800'
               }`}
               onClick={() => setSelectedOption(3)}
             >

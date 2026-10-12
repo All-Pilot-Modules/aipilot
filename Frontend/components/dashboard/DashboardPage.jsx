@@ -50,11 +50,11 @@ export default function DashboardPage({ user }) {
   const greeting = currentHour < 12 ? 'Good morning' : currentHour < 18 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-background">
+    <div className="min-h-screen bg-muted/50 dark:bg-background">
       <main id="main-content" className="max-w-7xl mx-auto px-6 py-8">
 
         {/* Header */}
-        <div className="mb-8 pb-8 border-b border-gray-200 dark:border-border">
+        <div className="mb-8 pb-8 border-b border-border ">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm text-gray-500 dark:text-muted-foreground mb-1">{greeting}</p>
@@ -67,7 +67,7 @@ export default function DashboardPage({ user }) {
                   <Settings className="w-4 h-4 mr-2" />Settings
                 </Link>
               </Button>
-              <Button asChild size="sm" className="bg-gray-900 hover:bg-gray-700 text-white dark:bg-foreground dark:text-background">
+              <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground dark:bg-foreground dark:text-background">
                 <Link href="/mymodules">
                   <Plus className="w-4 h-4 mr-2" />My Modules
                 </Link>
@@ -85,14 +85,14 @@ export default function DashboardPage({ user }) {
             { label: 'Resources',     value: 'Open',    icon: Brain,    href: 'https://brockportsigai.org', external: true },
           ].map(({ label, value, icon: Icon, href, external }) => (
             <Link key={label} href={href} {...(external ? { target: '_blank', rel: 'noopener noreferrer' } : {})}>
-              <div className="bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl p-5 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all group cursor-pointer h-full">
+              <div className="bg-card border border-border rounded-xl p-5 hover:border-border hover:shadow-sm transition-all group cursor-pointer h-full">
                 <div className="flex items-center justify-between mb-3">
-                  <div className="w-9 h-9 bg-gray-100 dark:bg-muted rounded-lg flex items-center justify-center">
+                  <div className="w-9 h-9 bg-muted rounded-lg flex items-center justify-center">
                     <Icon className="w-5 h-5 text-gray-600 dark:text-muted-foreground" />
                   </div>
                   {external
-                    ? <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-gray-500 transition-colors" />
-                    : <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-gray-600 group-hover:translate-x-0.5 transition-all" />}
+                    ? <ExternalLink className="w-4 h-4 text-gray-300 group-hover:text-muted-foreground transition-colors" />
+                    : <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all" />}
                 </div>
                 <p className="text-xs text-gray-400 dark:text-muted-foreground mb-0.5">{label}</p>
                 <p className="text-xl font-bold text-gray-900 dark:text-foreground">{value}</p>
@@ -109,7 +109,7 @@ export default function DashboardPage({ user }) {
             <div className="flex items-center justify-between mb-4">
               <h2 id="modules-heading" className="text-lg font-semibold text-gray-900 dark:text-foreground">Your Modules</h2>
               {modules.length > 0 && (
-                <Button asChild variant="ghost" size="sm" className="text-gray-500 hover:text-gray-900 dark:hover:text-foreground">
+                <Button asChild variant="ghost" size="sm" className="text-muted-foreground hover:text-gray-900 dark:hover:text-foreground">
                   <Link href="/mymodules">
                     View all <ChevronRight className="w-4 h-4 ml-1" />
                   </Link>
@@ -125,16 +125,16 @@ export default function DashboardPage({ user }) {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {modules.slice(0, 4).map((moduleItem) => (
                   <Link key={moduleItem.id} href={`/dashboard?module=${encodeURIComponent(moduleItem.name)}`}>
-                    <div className="group bg-white dark:bg-card border border-gray-200 dark:border-border rounded-xl p-5 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all cursor-pointer h-full">
+                    <div className="group bg-card border border-border rounded-xl p-5 hover:border-border hover:shadow-sm transition-all cursor-pointer h-full">
                       <div className="flex items-start justify-between mb-3">
-                        <div className="w-9 h-9 bg-gray-900 dark:bg-foreground rounded-lg flex items-center justify-center">
-                          <BookOpen className="w-5 h-5 text-white dark:text-background" />
+                        <div className="w-9 h-9 bg-primary dark:bg-foreground rounded-lg flex items-center justify-center text-primary-foreground">
+                          <BookOpen className="w-5 h-5 text-primary-foreground dark:text-background" />
                         </div>
                         <span className="text-[11px] font-medium px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400">
                           Active
                         </span>
                       </div>
-                      <h3 className="text-sm font-semibold text-gray-900 dark:text-foreground mb-1 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors capitalize">
+                      <h3 className="text-sm font-semibold text-gray-900 dark:text-foreground mb-1 group-hover:text-gray-700 dark:group-hover:text-foreground transition-colors capitalize">
                         {moduleItem.name}
                       </h3>
                       <p className="text-xs text-gray-400 dark:text-muted-foreground line-clamp-2 mb-3">
@@ -153,15 +153,15 @@ export default function DashboardPage({ user }) {
                 ))}
               </div>
             ) : (
-              <div className="border-2 border-dashed border-gray-200 dark:border-border rounded-xl p-12 text-center">
-                <div className="w-12 h-12 bg-gray-100 dark:bg-muted rounded-xl flex items-center justify-center mx-auto mb-4">
+              <div className="border-2 border-dashed border-border rounded-xl p-12 text-center">
+                <div className="w-12 h-12 bg-muted rounded-xl flex items-center justify-center mx-auto mb-4">
                   <Rocket className="w-6 h-6 text-gray-400" />
                 </div>
                 <h3 className="text-base font-semibold text-gray-900 dark:text-foreground mb-2">Create your first module</h3>
                 <p className="text-sm text-gray-400 dark:text-muted-foreground mb-6 max-w-xs mx-auto">
                   Get started by creating a learning module to track student progress and generate AI insights.
                 </p>
-                <Button asChild size="sm" className="bg-gray-900 hover:bg-gray-700 text-white dark:bg-foreground dark:text-background">
+                <Button asChild size="sm" className="bg-primary hover:bg-primary/90 text-primary-foreground dark:bg-foreground dark:text-background">
                   <Link href="/mymodules">
                     <Plus className="mr-2 w-4 h-4" />Create your first module
                   </Link>
@@ -174,7 +174,7 @@ export default function DashboardPage({ user }) {
           <aside className="space-y-4" aria-label="Quick actions and information">
 
             {/* Quick Actions */}
-            <Card className="border-gray-200 dark:border-border bg-white dark:bg-card">
+            <Card className="border-border bg-card ">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-gray-900 dark:text-foreground">Quick actions</CardTitle>
               </CardHeader>
@@ -184,7 +184,7 @@ export default function DashboardPage({ user }) {
                   { href: '/dashboard/questions', icon: FileText, label: 'Create assessment'   },
                   { href: '/dashboard/grading',   icon: Award,    label: 'Grade submissions'  },
                 ].map(({ href, icon: Icon, label }) => (
-                  <Button key={href} asChild variant="ghost" className="w-full justify-start text-sm text-gray-600 dark:text-muted-foreground hover:text-gray-900 dark:hover:text-foreground hover:bg-gray-50 dark:hover:bg-muted/20 h-9" size="sm">
+                  <Button key={href} asChild variant="ghost" className="w-full justify-start text-sm text-gray-600 dark:text-muted-foreground hover:text-gray-900 dark:hover:text-foreground hover:bg-muted/50 dark:hover:bg-muted/20 h-9" size="sm">
                     <Link href={href}>
                       <Icon className="w-4 h-4 mr-2 shrink-0" />{label}
                     </Link>
@@ -194,7 +194,7 @@ export default function DashboardPage({ user }) {
             </Card>
 
             {/* Recent Activity */}
-            <Card className="border-gray-200 dark:border-border bg-white dark:bg-card">
+            <Card className="border-border bg-card ">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-gray-900 dark:text-foreground">Recent activity</CardTitle>
               </CardHeader>
@@ -203,7 +203,7 @@ export default function DashboardPage({ user }) {
                   {modules.length > 0 ? (
                     <>
                       <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 bg-gray-100 dark:bg-muted rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-7 h-7 bg-muted rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Activity className="w-3.5 h-3.5 text-gray-500 dark:text-muted-foreground" />
                         </div>
                         <div>
@@ -212,7 +212,7 @@ export default function DashboardPage({ user }) {
                         </div>
                       </div>
                       <div className="flex items-start gap-3">
-                        <div className="w-7 h-7 bg-gray-100 dark:bg-muted rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <div className="w-7 h-7 bg-muted rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                           <Calendar className="w-3.5 h-3.5 text-gray-500 dark:text-muted-foreground" />
                         </div>
                         <div>
@@ -229,7 +229,7 @@ export default function DashboardPage({ user }) {
             </Card>
 
             {/* Getting Started */}
-            <Card className="border-gray-200 dark:border-border bg-white dark:bg-card">
+            <Card className="border-border bg-card ">
               <CardHeader className="pb-3">
                 <CardTitle className="text-sm font-semibold text-gray-900 dark:text-foreground">Getting started</CardTitle>
               </CardHeader>
@@ -261,10 +261,10 @@ export default function DashboardPage({ user }) {
               { href: '/help',      icon: BookOpen,    label: 'Help Center',      desc: 'Get help, documentation, and support resources'             },
             ].map(({ href, icon: Icon, label, desc }) => (
               <Link key={href} href={href}>
-                <Card className="border-gray-200 dark:border-border bg-white dark:bg-card hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all cursor-pointer h-full group">
+                <Card className="border-border bg-card hover:border-border hover:shadow-sm transition-all cursor-pointer h-full group">
                   <CardContent className="p-5">
                     <div className="flex items-start gap-3">
-                      <div className="w-9 h-9 bg-gray-100 dark:bg-muted rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-gray-200 dark:group-hover:bg-muted/60 transition-colors">
+                      <div className="w-9 h-9 bg-muted rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-muted dark:group-hover:bg-muted/60 transition-colors">
                         <Icon className="w-5 h-5 text-gray-600 dark:text-muted-foreground" />
                       </div>
                       <div>
@@ -279,10 +279,10 @@ export default function DashboardPage({ user }) {
           </div>
 
           <a href="https://brockportsigai.org" target="_blank" rel="noopener noreferrer" className="block mt-3">
-            <Card className="border-gray-200 dark:border-border bg-white dark:bg-card hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all cursor-pointer group">
+            <Card className="border-border bg-card hover:border-border hover:shadow-sm transition-all cursor-pointer group">
               <CardContent className="p-5">
                 <div className="flex items-center gap-3">
-                  <div className="w-9 h-9 bg-gray-100 dark:bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
+                  <div className="w-9 h-9 bg-muted rounded-lg flex items-center justify-center flex-shrink-0">
                     <Brain className="w-5 h-5 text-gray-600 dark:text-muted-foreground" />
                   </div>
                   <div className="flex-1">
@@ -292,7 +292,7 @@ export default function DashboardPage({ user }) {
                     </div>
                     <p className="text-xs text-gray-400 dark:text-muted-foreground">Visit our research lab for additional learning materials</p>
                   </div>
-                  <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-gray-500 group-hover:translate-x-0.5 transition-all" />
+                  <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-muted-foreground group-hover:translate-x-0.5 transition-all" />
                 </div>
               </CardContent>
             </Card>
