@@ -46,12 +46,16 @@ AI Education Pilot is a comprehensive educational technology platform designed t
 - Git
 - Access to the project's Infisical development secrets
 
+> **Windows users:** install [Git for Windows](https://git-scm.com/download/win) (provides `git` and Git Bash) and [Python 3.13](https://www.python.org/downloads/) — on the Python installer, check **"Add python.exe to PATH"**. The commands below use PowerShell; run them from **PowerShell**, not `cmd.exe`.
+
 ### 1. Clone the repository
 
 ```bash
 git clone https://github.com/All-Pilot-Modules/aipilot.git
 cd aipilot
 ```
+
+If `git clone` fails on Windows with `command not found: git` (or similar), Git isn't installed or isn't on your `PATH` — install [Git for Windows](https://git-scm.com/download/win), then open a **new** PowerShell window (PATH changes only apply to new terminals) and retry. If it fails with a certificate/SSL error on a corporate network, ask your administrator about the correct proxy/CA settings for `git`.
 
 ### 2. Configure the backend
 
@@ -71,11 +75,23 @@ Fill in the first three values with the credentials provided by your project adm
 
 From the repository root:
 
+**macOS / Linux:**
+
 ```bash
 cd Backend
 bash scripts/setup.sh
 venv/bin/python main.py
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+cd Backend
+.\scripts\setup.ps1
+venv\Scripts\python.exe main.py
+```
+
+If PowerShell refuses to run `setup.ps1` with an "execution policy" error, run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass` first, then retry. (You can also run `bash scripts/setup.sh` from Git Bash instead, if you have it installed.)
 
 The setup script creates the virtual environment, installs dependencies, and creates local storage folders. With the Infisical-only `.env`, its local `DATABASE_URL` check skips migrations; use the project's already-configured development database supplied through Infisical.
 
