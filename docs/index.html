@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Pilot — Docs</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --fg: #1a1a1a;
+    --muted: #666666;
+    --border: #e2e2e2;
+    --card-bg: #f7f7f7;
+    --accent: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1117;
+      --fg: #e6e6e6;
+      --muted: #9a9a9a;
+      --border: #2a2d36;
+      --card-bg: #171a22;
+      --accent: #6ea8fe;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    padding: 3rem 1.5rem;
+  }
+  main {
+    max-width: 720px;
+    margin: 0 auto;
+  }
+  h1 {
+    font-size: 1.75rem;
+    margin-bottom: 0.25rem;
+  }
+  p.lead {
+    color: var(--muted);
+    margin-top: 0;
+    margin-bottom: 2rem;
+  }
+  .card {
+    display: block;
+    border: 1px solid var(--border);
+    background: var(--card-bg);
+    border-radius: 10px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 1rem;
+    text-decoration: none;
+    color: var(--fg);
+    transition: border-color 0.15s ease;
+  }
+  .card:hover {
+    border-color: var(--accent);
+  }
+  .card h2 {
+    margin: 0 0 0.35rem 0;
+    font-size: 1.1rem;
+    color: var(--accent);
+  }
+  .card p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+  footer {
+    margin-top: 2.5rem;
+    font-size: 0.85rem;
+    color: var(--muted);
+  }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1>AI Pilot — Docs</h1>
+  <p class="lead">Architecture diagrams and reference docs for the project.</p>
+
+  <a class="card" href="diagrams/architecture.html">
+    <h2>Architecture Diagram</h2>
+    <p>Overall system architecture — services, data flow, and integrations.</p>
+  </a>
+
+  <a class="card" href="diagrams/db-schema.html">
+    <h2>Database Schema Diagram</h2>
+    <p>Entity relationships and table structure.</p>
+  </a>
+
+  <footer>
+    Source: <a href="https://github.com/All-Pilot-Modules/aipilot">github.com/All-Pilot-Modules/aipilot</a>
+  </footer>
+</main>
+</body>
+</html>
