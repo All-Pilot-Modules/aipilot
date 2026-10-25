@@ -159,9 +159,10 @@ const GRADING_SECTIONS = [
   { id: 'scoring',  label: 'Scoring'  },
 ];
 
-function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId }) {
+function GradingTab({ formData, setGradingMode, setShowScoreToStudent, setShowCorrectAnswerToStudent, moduleId }) {
   const gradingMode = formData.assignment_config?.grading?.mode || 'auto';
   const showScoreToStudent = formData.assignment_config?.grading?.show_score_to_student ?? true;
+  const showCorrectAnswerToStudent = formData.assignment_config?.grading?.show_correct_answer_to_student ?? false;
   const [section, setSection] = useState('policy');
 
   const [rubric, setRubric] = useState(null);
@@ -319,6 +320,18 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, moduleId 
               <Switch checked={showScoreToStudent} onCheckedChange={setShowScoreToStudent} />
               <span className="text-sm text-gray-600 dark:text-muted-foreground">
                 {showScoreToStudent ? 'Students see their score' : 'Score hidden — feedback text still shown'}
+              </span>
+            </div>
+          </Row>
+          <Row
+            label="Show correct answer to students"
+            description="When on, the Feedback tab shows the correct answer next to the student's own answer for every question type."
+            noBorder
+          >
+            <div className="flex items-center gap-3">
+              <Switch checked={showCorrectAnswerToStudent} onCheckedChange={setShowCorrectAnswerToStudent} />
+              <span className="text-sm text-gray-600 dark:text-muted-foreground">
+                {showCorrectAnswerToStudent ? 'Students see the correct answer' : 'Correct answer hidden'}
               </span>
             </div>
           </Row>
@@ -964,7 +977,7 @@ function SettingsPageContent() {
     is_active: true, visibility: 'class-only', due_date: '',
     consent_required: true,
     assignment_config: {
-      grading: { mode: 'auto' },
+      grading: { mode: 'auto', show_correct_answer_to_student: false },
       features: {
         multiple_attempts: { enabled: true, max_attempts: 2, show_feedback_after_each: true },
         chatbot_feedback:  { enabled: true, conversation_mode: 'guided', ai_model: 'gpt-4' },
@@ -1006,6 +1019,7 @@ function SettingsPageContent() {
               // Canonical value lives in ai_config.grading, not assignment_config —
               // pull it in here so the toggle below reflects the saved setting.
               show_score_to_student: mod.ai_config?.grading?.show_score_to_student ?? true,
+              show_correct_answer_to_student: mod.ai_config?.grading?.show_correct_answer_to_student ?? false,
             },
           },
         };
@@ -1031,6 +1045,7 @@ function SettingsPageContent() {
       if (gradingMode) reqs.push(apiClient.patch(`/api/modules/${moduleId}/grading-settings`, {
         mode: gradingMode,
         show_score_to_student: formData.assignment_config?.grading?.show_score_to_student,
+        show_correct_answer_to_student: formData.assignment_config?.grading?.show_correct_answer_to_student,
       }));
       await Promise.all(reqs);
       setModuleData(p => ({ ...p, ...formData }));
@@ -1052,6 +1067,8 @@ function SettingsPageContent() {
     setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, mode } } }));
   const setShowScoreToStudent = (show_score_to_student) =>
     setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, show_score_to_student } } }));
+  const setShowCorrectAnswerToStudent = (show_correct_answer_to_student) =>
+    setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, show_correct_answer_to_student } } }));
 
   const shell = (
     <SidebarProvider style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" }}>
@@ -1127,7 +1144,7 @@ function SettingsPageContent() {
             {/* Main content */}
             <div className="flex-1 min-w-0 px-6 py-6 pb-24">
               {activeTab === 'general'  && <GeneralTab  formData={formData} set={set} />}
-              {activeTab === 'grading'  && <GradingTab  formData={formData} setGradingMode={setGradingMode} setShowScoreToStudent={setShowScoreToStudent} moduleId={moduleId} />}
+              {activeTab === 'grading'  && <GradingTab  formData={formData} setGradingMode={setGradingMode} setShowScoreToStudent={setShowScoreToStudent} setShowCorrectAnswerToStudent={setShowCorrectAnswerToStudent} moduleId={moduleId} />}
               {activeTab === 'features' && <FeaturesTab formData={formData} setFeature={setFeature} />}
               {activeTab === 'chatbot'  && <ChatbotTab  moduleId={moduleId} />}
               {activeTab === 'survey'   && <SurveyTab   moduleId={moduleId} />}

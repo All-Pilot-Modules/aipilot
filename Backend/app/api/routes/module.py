@@ -814,6 +814,7 @@ def get_grading_settings(module_id: UUID, db: Session = Depends(get_db)):
         "module_id": str(module_id),
         "mode": module.ai_grading_mode,
         "show_score_to_student": grading.get("show_score_to_student", True),
+        "show_correct_answer_to_student": grading.get("show_correct_answer_to_student", False),
         "show_explanation_to_student": grading.get("show_explanation_to_student", True),
         "show_hints_to_student": grading.get("show_hints_to_student", True),
         "teacher_sees_ai_suggestions": grading.get("teacher_sees_ai_suggestions", True),
@@ -857,6 +858,7 @@ def update_grading_settings(
     field_map = {
         "mode": payload.mode,
         "show_score_to_student": payload.show_score_to_student,
+        "show_correct_answer_to_student": payload.show_correct_answer_to_student,
         "show_explanation_to_student": payload.show_explanation_to_student,
         "show_hints_to_student": payload.show_hints_to_student,
         "teacher_sees_ai_suggestions": payload.teacher_sees_ai_suggestions,

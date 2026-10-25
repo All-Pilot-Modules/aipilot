@@ -12,6 +12,7 @@ DEFAULT_AI_CONFIG = {
         #            a teacher reviews (and optionally edits) and releases it
         "mode": "auto",
         "show_score_to_student": True,
+        "show_correct_answer_to_student": False,
         "show_explanation_to_student": True,
         "show_hints_to_student": True,
         "teacher_sees_ai_suggestions": True,

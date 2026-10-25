@@ -17,6 +17,9 @@ from app.crud.student_answer import (
 )
 from app.services.ai_feedback import AIFeedbackService
 from app.database import get_db
+from app.core.auth import require_roles
+from app.models.user import User
+from app.models.module import Module
 
 router = APIRouter()
 
@@ -26,13 +29,20 @@ def get_all_student_answers(
     module_id: Optional[UUID] = Query(None, description="Filter by module ID"),
     question_id: Optional[UUID] = Query(None, description="Filter by question ID"),
     student_id: Optional[str] = Query(None, description="Filter by student ID"),
+    current_user: User = Depends(require_roles(["teacher", "admin"])),
     db: Session = Depends(get_db)
 ):
     """
-    Get all student answers, optionally filtered by module, question, or student
+    Get all student answers, optionally filtered by module, question, or student.
+    Teachers only see answers from modules they own; admins see all modules.
     """
     try:
         if module_id:
+            module = db.query(Module).filter(Module.id == module_id).first()
+            if not module:
+                raise HTTPException(status_code=404, detail="Module not found")
+            if module.teacher_id != current_user.id and current_user.role != "admin":
+                raise HTTPException(status_code=403, detail="Not authorized for this module")
             # Get answers for specific module
             answers = get_student_answers_by_module(db, module_id)
             return answers
@@ -48,6 +58,11 @@ def get_all_student_answers(
                 Question.correct_answer,
                 Question.correct_option_id
             ).join(Question, StudentAnswer.question_id == Question.id)
+
+            if current_user.role != "admin":
+                query = query.join(Module, StudentAnswer.module_id == Module.id).filter(
+                    Module.teacher_id == current_user.id
+                )
 
             if student_id:
                 query = query.filter(StudentAnswer.student_id == student_id)
@@ -388,6 +403,7 @@ def generate_batch_feedback(
 @router.get("/module/{module_id}/final-submissions")
 def get_final_submissions_for_grading(
     module_id: UUID,
+    current_user: User = Depends(require_roles(["teacher", "admin"])),
     db: Session = Depends(get_db)
 ):
     """
@@ -398,12 +414,13 @@ def get_final_submissions_for_grading(
     from app.models.question import Question
     from app.models.ai_feedback import AIFeedback
     from app.models.teacher_grade import TeacherGrade
-    from app.models.module import Module
 
     # Get module
     module = db.query(Module).filter(Module.id == module_id).first()
     if not module:
         raise HTTPException(status_code=404, detail="Module not found")
+    if module.teacher_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Not authorized for this module")
 
     # Get max_attempts from module config
     max_attempts = 2  # default

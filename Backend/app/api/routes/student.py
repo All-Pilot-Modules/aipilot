@@ -496,6 +496,14 @@ def get_module_feedback(
         (module.ai_config or {}).get("grading", {}).get("show_score_to_student", True)
     ) if module else True
 
+    # Teacher setting: reveal the correct answer alongside the student's own
+    # answer. Off by default — unlike show_score_to_student, this strips
+    # correct-answer fields when OFF (opposite default, same "strip when off"
+    # shape as the block below).
+    show_correct_answer_to_student = bool(
+        (module.ai_config or {}).get("grading", {}).get("show_correct_answer_to_student", False)
+    ) if module else False
+
     # Single JOIN query: feedback + answer in one shot
     # Exclude mastery practice answers (is_mastery=True) — those are ephemeral and
     # should never appear in the test feedback tab.
@@ -551,6 +559,7 @@ def get_module_feedback(
             "available_options": data.get("available_options"),
             "grading_details": data.get("grading_details"),
             "selected_options": data.get("selected_options"),
+            "correct_options": data.get("correct_options"),
             "sub_results": data.get("sub_results"),
             "teacher_grade": {
                 "points_awarded": teacher_grade.points_awarded,
@@ -610,6 +619,7 @@ def get_module_feedback(
             "available_options": None,
             "grading_details": None,
             "selected_options": None,
+            "correct_options": None,
             "sub_results": None,
             "teacher_grade": {
                 "points_awarded": teacher_grade.points_awarded,
@@ -628,6 +638,26 @@ def get_module_feedback(
             item["criterion_scores"] = None
             if item.get("teacher_grade"):
                 item["teacher_grade"] = {**item["teacher_grade"], "points_awarded": None}
+
+    if not show_correct_answer_to_student:
+        for item in student_feedback:
+            item["correct_option"] = None
+            item["correct_options"] = None
+            if item.get("grading_details") and isinstance(item["grading_details"], dict):
+                blank_results = item["grading_details"].get("blank_results")
+                if blank_results:
+                    item["grading_details"] = {
+                        **item["grading_details"],
+                        "blank_results": [
+                            {k: v for k, v in b.items() if k != "accepted_answers"}
+                            for b in blank_results
+                        ],
+                    }
+            if item.get("sub_results"):
+                item["sub_results"] = [
+                    {k: v for k, v in r.items() if k not in ("correct_option", "correct_answer")}
+                    for r in item["sub_results"]
+                ]
 
     return student_feedback
 

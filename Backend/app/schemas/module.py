@@ -93,6 +93,7 @@ class GradingSettingsUpdate(BaseModel):
     """
     mode: Optional[str] = None                         # one of the two values above
     show_score_to_student: Optional[bool] = None
+    show_correct_answer_to_student: Optional[bool] = None
     show_explanation_to_student: Optional[bool] = None
     show_hints_to_student: Optional[bool] = None
     teacher_sees_ai_suggestions: Optional[bool] = None

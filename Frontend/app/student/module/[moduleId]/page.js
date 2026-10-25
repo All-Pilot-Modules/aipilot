@@ -2221,6 +2221,17 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                   </div>
                                 )}
 
+                                {/* Correct Answer - MCQ (teacher-controlled) */}
+                                {question.type === 'mcq' && feedback.correct_option && (
+                                  <div className="bg-green-50 dark:bg-green-950/20 p-3 rounded-lg">
+                                    <p className="text-sm text-green-700 dark:text-green-300 mb-1">Correct answer:</p>
+                                    <p className="flex items-start gap-1 text-base font-medium text-green-900 dark:text-green-100 whitespace-pre-wrap">
+                                      <span>{feedback.correct_option}.</span>
+                                      <MathText inline>{feedback.available_options?.[feedback.correct_option]}</MathText>
+                                    </p>
+                                  </div>
+                                )}
+
                                 {/* Your Answer - MCQ Multiple */}
                                 {question.type === 'mcq_multiple' && feedback.selected_options && (
                                   <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
@@ -2236,19 +2247,40 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                   </div>
                                 )}
 
+                                {/* Correct Answer - MCQ Multiple (teacher-controlled) */}
+                                {question.type === 'mcq_multiple' && feedback.correct_options && (
+                                  <div className="bg-green-50 dark:bg-green-950/20 p-3 rounded-lg">
+                                    <p className="text-sm text-green-700 dark:text-green-300 mb-1">Correct answer(s):</p>
+                                    <div className="space-y-1">
+                                      {feedback.correct_options.map((opt, idx) => (
+                                        <p key={idx} className="flex items-start gap-1 text-base font-medium text-green-900 dark:text-green-100">
+                                          <span>{opt}.</span>
+                                          <MathText inline>{feedback.available_options?.[opt]}</MathText>
+                                        </p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
                                 {/* Your Answer - Fill-in-the-Blank */}
                                 {question.type === 'fill_blank' && feedback.grading_details?.blank_results && (
                                   <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
                                     <p className="text-sm text-gray-600 dark:text-muted-foreground mb-2">Your answers:</p>
                                     <div className="space-y-2">
                                       {feedback.grading_details.blank_results.map((blank, idx) => (
-                                        <div key={idx} className="flex items-start gap-2">
+                                        <div key={idx} className="flex items-start gap-2 flex-wrap">
                                           <span className="text-sm font-medium text-gray-600 dark:text-muted-foreground">Blank {blank.position + 1}:</span>
                                           <MathText inline className="text-base font-medium text-gray-900 dark:text-foreground">{blank.student_answer || '(empty)'}</MathText>
                                           {blank.is_correct ? (
                                             <CheckCircle className="w-5 h-5 text-green-500" />
                                           ) : (
                                             <XCircle className="w-5 h-5 text-red-500" />
+                                          )}
+                                          {/* Correct Answer - Fill-in-the-Blank (teacher-controlled) */}
+                                          {blank.accepted_answers && blank.accepted_answers.length > 0 && (
+                                            <span className="text-sm text-green-700 dark:text-green-300">
+                                              (Correct: {blank.accepted_answers.join(' / ')})
+                                            </span>
                                           )}
                                         </div>
                                       ))}
@@ -2262,7 +2294,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                     <p className="text-sm text-gray-600 dark:text-muted-foreground mb-2">Your answers:</p>
                                     <div className="space-y-2">
                                       {feedback.sub_results.map((sub, idx) => (
-                                        <div key={idx} className="flex items-start gap-2">
+                                        <div key={idx} className="flex items-start gap-2 flex-wrap">
                                           <span className="text-sm font-medium text-teal-600 dark:text-teal-400">{sub.sub_id}:</span>
                                           <MathText inline className="text-base font-medium text-gray-900 dark:text-foreground flex-1">
                                             {typeof sub.student_answer === 'string' ? sub.student_answer : JSON.stringify(sub.student_answer)}
@@ -2273,6 +2305,12 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                             ) : (
                                               <XCircle className="w-5 h-5 text-red-500" />
                                             )
+                                          )}
+                                          {/* Correct Answer - Multi-Part (teacher-controlled) */}
+                                          {(sub.correct_option || sub.correct_answer) && (
+                                            <span className="text-sm text-green-700 dark:text-green-300 w-full">
+                                              Correct: {sub.correct_option || sub.correct_answer}
+                                            </span>
                                           )}
                                         </div>
                                       ))}

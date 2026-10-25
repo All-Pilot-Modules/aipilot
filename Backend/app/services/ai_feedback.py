@@ -591,7 +591,12 @@ class AIFeedbackService:
                 messages=[{"role": "user", "content": prompt}],
                 model=ai_model,
                 temperature=0.1,
-                max_tokens=400  # JSON response fits in ~300 tokens; 400 gives a safe margin
+                max_tokens=700  # Per-criterion scores + explanation + hints regularly need 500-600+
+                                 # tokens on multi-criterion rubrics or math-heavy questions; 400 was
+                                 # too tight and caused deterministic truncated-JSON failures on
+                                 # longer explanations (observed live — 3 MCQ feedback jobs stuck in
+                                 # 'failed' after exhausting retries, same truncation every attempt).
+                                 # Matches mcq_multiple's budget below.
             )
 
             # Parse JSON response
@@ -1532,7 +1537,9 @@ Respond in JSON format:
             "student_answer": student_sub_answer,
             "is_correct": is_correct,
             "points_possible": sub_points,
-            "points_earned": sub_earned
+            "points_earned": sub_earned,
+            "correct_option": sub_q.get('correct_option_id') if sub_type == 'mcq' else None,
+            "correct_answer": sub_q.get('correct_answer') if sub_type in ('short', 'long') else None,
         }
 
     def _analyze_multi_part_answer(
