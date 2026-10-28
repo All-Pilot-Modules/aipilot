@@ -96,6 +96,7 @@ class GradingSettingsUpdate(BaseModel):
     show_correct_answer_to_student: Optional[bool] = None
     show_explanation_to_student: Optional[bool] = None
     show_hints_to_student: Optional[bool] = None
+    final_attempt_mode: Optional[str] = None           # "submit_only" | "learn"
     teacher_sees_ai_suggestions: Optional[bool] = None
     require_teacher_approval: Optional[bool] = None    # gate: teacher must approve before student sees
     model: Optional[str] = None                        # AI model used for grading

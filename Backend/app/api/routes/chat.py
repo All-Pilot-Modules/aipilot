@@ -1,6 +1,11 @@
 """
 Chat API routes for AI Tutor chatbot
 """
+from app.services.feedback_visibility import (
+    content_policy,
+    redact_feedback,
+    student_feedback_is_available,
+)
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from typing import List
@@ -204,6 +209,8 @@ def discuss_feedback(feedback_id: UUID, identity: StudentIdentity = Depends(get_
     answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first() if feedback else None
     if not answer or answer.student_id != identity.student_id or str(answer.module_id) != str(identity.module_id):
         raise HTTPException(status_code=404, detail='Feedback not found')
+    if not student_feedback_is_available(db, answer.module_id, identity.student_id):
+        raise HTTPException(status_code=403, detail="Feedback is available after your final submission")
     if feedback.generation_status != 'completed' or (feedback.feedback_data or {}).get('fallback') or not (feedback.feedback_data or {}).get('explanation', '').strip():
         raise HTTPException(status_code=409, detail='Feedback is not ready to discuss yet')
     module = db.query(Module).filter(Module.id == answer.module_id).first()
@@ -213,14 +220,27 @@ def discuss_feedback(feedback_id: UUID, identity: StudentIdentity = Depends(get_
     from app.models.teacher_grade import TeacherGrade
     grade = db.query(TeacherGrade).filter(TeacherGrade.answer_id == answer.id).first()
     data = feedback.feedback_data or {}
+    # The tutor is a fifth way feedback reaches a student, so the teacher's
+    # content policy applies here too — otherwise a module that hides the AI
+    # explanation would hand it straight back through chat.
+    policy = content_policy(module)
+    if not policy['explanation']:
+        raise HTTPException(status_code=403, detail='AI feedback is not shown for this module')
+    visible = redact_feedback({
+        'score': feedback.score,
+        'points_earned': feedback.points_earned,
+        **{key: data[key] for key in
+           ('explanation', 'strengths', 'weaknesses', 'improvement_hint',
+            'concept_explanation', 'criterion_scores') if key in data},
+    }, module, policy)
     context = {
         'question': question.text, 'options': question.options, 'answer': answer.answer, 'attempt': answer.attempt,
         'teacher_feedback': grade.feedback_text if grade else None,
         'teacher_points': grade.points_awarded if grade else None,
         'feedback_status': feedback.generation_status,
-        'score': feedback.score, 'points_earned': feedback.points_earned,
+        'score': visible.pop('score'), 'points_earned': visible.pop('points_earned'),
         'points_possible': feedback.points_possible,
-        'feedback': {key: data[key] for key in ('explanation', 'strengths', 'weaknesses', 'improvement_hint', 'concept_explanation', 'criterion_scores') if key in data},
+        'feedback': visible,
     }
     # Reopen saved discussions, including legacy discussions without feedback_id.
     from app.models.chat_conversation import ChatConversation

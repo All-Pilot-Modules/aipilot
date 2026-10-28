@@ -1,3 +1,9 @@
+from app.services.feedback_visibility import (
+    ai_feedback_allowed_for_attempt,
+    redact_feedback,
+    redact_feedback_list,
+    student_feedback_is_available,
+)
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -238,10 +244,12 @@ def submit_student_answer(
         multiple_attempts_config = module.assignment_config.get("features", {}).get("multiple_attempts", {})
         max_attempts = multiple_attempts_config.get("max_attempts", 2)
 
-    # Generate feedback for all attempts EXCEPT the final/last attempt
-    # Example: max_attempts=2 → feedback on attempt 1, no feedback on attempt 2
-    # Example: max_attempts=3 → feedback on attempts 1 and 2, no feedback on attempt 3
-    should_generate_feedback = answer_data.attempt < max_attempts
+    # Every attempt before the last gets AI feedback. Whether the last one does
+    # is the teacher's call (final_attempt_mode): "submit_only" reserves it for
+    # teacher grading, "learn" grades it like any other attempt.
+    should_generate_feedback = ai_feedback_allowed_for_attempt(
+        module, answer_data.attempt, max_attempts
+    )
 
     if should_generate_feedback:
         # Build progressive feedback context from previous attempts (fast DB read only)
@@ -283,7 +291,9 @@ def submit_student_answer(
             attempt=answer_data.attempt,
             priority=2,  # higher priority than batch jobs
             previous_feedback_context=previous_feedback_context,
-            is_final_attempt=False,
+            # Under final_attempt_mode="learn" this path does run on the last
+            # attempt, and the worker needs the flag to apply require_teacher_approval.
+            is_final_attempt=answer_data.attempt >= max_attempts,
             commit=False,
         )
         db.commit()
@@ -489,20 +499,11 @@ def get_module_feedback(
 
     module = db.query(Module).filter(Module.id == module_id).first()
 
-    # Teacher setting: show the numeric score/percentage to students at all.
-    # When off, explanation/hints/suggestions still show — only the score box
-    # and correctness indicators are stripped from the response.
-    show_score_to_student = bool(
-        (module.ai_config or {}).get("grading", {}).get("show_score_to_student", True)
-    ) if module else True
+    if not student_feedback_is_available(db, module_id, student_id, module):
+        return []
 
-    # Teacher setting: reveal the correct answer alongside the student's own
-    # answer. Off by default — unlike show_score_to_student, this strips
-    # correct-answer fields when OFF (opposite default, same "strip when off"
-    # shape as the block below).
-    show_correct_answer_to_student = bool(
-        (module.ai_config or {}).get("grading", {}).get("show_correct_answer_to_student", False)
-    ) if module else False
+    # Which layers of the payload reach this student is decided once, at the
+    # bottom of this function, by redact_feedback_list.
 
     # Single JOIN query: feedback + answer in one shot
     # Exclude mastery practice answers (is_mastery=True) — those are ephemeral and
@@ -629,37 +630,7 @@ def get_module_feedback(
             "is_teacher_graded": True
         })
 
-    if not show_score_to_student:
-        for item in student_feedback:
-            item["is_correct"] = None
-            item["score"] = None
-            item["correctness_score"] = None
-            item["points_earned"] = None
-            item["criterion_scores"] = None
-            if item.get("teacher_grade"):
-                item["teacher_grade"] = {**item["teacher_grade"], "points_awarded": None}
-
-    if not show_correct_answer_to_student:
-        for item in student_feedback:
-            item["correct_option"] = None
-            item["correct_options"] = None
-            if item.get("grading_details") and isinstance(item["grading_details"], dict):
-                blank_results = item["grading_details"].get("blank_results")
-                if blank_results:
-                    item["grading_details"] = {
-                        **item["grading_details"],
-                        "blank_results": [
-                            {k: v for k, v in b.items() if k != "accepted_answers"}
-                            for b in blank_results
-                        ],
-                    }
-            if item.get("sub_results"):
-                item["sub_results"] = [
-                    {k: v for k, v in r.items() if k not in ("correct_option", "correct_answer")}
-                    for r in item["sub_results"]
-                ]
-
-    return student_feedback
+    return redact_feedback_list(student_feedback, module)
 
 # 🧠 Get AI feedback for a specific question
 @router.get("/questions/{question_id}/feedback")
@@ -689,10 +660,43 @@ def get_question_feedback(
     if not feedback:
         raise HTTPException(status_code=404, detail="Feedback not found")
 
+    if not student_feedback_is_available(db, answer.module_id, identity.student_id):
+        raise HTTPException(status_code=403, detail="Feedback is available after your final submission")
+
     if not feedback.released:
         raise HTTPException(status_code=403, detail="Feedback not yet released by teacher")
 
-    return feedback
+    # Same content policy as the module-level feedback list — this endpoint
+    # must not become a side door around the teacher's visibility settings.
+    data = feedback.feedback_data or {}
+    module = get_module_by_id(db, str(answer.module_id))
+    return redact_feedback({
+        "id": str(feedback.id),
+        "answer_id": str(feedback.answer_id),
+        "question_id": str(answer.question_id),
+        "attempt": answer.attempt,
+        "is_correct": feedback.is_correct,
+        "score": feedback.score,
+        "correctness_score": feedback.score,
+        "points_earned": feedback.points_earned,
+        "points_possible": feedback.points_possible,
+        "criterion_scores": feedback.criterion_scores,
+        "explanation": data.get("explanation", ""),
+        "improvement_hint": data.get("improvement_hint"),
+        "concept_explanation": data.get("concept_explanation"),
+        "strengths": data.get("strengths"),
+        "weaknesses": data.get("weaknesses"),
+        "selected_option": data.get("selected_option"),
+        "correct_option": data.get("correct_option"),
+        "available_options": data.get("available_options"),
+        "grading_details": data.get("grading_details"),
+        "selected_options": data.get("selected_options"),
+        "correct_options": data.get("correct_options"),
+        "sub_results": data.get("sub_results"),
+        "has_course_materials": data.get("used_rag", False),
+        "generation_status": feedback.generation_status,
+        "generated_at": feedback.generated_at.isoformat() if feedback.generated_at else None,
+    }, module)
 
 # 📝 Save answer (for auto-save, without feedback generation)
 @router.post("/save-answer")
@@ -1079,6 +1083,7 @@ async def submit_test(
             "can_retry": not is_final,
             "max_attempts": max_attempts,
             "feedback_status": "pending_review",
+            "feedback_available": student_feedback_is_available(db, module_id, student_id, module),
             "message": "Test submitted! Your teacher will review and release your feedback."
         }
 
@@ -1091,6 +1096,7 @@ async def submit_test(
         "can_retry": not is_final,
         "max_attempts": max_attempts,
         "feedback_status": "generating",
+        "feedback_available": student_feedback_is_available(db, module_id, student_id, module),
         "message": "Test submitted! Feedback is being generated in the background."
     }
 
@@ -1384,7 +1390,7 @@ def regenerate_all_failed_feedback(
         multiple_attempts_config = module.assignment_config.get("features", {}).get("multiple_attempts", {})
         max_attempts = multiple_attempts_config.get("max_attempts", 2)
 
-    if attempt >= max_attempts:
+    if not ai_feedback_allowed_for_attempt(module, attempt, max_attempts):
         raise HTTPException(
             status_code=400,
             detail=f"Cannot regenerate AI feedback for attempt {attempt}. This is the final attempt reserved for teacher manual grading. AI feedback is only available for attempts 1-{max_attempts - 1}."

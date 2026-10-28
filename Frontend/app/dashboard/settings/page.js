@@ -31,15 +31,15 @@ import { apiClient } from "@/lib/auth";
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const TABS = [
-  { id: 'general',  label: 'General'  },
-  { id: 'grading',  label: 'Grading'  },
-  { id: 'features', label: 'Features' },
-  { id: 'chatbot',  label: 'Chatbot'  },
-  { id: 'survey',   label: 'Survey'   },
-  { id: 'consent',  label: 'Consent'  },
+  { id: 'general', label: 'Module details', group: 'Module setup', description: 'Name, instructions, schedule, and enrollment access.' },
+  { id: 'features', label: 'Attempts & practice', group: 'Teaching', description: 'Submission limits, feedback timing, and mastery practice.' },
+  { id: 'grading', label: 'Grading & feedback', group: 'Teaching', description: 'Review policy, scoring criteria, and AI feedback style.' },
+  { id: 'chatbot', label: 'AI tutor', group: 'Teaching', description: 'Enable the tutor and guide how it helps students.' },
+  { id: 'survey', label: 'Student survey', group: 'Student forms', description: 'Questions students answer after completing their work.' },
+  { id: 'consent', label: 'Research consent', group: 'Student forms', description: 'Consent requirements and the form students see before starting.' },
 ];
 
-const SHARED_SAVE_TABS = new Set(['general', 'grading', 'features']);
+const SHARED_SAVE_TABS = new Set(['general', 'grading', 'features', 'chatbot']);
 
 const GRADING_MODES = [
   {
@@ -63,23 +63,23 @@ const GRADING_MODES = [
 // A horizontal settings row — label/desc on left, control on right
 function Row({ label, description, children, noBorder = false }) {
   return (
-    <div className={`py-5 flex items-start gap-8 ${noBorder ? '' : 'border-b border-border '}`}>
-      <div className="w-64 shrink-0">
+    <div className={`py-5 flex flex-col lg:flex-row items-start gap-3 lg:gap-8 ${noBorder ? '' : 'border-b border-border '}`}>
+      <div className="w-full lg:w-56 shrink-0">
         <p className="text-sm font-medium text-gray-900 dark:text-foreground">{label}</p>
         {description && <p className="text-sm text-gray-500 dark:text-muted-foreground mt-0.5 leading-snug">{description}</p>}
       </div>
-      <div className="flex-1 min-w-0">
+      <div className="w-full flex-1 min-w-0">
         {children}
       </div>
     </div>
   );
 }
 
-function SectionHeading({ children }) {
+function SectionHeading({ children, className = '' }) {
   return (
-    <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-muted-foreground mb-1 pt-2">
+    <h3 className={`text-sm font-semibold text-foreground mb-1 pt-6 first:pt-0 ${className}`}>
       {children}
-    </p>
+    </h3>
   );
 }
 
@@ -87,7 +87,7 @@ function SectionHeading({ children }) {
 function SaveStatus({ state }) {
   if (!state) return null;
   return (
-    <span className={`inline-flex items-center gap-1.5 text-xs ${state === 'error' ? 'text-red-500' : state === 'saved' ? 'text-emerald-600 dark:text-emerald-300' : 'text-gray-400'}`}>
+    <span role="status" className={`inline-flex items-center gap-1.5 text-xs ${state === 'error' ? 'text-red-500' : state === 'saved' ? 'text-emerald-600 dark:text-emerald-300' : 'text-gray-400'}`}>
       {state === 'saving' && <Loader2 className="w-3 h-3 animate-spin" />}
       {state === 'saved'  && <Check className="w-3 h-3" />}
       {state === 'error'  && <AlertCircle className="w-3 h-3" />}
@@ -103,22 +103,22 @@ function GeneralTab({ formData, set }) {
     <div>
       <SectionHeading>Course details</SectionHeading>
       <Row label="Module title" description="The name students see when they enroll.">
-        <Input value={formData.name} onChange={e => set('name', e.target.value)} className="h-9 text-sm" />
+        <Input aria-label="Module title" value={formData.name} onChange={e => set('name', e.target.value)} className="h-9 text-sm" />
       </Row>
       <Row label="Description" description="Displayed on the module enrollment card.">
-        <Textarea value={formData.description} onChange={e => set('description', e.target.value)} rows={3} className="resize-none text-sm" />
+        <Textarea aria-label="Description" value={formData.description} onChange={e => set('description', e.target.value)} rows={3} className="resize-none text-sm" />
       </Row>
       <Row label="Student instructions" description="Shown at the top of the assignment before students begin.">
-        <Textarea value={formData.instructions} onChange={e => set('instructions', e.target.value)} rows={4} className="resize-none text-sm" />
+        <Textarea aria-label="Student instructions" value={formData.instructions} onChange={e => set('instructions', e.target.value)} rows={4} className="resize-none text-sm" />
       </Row>
 
       <SectionHeading className="mt-6">Scheduling &amp; visibility</SectionHeading>
       <Row label="Submission deadline" description="Students cannot submit after this date.">
-        <Input type="date" value={formData.due_date} onChange={e => set('due_date', e.target.value)} className="h-9 text-sm" />
+        <Input aria-label="Submission deadline" type="date" value={formData.due_date} onChange={e => set('due_date', e.target.value)} className="h-9 text-sm" />
       </Row>
       <Row label="Enrollment visibility" description="Who can discover and join this module.">
         <Select value={formData.visibility} onValueChange={v => set('visibility', v)}>
-          <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+          <SelectTrigger aria-label="Enrollment visibility" className="h-9 text-sm"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="class-only">
               <span className="flex items-center gap-2"><Lock className="w-3.5 h-3.5 text-gray-400" /> Enrolled students only</span>
@@ -132,14 +132,10 @@ function GeneralTab({ formData, set }) {
       <SectionHeading>Access</SectionHeading>
       <Row label="Module active" description="When off, enrolled students cannot open the module or submit responses.">
         <div className="flex items-center h-9">
-          <Switch checked={formData.is_active} onCheckedChange={v => set('is_active', v)} />
+          <Switch aria-label="Module active" checked={formData.is_active} onCheckedChange={v => set('is_active', v)} />
         </div>
       </Row>
-      <Row label="Require research consent" description="Students must complete the IRB consent form before seeing any questions." noBorder>
-        <div className="flex items-center h-9">
-          <Switch checked={formData.consent_required} onCheckedChange={v => set('consent_required', v)} />
-        </div>
-      </Row>
+
     </div>
   );
 }
@@ -152,18 +148,57 @@ const TONES = [
   { value: 'strict',      label: 'Direct'   },
 ];
 
-const GRADING_SECTIONS = [
-  { id: 'policy',   label: 'Policy'   },
-  { id: 'criteria', label: 'Criteria' },
-  { id: 'feedback', label: 'Feedback' },
-  { id: 'scoring',  label: 'Scoring'  },
+// The between-attempt conditions. Each writes the timing flag and both content
+// flags together — see setBetweenAttemptsArm.
+const BETWEEN_ATTEMPT_ARMS = [
+  { value: 'nothing', label: 'Nothing',
+    description: 'Results are withheld until the student reaches their final attempt.' },
+  { value: 'answer',  label: 'The correct answer only',
+    description: 'Students see the right answer next to their own, with no AI commentary.' },
+  { value: 'ai',      label: 'AI feedback only',
+    description: 'Students get the explanation and improvement hints, but not the answer itself.' },
+  { value: 'both',    label: 'The correct answer and AI feedback',
+    description: 'Students see the right answer alongside the full AI explanation and hints.' },
 ];
 
-function GradingTab({ formData, setGradingMode, setShowScoreToStudent, setShowCorrectAnswerToStudent, moduleId }) {
-  const gradingMode = formData.assignment_config?.grading?.mode || 'auto';
-  const showScoreToStudent = formData.assignment_config?.grading?.show_score_to_student ?? true;
-  const showCorrectAnswerToStudent = formData.assignment_config?.grading?.show_correct_answer_to_student ?? false;
-  const [section, setSection] = useState('policy');
+const FINAL_ATTEMPT_MODES = [
+  { value: 'submit_only', label: 'Submission only',
+    description: 'No AI feedback on the last attempt — it is graded by you and measures what the student learned.' },
+  { value: 'learn',       label: 'Also a learning step',
+    description: 'The last attempt is graded by AI like every other one, so students get feedback on it too.' },
+];
+
+const GRADING_SECTIONS = [
+  { id: 'policy',   label: 'Review & visibility' },
+  { id: 'criteria', label: 'Grading criteria' },
+  { id: 'feedback', label: 'Feedback style' },
+  { id: 'scoring',  label: 'Scoring & sources' },
+];
+
+// Reduce the three stored flags back to the arm the teacher picked. 'custom'
+// covers timing-on-but-both-content-flags-off (score only), which the radio
+// group cannot produce but older or hand-edited modules may hold.
+function deriveBetweenAttemptsArm({ showFeedbackAfterEach, showCorrectAnswer, showExplanation }) {
+  if (!showFeedbackAfterEach) return 'nothing';
+  if (showCorrectAnswer && showExplanation) return 'both';
+  if (showCorrectAnswer) return 'answer';
+  if (showExplanation) return 'ai';
+  return 'custom';
+}
+
+function GradingTab({ section, setSection, formData, setGradingMode, setShowScoreToStudent,
+                      setBetweenAttemptsArm, setFinalAttemptMode, setRequireTeacherApproval, moduleId }) {
+  const grading = formData.assignment_config?.grading || {};
+  const gradingMode = grading.mode || 'auto';
+  const showScoreToStudent = grading.show_score_to_student ?? true;
+  const finalAttemptMode = grading.final_attempt_mode || 'submit_only';
+  const requireTeacherApproval = grading.require_teacher_approval ?? false;
+  const maxAttempts = formData.assignment_config?.features?.multiple_attempts?.max_attempts ?? 2;
+  const betweenAttemptsArm = deriveBetweenAttemptsArm({
+    showFeedbackAfterEach: formData.assignment_config?.features?.multiple_attempts?.show_feedback_after_each ?? true,
+    showCorrectAnswer: grading.show_correct_answer_to_student ?? false,
+    showExplanation: grading.show_explanation_to_student ?? true,
+  });
 
   const [rubric, setRubric] = useState(null);
   const [originalRubric, setOriginalRubric] = useState(null);
@@ -252,10 +287,10 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, setShowCo
   return (
     <div>
       {/* ── Segmented section selector ── */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-1 p-1 bg-muted rounded-lg">
+      <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
+        <div className="flex flex-wrap items-center gap-1 p-1 bg-muted rounded-lg">
           {GRADING_SECTIONS.map(s => (
-            <button key={s.id} onClick={() => setSection(s.id)}
+            <button key={s.id} aria-pressed={section === s.id} onClick={() => setSection(s.id)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${section === s.id ? 'bg-card shadow-sm text-gray-900 dark:text-foreground' : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground'}`}>
               {s.label}
             </button>
@@ -312,29 +347,87 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, setShowCo
             </div>
           )}
           <Row
-            label="Show score to students"
-            description="Turn off to keep explanations, hints, and suggestions visible while hiding the numeric score/percentage."
-            noBorder
+            label="Hold results for review"
+            description="Require your approval on the final attempt even while AI grading runs automatically on the earlier ones."
           >
             <div className="flex items-center gap-3">
-              <Switch checked={showScoreToStudent} onCheckedChange={setShowScoreToStudent} />
+              <Switch
+                aria-label="Hold results for review"
+                disabled={gradingMode === 'manual'}
+                checked={gradingMode === 'manual' || requireTeacherApproval}
+                onCheckedChange={setRequireTeacherApproval}
+              />
               <span className="text-sm text-gray-600 dark:text-muted-foreground">
-                {showScoreToStudent ? 'Students see their score' : 'Score hidden — feedback text still shown'}
+                {gradingMode === 'manual'
+                  ? 'Teacher Review already holds every attempt'
+                  : requireTeacherApproval
+                    ? 'Final attempt waits for your approval'
+                    : 'All attempts release automatically'}
               </span>
             </div>
           </Row>
+
+          <SectionHeading>Between attempts</SectionHeading>
+          <p className="text-sm text-gray-500 dark:text-muted-foreground mb-4">
+            What students receive after each attempt, before their final submission.
+          </p>
+          <div className="divide-y divide-border">
+            {BETWEEN_ATTEMPT_ARMS.map(({ value, label, description }) => {
+              const active = betweenAttemptsArm === value;
+              return (
+                <button key={value} type="button" onClick={() => setBetweenAttemptsArm(value)}
+                  className="w-full flex items-center gap-4 py-3.5 text-left hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors -mx-6 px-6">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${active ? 'border-gray-900 dark:border-gray-300' : 'border-border'}`}>
+                    {active && <div className="w-2 h-2 rounded-full bg-primary dark:bg-gray-400" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-sm font-medium ${active ? 'text-gray-900 dark:text-foreground' : 'text-gray-700 dark:text-foreground'}`}>{label}</p>
+                    <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{description}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {betweenAttemptsArm === 'custom' && (
+            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
+              This module is currently set to show the score only. Pick an option above to change it.
+            </p>
+          )}
+
           <Row
-            label="Show correct answer to students"
-            description="When on, the Feedback tab shows the correct answer next to the student's own answer for every question type."
+            label="Show score to students"
+            description="Applies to every option above except “Nothing”. Turn off to show feedback without the numeric score or percentage."
             noBorder
           >
             <div className="flex items-center gap-3">
-              <Switch checked={showCorrectAnswerToStudent} onCheckedChange={setShowCorrectAnswerToStudent} />
+              <Switch aria-label="Show score to students" checked={showScoreToStudent} onCheckedChange={setShowScoreToStudent} />
               <span className="text-sm text-gray-600 dark:text-muted-foreground">
-                {showCorrectAnswerToStudent ? 'Students see the correct answer' : 'Correct answer hidden'}
+                {showScoreToStudent ? 'Students see their score' : 'Score hidden'}
               </span>
             </div>
           </Row>
+
+          <SectionHeading>The final attempt</SectionHeading>
+          <p className="text-sm text-gray-500 dark:text-muted-foreground mb-4">
+            Attempt {maxAttempts} of {maxAttempts} — a submission to be graded, or one more chance to learn.
+          </p>
+          <div className="divide-y divide-border">
+            {FINAL_ATTEMPT_MODES.map(({ value, label, description }) => {
+              const active = finalAttemptMode === value;
+              return (
+                <button key={value} type="button" onClick={() => setFinalAttemptMode(value)}
+                  className="w-full flex items-center gap-4 py-3.5 text-left hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors -mx-6 px-6">
+                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${active ? 'border-gray-900 dark:border-gray-300' : 'border-border'}`}>
+                    {active && <div className="w-2 h-2 rounded-full bg-primary dark:bg-gray-400" />}
+                  </div>
+                  <div className="min-w-0">
+                    <p className={`text-sm font-medium ${active ? 'text-gray-900 dark:text-foreground' : 'text-gray-700 dark:text-foreground'}`}>{label}</p>
+                    <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{description}</p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -450,7 +543,7 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, setShowCo
               </Row>
               <Row label="Custom instructions" description="Additional guidance for AI feedback (optional)." noBorder>
                 <div>
-                  <Textarea
+                  <Textarea aria-label="Custom instructions"
                     value={rubric?.custom_instructions || ''}
                     onChange={e => setRubricField('custom_instructions', e.target.value)}
                     placeholder="E.g., Focus on mathematical accuracy and proper notation…"
@@ -475,14 +568,14 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, setShowCo
               </Row>
               <Row label="Partial credit" description="Students earn points for partially correct answers.">
                 <div className="flex items-center h-9">
-                  <Switch checked={thresholds.partial_credit ?? true} onCheckedChange={v => setThreshold('partial_credit', v)} />
+                  <Switch aria-label="Partial credit" checked={thresholds.partial_credit ?? true} onCheckedChange={v => setThreshold('partial_credit', v)} />
                 </div>
               </Row>
 
               <SectionHeading>Course materials</SectionHeading>
               <Row label="Reference uploaded files" description="AI draws on your uploaded documents when giving feedback.">
                 <div className="flex items-center h-9">
-                  <Switch checked={ragSettings.enabled ?? true} onCheckedChange={v => setRagSetting('enabled', v)} />
+                  <Switch aria-label="Reference uploaded files" checked={ragSettings.enabled ?? true} onCheckedChange={v => setRagSetting('enabled', v)} />
                 </div>
               </Row>
               {(ragSettings.enabled ?? true) && (
@@ -495,7 +588,7 @@ function GradingTab({ formData, setGradingMode, setShowScoreToStudent, setShowCo
                   </Row>
                   <Row label="Show source references" description="Include links to specific course sections in feedback." noBorder>
                     <div className="flex items-center h-9">
-                      <Switch checked={ragSettings.include_source_references ?? true} onCheckedChange={v => setRagSetting('include_source_references', v)} />
+                      <Switch aria-label="Show source references" checked={ragSettings.include_source_references ?? true} onCheckedChange={v => setRagSetting('include_source_references', v)} />
                     </div>
                   </Row>
                 </>
@@ -541,12 +634,12 @@ function FeaturesTab({ formData, setFeature }) {
 
   return (
     <div>
-      <SectionHeading>Assignment features</SectionHeading>
+      <SectionHeading>Submission attempts</SectionHeading>
 
       {/* Multiple attempts */}
       <Row label="Multiple attempts" description="Allow students to submit more than once.">
         <div className="flex items-center h-9">
-          <Switch checked={feat.multiple_attempts?.enabled ?? true} onCheckedChange={v => setFeature('multiple_attempts', 'enabled', v)} />
+          <Switch aria-label="Multiple attempts" checked={feat.multiple_attempts?.enabled ?? true} onCheckedChange={v => setFeature('multiple_attempts', 'enabled', v)} />
         </div>
       </Row>
       {feat.multiple_attempts?.enabled && (
@@ -558,32 +651,18 @@ function FeaturesTab({ formData, setFeature }) {
               onChange={v => setFeature('multiple_attempts', 'max_attempts', v)}
             />
           </Row>
-          <Row label="Feedback between attempts" description="Show AI feedback after each submission.">
-            <div className="flex items-center h-9">
-              <Switch checked={feat.multiple_attempts?.show_feedback_after_each ?? true} onCheckedChange={v => setFeature('multiple_attempts', 'show_feedback_after_each', v)} />
-            </div>
+          <Row label="Feedback between attempts" description="What students receive after each attempt is set on the Grading &amp; feedback tab, so the timing and the content stay in step.">
+            <p className="text-sm text-gray-500 dark:text-muted-foreground h-9 flex items-center">
+              Grading &amp; feedback → Review &amp; visibility
+            </p>
           </Row>
         </>
       )}
 
-      {/* AI Chatbot */}
-      <Row label="AI tutoring assistant" description="Conversational AI available to students during the assignment.">
-        <div className="flex items-center h-9">
-          <Switch checked={feat.chatbot_feedback?.enabled ?? true} onCheckedChange={v => setFeature('chatbot_feedback', 'enabled', v)} />
-        </div>
-      </Row>
-      {feat.chatbot_feedback?.enabled && (
-        <div className="pb-4 border-b border-border -mt-1">
-          <p className="text-xs text-gray-400 dark:text-muted-foreground pl-0">
-            Customize tone and instructions in the <strong className="text-gray-600 dark:text-foreground">Chatbot</strong> tab.
-          </p>
-        </div>
-      )}
-
-      {/* Mastery learning */}
+      <SectionHeading>Mastery practice</SectionHeading>
       <Row label="Mastery learning" description="Adaptive practice queue until the student demonstrates proficiency." noBorder={!feat.mastery_learning?.enabled}>
         <div className="flex items-center h-9">
-          <Switch checked={feat.mastery_learning?.enabled ?? false} onCheckedChange={v => setFeature('mastery_learning', 'enabled', v)} />
+          <Switch aria-label="Mastery learning" checked={feat.mastery_learning?.enabled ?? false} onCheckedChange={v => setFeature('mastery_learning', 'enabled', v)} />
         </div>
       </Row>
       {feat.mastery_learning?.enabled && (
@@ -597,12 +676,12 @@ function FeaturesTab({ formData, setFeature }) {
           </Row>
           <Row label="Randomize order" description="Shuffle question order on each practice attempt.">
             <div className="flex items-center h-9">
-              <Switch checked={feat.mastery_learning?.queue_randomization ?? true} onCheckedChange={v => setFeature('mastery_learning', 'queue_randomization', v)} />
+              <Switch aria-label="Randomize order" checked={feat.mastery_learning?.queue_randomization ?? true} onCheckedChange={v => setFeature('mastery_learning', 'queue_randomization', v)} />
             </div>
           </Row>
           <Row label="Reset streak on wrong" description="A wrong answer resets the consecutive-correct count." noBorder>
             <div className="flex items-center h-9">
-              <Switch checked={feat.mastery_learning?.reset_on_wrong ?? false} onCheckedChange={v => setFeature('mastery_learning', 'reset_on_wrong', v)} />
+              <Switch aria-label="Reset streak on wrong" checked={feat.mastery_learning?.reset_on_wrong ?? false} onCheckedChange={v => setFeature('mastery_learning', 'reset_on_wrong', v)} />
             </div>
           </Row>
         </>
@@ -621,9 +700,9 @@ function SpinnerBox() {
   );
 }
 
-function StandaloneHeader({ title, description, saveState, hasChanges, isSaving, onSave, onDiscard, extraActions }) {
+function StandaloneHeader({ saveLabel = 'Save changes', title, description, saveState, hasChanges, isSaving, onSave, onDiscard, extraActions }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
+    <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
       <div>
         <p className="text-sm font-medium text-gray-900 dark:text-foreground">{title}</p>
         {description && <p className="text-sm text-gray-500 dark:text-muted-foreground mt-0.5">{description}</p>}
@@ -638,7 +717,7 @@ function StandaloneHeader({ title, description, saveState, hasChanges, isSaving,
         )}
         <Button size="sm" onClick={onSave} disabled={isSaving || !hasChanges}
           className="h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground">
-          {isSaving ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Saving…</> : 'Save changes'}
+          {isSaving ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />Saving…</> : saveLabel}
         </Button>
       </div>
     </div>
@@ -646,8 +725,8 @@ function StandaloneHeader({ title, description, saveState, hasChanges, isSaving,
 }
 
 
-function ChatbotTab({ moduleId }) {
-  const [data, setData] = useState(null);
+function ChatbotTab({ moduleId, formData, setFeature }) {
+  const [savedInstructions, setSavedInstructions] = useState('');
   const [instructions, setInstructions] = useState('');
   const [isCustom, setIsCustom] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -659,7 +738,7 @@ function ChatbotTab({ moduleId }) {
     try {
       setLoading(true);
       const response = await apiClient.get(`/api/modules/${moduleId}/chatbot-instructions`);
-      setData(response);
+      setSavedInstructions(response.chatbot_instructions || '');
       setInstructions(response.chatbot_instructions || '');
       setIsCustom(response.is_custom || false);
     } catch (e) { console.error(e); }
@@ -674,6 +753,7 @@ function ChatbotTab({ moduleId }) {
     try {
       await apiClient.put(`/api/modules/${moduleId}/chatbot-instructions`, { instructions });
       setIsCustom(true);
+      setSavedInstructions(instructions);
       setSaveState('saved'); setTimeout(() => setSaveState(null), 2500);
     } catch (e) {
       console.error(e);
@@ -688,11 +768,22 @@ function ChatbotTab({ moduleId }) {
 
   return (
     <>
+      <Row label="AI tutoring assistant" description="Let students ask the AI tutor for help during the assignment.">
+        <Switch aria-label="AI tutoring assistant" checked={formData.assignment_config?.features?.chatbot_feedback?.enabled ?? true}
+          onCheckedChange={v => setFeature('chatbot_feedback', 'enabled', v)} />
+      </Row>
+      <p className="my-4 text-sm text-muted-foreground">Save this switch with “Save module settings” below. Instructions are saved separately.</p>
+      {formData.assignment_config?.features?.chatbot_feedback?.enabled === false && (
+        <p className="mb-4 text-sm text-muted-foreground">The tutor is off. You can still prepare its instructions for later.</p>
+      )}
+
       <StandaloneHeader
-        title="Chatbot instructions"
+        title="Tutor instructions"
+        saveLabel="Save instructions"
         description="Define how the AI tutor should respond to student questions."
         saveState={saveState}
-        hasChanges={charCount > 0}
+        hasChanges={instructions !== savedInstructions && charCount > 0}
+        onDiscard={() => setInstructions(savedInstructions)}
         isSaving={saving}
         onSave={handleSave}
         extraActions={
@@ -700,31 +791,22 @@ function ChatbotTab({ moduleId }) {
         }
       />
 
-      {!data?.chatbot_enabled && (
-        <div className="flex items-start gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 mb-4">
-          <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-700 dark:text-amber-300">
-            The chatbot is disabled for this module. Enable it in the <strong>Features</strong> tab to activate it.
-          </p>
-        </div>
-      )}
-
       <textarea
         value={instructions}
         onChange={e => setInstructions(e.target.value)}
-        disabled={!data?.chatbot_enabled}
+        aria-label="Tutor instructions"
         rows={16}
         className="w-full px-4 py-3 border border-border rounded-lg bg-card dark:bg-background text-sm font-mono text-gray-800 dark:text-foreground focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-40 disabled:cursor-not-allowed resize-none"
         placeholder="You are a supportive AI tutor for this module…"
       />
       <div className="flex items-center justify-between mt-2">
         <span className={`text-xs ${charCount > maxChars ? 'text-red-500 font-semibold' : 'text-gray-400'}`}>{charCount} / {maxChars}</span>
-        <button onClick={() => { if (confirm('Reset to default instructions?')) load(); }} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-foreground transition-colors">
-          Reset to default
+        <button onClick={() => { if (confirm('Discard instruction changes?')) load(); }} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-foreground transition-colors">
+          Reload saved instructions
         </button>
       </div>
 
-      <div className="mt-6 border-t border-border pt-4 grid grid-cols-3 gap-4">
+      <div className="mt-6 border-t border-border pt-4 grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { title: 'Response style', body: 'Define the tone (formal, casual, encouraging) and complexity level.' },
           { title: 'Teaching philosophy', body: 'Specify if the chatbot should give direct answers or guide discovery.' },
@@ -786,6 +868,7 @@ function SurveyTab({ moduleId }) {
     <>
       <StandaloneHeader
         title="Survey questions"
+        saveLabel="Save survey"
         description="Create questions to gather student feedback after submission."
         saveState={saveState}
         hasChanges={true}
@@ -847,7 +930,7 @@ function SurveyTab({ moduleId }) {
   );
 }
 
-function ConsentTab({ moduleId, moduleData }) {
+function ConsentTab({ moduleId, moduleData, onUpdate }) {
   if (!moduleId || !moduleData) return <SpinnerBox />;
   return (
     <>
@@ -861,6 +944,7 @@ function ConsentTab({ moduleId, moduleData }) {
         moduleId={moduleId}
         initialConsentText={moduleData.consent_form_text}
         initialConsentRequired={moduleData.consent_required}
+        onUpdate={onUpdate}
       />
     </>
   );
@@ -964,9 +1048,16 @@ function SettingsPageContent() {
   const moduleName = searchParams.get('module');
 
   const [activeTab, setActiveTab] = useState('general');
+  const [visitedTabs, setVisitedTabs] = useState(['general']);
+  const [gradingSection, setGradingSection] = useState('policy');
+  const selectTab = (id) => {
+    setActiveTab(id);
+    setVisitedTabs(prev => prev.includes(id) ? prev : [...prev, id]);
+  };
   const [moduleData, setModuleData] = useState(null);
   const [moduleId, setModuleId] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
   const [saveState, setSaveState] = useState(null);
   const [hasChanges, setHasChanges] = useState(false);
@@ -977,7 +1068,14 @@ function SettingsPageContent() {
     is_active: true, visibility: 'class-only', due_date: '',
     consent_required: true,
     assignment_config: {
-      grading: { mode: 'auto', show_correct_answer_to_student: false },
+      grading: {
+        mode: 'auto',
+        show_correct_answer_to_student: false,
+        show_explanation_to_student: true,
+        show_hints_to_student: true,
+        final_attempt_mode: 'submit_only',
+        require_teacher_approval: false,
+      },
       features: {
         multiple_attempts: { enabled: true, max_attempts: 2, show_feedback_after_each: true },
         chatbot_feedback:  { enabled: true, conversation_mode: 'guided', ai_model: 'gpt-4' },
@@ -1000,6 +1098,7 @@ function SettingsPageContent() {
   const fetchModuleData = async () => {
     try {
       setIsLoading(true);
+      setLoadError(null);
       const userId = user?.id || user?.sub;
       if (!userId) { setIsLoading(false); return; }
       const res = await apiClient.get(`/api/modules?teacher_id=${userId}`);
@@ -1020,12 +1119,22 @@ function SettingsPageContent() {
               // pull it in here so the toggle below reflects the saved setting.
               show_score_to_student: mod.ai_config?.grading?.show_score_to_student ?? true,
               show_correct_answer_to_student: mod.ai_config?.grading?.show_correct_answer_to_student ?? false,
+              show_explanation_to_student: mod.ai_config?.grading?.show_explanation_to_student ?? true,
+              show_hints_to_student: mod.ai_config?.grading?.show_hints_to_student ?? true,
+              final_attempt_mode: mod.ai_config?.grading?.final_attempt_mode ?? 'submit_only',
+              require_teacher_approval: mod.ai_config?.grading?.require_teacher_approval ?? false,
             },
           },
         };
         setFormData(d); setOriginalFormData(d);
+      } else {
+        setLoadError('This module could not be found. Return to Modules and select it again.');
       }
-    } catch (e) { console.error(e); }
+    } catch (e) {
+      setLoadError(e instanceof TypeError || e.name === 'TimeoutError' || e.name === 'AbortError'
+        ? 'Could not connect to the server. Check your connection and try again.'
+        : 'Could not load module settings. Please try again.');
+    }
     finally { setIsLoading(false); }
   };
 
@@ -1046,6 +1155,10 @@ function SettingsPageContent() {
         mode: gradingMode,
         show_score_to_student: formData.assignment_config?.grading?.show_score_to_student,
         show_correct_answer_to_student: formData.assignment_config?.grading?.show_correct_answer_to_student,
+        show_explanation_to_student: formData.assignment_config?.grading?.show_explanation_to_student,
+        show_hints_to_student: formData.assignment_config?.grading?.show_hints_to_student,
+        final_attempt_mode: formData.assignment_config?.grading?.final_attempt_mode,
+        require_teacher_approval: formData.assignment_config?.grading?.require_teacher_approval,
       }));
       await Promise.all(reqs);
       setModuleData(p => ({ ...p, ...formData }));
@@ -1063,12 +1176,27 @@ function SettingsPageContent() {
       ...p,
       assignment_config: { ...p.assignment_config, features: { ...p.assignment_config.features, [feature]: { ...p.assignment_config.features[feature], [key]: value } } },
     }));
-  const setGradingMode = (mode) =>
-    setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, mode } } }));
-  const setShowScoreToStudent = (show_score_to_student) =>
-    setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, show_score_to_student } } }));
-  const setShowCorrectAnswerToStudent = (show_correct_answer_to_student) =>
-    setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, show_correct_answer_to_student } } }));
+  // Merge keys into assignment_config.grading. Everything here is saved by the
+  // grading-settings PATCH into ai_config.grading, which is the canonical store.
+  const setGrading = (patch) =>
+    setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, ...patch } } }));
+  const setGradingMode = (mode) => setGrading({ mode });
+  const setShowScoreToStudent = (show_score_to_student) => setGrading({ show_score_to_student });
+
+  // The between-attempt arm writes the timing flag and both content flags
+  // together, so the half-configured states (correct answer on but timing off,
+  // where the reveal silently does nothing) are unreachable from the UI.
+  const setBetweenAttemptsArm = (arm) => {
+    setFeature('multiple_attempts', 'show_feedback_after_each', arm !== 'nothing');
+    if (arm === 'nothing') return;
+    setGrading({
+      show_correct_answer_to_student: arm === 'answer' || arm === 'both',
+      show_explanation_to_student: arm === 'ai' || arm === 'both',
+      show_hints_to_student: arm === 'ai' || arm === 'both',
+    });
+  };
+  const setFinalAttemptMode = (final_attempt_mode) => setGrading({ final_attempt_mode });
+  const setRequireTeacherApproval = (require_teacher_approval) => setGrading({ require_teacher_approval });
 
   const shell = (
     <SidebarProvider style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" }}>
@@ -1084,9 +1212,34 @@ function SettingsPageContent() {
 
   if (loading || isLoading) return shell;
   if (!isAuthenticated) return <div className="p-8 text-center"><Button asChild><Link href="/sign-in">Sign in</Link></Button></div>;
-  if (!moduleName) return shell;
+  if (!moduleName || loadError) return (
+    <SidebarProvider style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" }}>
+      <AppSidebar variant="inset" />
+      <SidebarInset>
+        <SiteHeader />
+        <div className="mx-auto w-full max-w-lg px-6 py-16">
+          <div role="alert">
+            <h1 className="text-xl font-semibold">{moduleName ? 'Unable to load settings' : 'Select a module'}</h1>
+            <p className="mt-3 text-sm text-muted-foreground">{loadError || 'Open a module to manage its settings.'}</p>
+          </div>
+          <div className="mt-6 flex gap-3">
+            {moduleName && <Button onClick={fetchModuleData}>Retry</Button>}
+            <Button variant="outline" asChild><Link href="/mymodules">Back to modules</Link></Button>
+          </div>
+        </div>
+      </SidebarInset>
+    </SidebarProvider>
+  );
 
-  const isSharedTab = SHARED_SAVE_TABS.has(activeTab);
+  const isSharedTab = SHARED_SAVE_TABS.has(activeTab) && (activeTab !== 'grading' || gradingSection === 'policy');
+  const currentTab = TABS.find(tab => tab.id === activeTab);
+  const syncConsent = (updated) => {
+    setModuleData(prev => ({ ...prev, ...updated }));
+    if (typeof updated.consent_required === 'boolean') {
+      setFormData(prev => ({ ...prev, consent_required: updated.consent_required }));
+      setOriginalFormData(prev => ({ ...prev, consent_required: updated.consent_required }));
+    }
+  };
 
   return (
     <SidebarProvider style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" }}>
@@ -1119,61 +1272,67 @@ function SettingsPageContent() {
                 </div>
               </div>
 
-              {/* Tab bar */}
-              <div className="flex items-end gap-0 -mb-px overflow-x-auto">
-                {TABS.map(tab => {
-                  const active = activeTab === tab.id;
-                  return (
-                    <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-                      className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors duration-100 select-none whitespace-nowrap ${
-                        active
-                          ? 'border-gray-900 dark:border-foreground text-gray-900 dark:text-foreground'
-                          : 'border-transparent text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground'
-                      }`}>
-                      {tab.label}
-                    </button>
-                  );
-                })}
+              <p className="pb-5 text-sm text-muted-foreground">Configure the module, then choose how students learn and submit their work.</p>
+            </div>
+          </div>
+
+          <div className="flex flex-1 flex-col min-h-0">
+            <div className="md:hidden border-b border-border px-4 py-4">
+              <Label htmlFor="settings-section" className="mb-2 block text-xs text-muted-foreground">Settings section</Label>
+              <select id="settings-section" value={activeTab} onChange={event => selectTab(event.target.value)}
+                className="w-full rounded-md border border-input bg-background px-3 py-3 text-sm text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                {['Module setup', 'Teaching', 'Student forms'].map(group => (
+                  <optgroup key={group} label={group}>
+                    {TABS.filter(tab => tab.group === group).map(tab => <option key={tab.id} value={tab.id}>{tab.label}</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+            <nav aria-label="Settings sections" className="hidden md:flex flex-wrap items-center gap-x-1 border-b border-border px-6">
+              {TABS.map(tab => (
+                <button key={tab.id} type="button" onClick={() => selectTab(tab.id)}
+                  aria-current={activeTab === tab.id ? 'page' : undefined}
+                  className={`border-b-2 px-3 py-3 text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${activeTab === tab.id ? 'border-primary text-foreground font-semibold' : 'border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/40'}`}>
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
+
+            <div className="flex-1 min-w-0 px-4 sm:px-8 py-6 pb-28">
+              <div className="w-full">
+                <header className="mb-8 border-b border-border pb-5">
+                  <h2 className="text-xl font-semibold text-foreground">{currentTab.label}</h2>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{currentTab.description}</p>
+                </header>
+                <div hidden={activeTab !== 'general'}>
+                  <GeneralTab formData={formData} set={set} />
+                  {moduleData?.access_code && <div className="mt-8 pt-6 border-t border-border max-w-lg">
+                    <SectionHeading>Student enrollment code</SectionHeading>
+                    <AccessCodePanel moduleData={moduleData} moduleId={moduleId}
+                      onRegenerated={newCode => setModuleData(prev => ({ ...prev, access_code: newCode }))} />
+                  </div>}
+                </div>
+                <div hidden={activeTab !== 'features'}>{visitedTabs.includes('features') && <FeaturesTab formData={formData} setFeature={setFeature} />}</div>
+                <div hidden={activeTab !== 'grading'}>{visitedTabs.includes('grading') && <GradingTab section={gradingSection} setSection={setGradingSection} formData={formData} setGradingMode={setGradingMode} setShowScoreToStudent={setShowScoreToStudent} setBetweenAttemptsArm={setBetweenAttemptsArm} setFinalAttemptMode={setFinalAttemptMode} setRequireTeacherApproval={setRequireTeacherApproval} moduleId={moduleId} />}</div>
+                <div hidden={activeTab !== 'chatbot'}>{visitedTabs.includes('chatbot') && <ChatbotTab moduleId={moduleId} formData={formData} setFeature={setFeature} />}</div>
+                <div hidden={activeTab !== 'survey'}>{visitedTabs.includes('survey') && <SurveyTab moduleId={moduleId} />}</div>
+                <div hidden={activeTab !== 'consent'}>{visitedTabs.includes('consent') && <ConsentTab moduleId={moduleId} moduleData={moduleData} onUpdate={syncConsent} />}</div>
               </div>
             </div>
           </div>
 
-          {/* ── Tab content + right panel ────────────────────────────────── */}
-          <div className="flex flex-1 min-h-0">
-
-            {/* Main content */}
-            <div className="flex-1 min-w-0 px-6 py-6 pb-24">
-              {activeTab === 'general'  && <GeneralTab  formData={formData} set={set} />}
-              {activeTab === 'grading'  && <GradingTab  formData={formData} setGradingMode={setGradingMode} setShowScoreToStudent={setShowScoreToStudent} setShowCorrectAnswerToStudent={setShowCorrectAnswerToStudent} moduleId={moduleId} />}
-              {activeTab === 'features' && <FeaturesTab formData={formData} setFeature={setFeature} />}
-              {activeTab === 'chatbot'  && <ChatbotTab  moduleId={moduleId} />}
-              {activeTab === 'survey'   && <SurveyTab   moduleId={moduleId} />}
-              {activeTab === 'consent'  && <ConsentTab  moduleId={moduleId} moduleData={moduleData} />}
-            </div>
-
-            {/* Right panel — access code */}
-            {moduleData?.access_code && (
-              <aside className="w-64 shrink-0 border-l border-border px-5 py-6">
-                <AccessCodePanel
-                  moduleData={moduleData}
-                  moduleId={moduleId}
-                  onRegenerated={(newCode) => setModuleData(prev => ({ ...prev, access_code: newCode }))}
-                />
-              </aside>
-            )}
-          </div>
-
           {/* ── Sticky bottom action bar — only for shared-save tabs ──── */}
-          {isSharedTab && (
-            <div className="fixed bottom-0 left-0 right-0 z-20 border-t border-border bg-card/95 backdrop-blur-sm">
-              {/* match the sidebar offset so the bar doesn't overlap it */}
-              <div className="flex items-center justify-end gap-3 px-6 py-3">
+          {(isSharedTab || hasChanges) && (
+            <div className="sticky bottom-0 z-20 border-t border-border bg-card">
+
+              <div className="flex flex-wrap items-center justify-end gap-3 px-4 sm:px-6 py-3">
+                <p className="mr-auto text-xs text-muted-foreground">{hasChanges ? 'Unsaved module settings' : 'Module settings are up to date'}</p>
                 <SaveStatus state={saveState} />
                 <Button variant="outline" size="sm" onClick={() => { if (originalFormData) { setFormData(originalFormData); setHasChanges(false); } }} disabled={!hasChanges || isSaving} className="h-8 text-sm">
-                  Cancel
+                  Discard
                 </Button>
                 <Button size="sm" onClick={handleSave} disabled={!hasChanges || isSaving} className="h-8 text-sm bg-primary hover:bg-primary/90 text-primary-foreground">
-                  {isSaving ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Saving…</> : 'Save changes'}
+                  {isSaving ? <><Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" />Saving…</> : 'Save module settings'}
                 </Button>
               </div>
             </div>

@@ -15,6 +15,9 @@ DEFAULT_AI_CONFIG = {
         "show_correct_answer_to_student": False,
         "show_explanation_to_student": True,
         "show_hints_to_student": True,
+        # "submit_only" – last attempt gets no AI feedback (teacher grades it)
+        # "learn"       – last attempt is graded by AI like every other attempt
+        "final_attempt_mode": "submit_only",
         "teacher_sees_ai_suggestions": True,
         "require_teacher_approval": False,
         "model": "gpt-4"
@@ -84,8 +87,10 @@ DEFAULT_MODULE_SETTINGS = {
             # "auto" | "manual"
             "mode": "auto",
             "show_score_to_student": True,
+            "show_correct_answer_to_student": False,
             "show_explanation_to_student": True,
             "show_hints_to_student": True,
+            "final_attempt_mode": "submit_only",   # "submit_only" | "learn"
             "teacher_sees_ai_suggestions": True,
             "require_teacher_approval": False,
             "model": "gpt-4"

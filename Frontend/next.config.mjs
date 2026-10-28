@@ -6,6 +6,8 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep browser-test bundles separate from an already running dev server.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   compress: true,
 

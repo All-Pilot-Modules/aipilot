@@ -869,6 +869,11 @@ const StudentTestPage = memo(function StudentTestPage() {
           setTimeout(() => {
             router.push(`/student/module/${moduleId}?tab=survey`);
           }, 2000);
+        } else if (result.feedback_available === false) {
+          setSuccess(`Attempt ${currentAttempt} submitted successfully! You can start your next attempt.`);
+          setTimeout(() => {
+            router.push(`/student/module/${moduleId}?tab=assignments`);
+          }, 2000);
         } else {
           setSuccess(`Attempt ${currentAttempt} submitted successfully! Redirecting to feedback...`);
 

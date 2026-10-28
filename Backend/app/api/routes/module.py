@@ -801,6 +801,11 @@ def update_ai_config(
 
 _VALID_GRADING_MODES = {"auto", "manual"}
 
+from app.services.feedback_visibility import (
+    FINAL_ATTEMPT_MODES,
+    get_final_attempt_mode,
+)
+
 
 @router.get("/modules/{module_id}/grading-settings")
 def get_grading_settings(module_id: UUID, db: Session = Depends(get_db)):
@@ -817,6 +822,7 @@ def get_grading_settings(module_id: UUID, db: Session = Depends(get_db)):
         "show_correct_answer_to_student": grading.get("show_correct_answer_to_student", False),
         "show_explanation_to_student": grading.get("show_explanation_to_student", True),
         "show_hints_to_student": grading.get("show_hints_to_student", True),
+        "final_attempt_mode": get_final_attempt_mode(module),
         "teacher_sees_ai_suggestions": grading.get("teacher_sees_ai_suggestions", True),
         "require_teacher_approval": grading.get("require_teacher_approval", False),
         "model": grading.get("model", "gpt-4"),
@@ -849,6 +855,12 @@ def update_grading_settings(
             )
         module.ai_grading_mode = payload.mode
 
+    if payload.final_attempt_mode is not None and payload.final_attempt_mode not in FINAL_ATTEMPT_MODES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"final_attempt_mode must be one of {set(FINAL_ATTEMPT_MODES)}"
+        )
+
     # Merge grading sub-keys into ai_config.grading
     from sqlalchemy.orm.attributes import flag_modified
 
@@ -861,6 +873,7 @@ def update_grading_settings(
         "show_correct_answer_to_student": payload.show_correct_answer_to_student,
         "show_explanation_to_student": payload.show_explanation_to_student,
         "show_hints_to_student": payload.show_hints_to_student,
+        "final_attempt_mode": payload.final_attempt_mode,
         "teacher_sees_ai_suggestions": payload.teacher_sees_ai_suggestions,
         "require_teacher_approval": payload.require_teacher_approval,
         "model": payload.model,

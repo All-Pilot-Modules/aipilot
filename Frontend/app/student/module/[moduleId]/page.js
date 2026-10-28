@@ -117,6 +117,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   const [masteryLoading, setMasteryLoading] = useState(false);
 
   // Check if chatbot is enabled based on module settings
+  const feedbackWithheld = moduleData?.assignment_config?.features?.multiple_attempts?.show_feedback_after_each === false
+    && !submissionStatus?.all_attempts_done;
   const isChatbotEnabled = moduleData?.assignment_config?.features?.chatbot_feedback?.enabled ?? true;
 
   // Memoize expensive computations to avoid recalculating on every render
@@ -1417,7 +1419,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                               return "All attempts completed. Review your feedback to learn and improve.";
                             } else if (currentAttempt > 1) {
                               // If current attempt is 2+, Attempt 1 is complete
-                              return `Attempt ${currentAttempt - 1} complete! Review feedback and start Attempt ${currentAttempt}.`;
+                              return feedbackWithheld
+                                ? `Attempt ${currentAttempt - 1} complete! You can start Attempt ${currentAttempt}.`
+                                : `Attempt ${currentAttempt - 1} complete! Review feedback and start Attempt ${currentAttempt}.`;
                             } else {
                               return "Ready to start the test.";
                             }
@@ -1432,7 +1436,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                           }
 
                           // Don't show button if feedback is being generated
-                          if (isPolling) {
+                          if (isPolling && !feedbackWithheld) {
                             return (
                               <div className="flex items-center gap-2 text-sm text-teal-600 dark:text-teal-300">
                                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600"></div>
@@ -1517,6 +1521,15 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
           {/* Feedback Tab */}
           <TabsContent value="feedback" className="space-y-6 data-[state=inactive]:hidden" forceMount>
+            {feedbackWithheld ? (
+              <Card>
+                <CardContent className="space-y-4 pt-6">
+                  <p>AI feedback will be available after your final submission, subject to teacher review.</p>
+                  <Button onClick={() => router.push(`/student/module/${moduleId}?tab=assignments`)}>Back to assignments</Button>
+                </CardContent>
+              </Card>
+            ) : <>
+
 
             {/* ── Mastery Learning Progress Card ── */}
             {isMasteryEnabled && (
@@ -2691,6 +2704,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                 </CardContent>
               </Card>
             )}
+            </>}
           </TabsContent>
 
           {/* Chat Tab */}

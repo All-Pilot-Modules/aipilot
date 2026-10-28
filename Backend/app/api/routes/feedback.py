@@ -1,3 +1,8 @@
+from app.services.feedback_visibility import (
+    ai_feedback_allowed_for_attempt,
+    redact_feedback,
+    student_feedback_is_available,
+)
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
@@ -166,10 +171,16 @@ def get_ai_feedback_by_id(
     if answer.student_id != identity.student_id:
         raise HTTPException(status_code=404, detail="Feedback not found")
 
+    if not student_feedback_is_available(db, answer.module_id, identity.student_id):
+        raise HTTPException(status_code=403, detail="Feedback is available after your final submission")
+
     # Build response with all necessary fields
     data = feedback.feedback_data or {}
 
-    return {
+    from app.crud.module import get_module_by_id
+    module = get_module_by_id(db, str(answer.module_id))
+
+    return redact_feedback({
         "id": str(feedback.id),
         "answer_id": str(feedback.answer_id),
         "question_id": str(answer.question_id),
@@ -204,7 +215,7 @@ def get_ai_feedback_by_id(
         "started_at": feedback.started_at.isoformat() if feedback.started_at else None,
         "completed_at": feedback.completed_at.isoformat() if feedback.completed_at else None,
         "generation_duration": feedback.generation_duration
-    }
+    }, module)
 
 
 @router.get("/status/answer/{answer_id}")
@@ -239,6 +250,24 @@ def get_feedback_status_by_answer(
     # Get associated answer for question_id
     answer = db.query(StudentAnswer).filter(StudentAnswer.id == feedback.answer_id).first()
 
+    # Released and in-window, but the teacher's content policy still decides
+    # which layers this poll may echo back.
+    visible = (
+        feedback.generation_status == 'completed'
+        and feedback.feedback_data
+        and feedback.released
+        and student_feedback_is_available(db, owning_answer.module_id, identity.student_id)
+    )
+    if visible:
+        from app.crud.module import get_module_by_id
+        feedback_payload = redact_feedback({
+            "explanation": feedback.feedback_data.get("explanation"),
+            "score": feedback.score,
+            "is_correct": feedback.is_correct,
+        }, get_module_by_id(db, str(owning_answer.module_id)))
+    else:
+        feedback_payload = None
+
     return {
         "status": feedback.generation_status,
         "progress": feedback.generation_progress,
@@ -253,14 +282,10 @@ def get_feedback_status_by_answer(
         "answer_id": str(feedback.answer_id),
         "question_id": str(answer.question_id) if answer else None,
 
-        # Include feedback data only once released — generation can complete
+        # Included only once released — generation can complete
         # (status='completed') while still gated pending teacher review/release
         # ("manual" grading mode), and this poll must not leak the score early.
-        "feedback": {
-            "explanation": feedback.feedback_data.get("explanation") if feedback.feedback_data else None,
-            "score": feedback.score,
-            "is_correct": feedback.is_correct
-        } if feedback.generation_status == 'completed' and feedback.feedback_data and feedback.released else None
+        "feedback": feedback_payload
     }
 
 
@@ -341,9 +366,10 @@ def retry_feedback_generation(
         multiple_attempts_config = module.assignment_config.get("features", {}).get("multiple_attempts", {})
         max_attempts = multiple_attempts_config.get("max_attempts", 2)
 
-    # IMPORTANT: Only allow retry for attempts that should have AI feedback
-    # Final attempt (attempt >= max_attempts) is for teacher manual grading
-    if answer.attempt >= max_attempts:
+    # IMPORTANT: Only allow retry for attempts that should have AI feedback.
+    # The final attempt is for teacher manual grading unless the teacher set
+    # final_attempt_mode="learn".
+    if not ai_feedback_allowed_for_attempt(module, answer.attempt, max_attempts):
         logger.warning(f"❌ Retry blocked for answer {answer_id}: Attempt {answer.attempt} is the final attempt reserved for teacher grading (max_attempts={max_attempts})")
         raise HTTPException(
             status_code=400,
@@ -425,7 +451,7 @@ def retry_all_failed_feedback(
         max_attempts = multiple_attempts_config.get("max_attempts", 2)
 
     # Validate attempt number
-    if attempt >= max_attempts:
+    if not ai_feedback_allowed_for_attempt(module, attempt, max_attempts):
         logger.warning(f"❌ Bulk retry blocked: Attempt {attempt} is final attempt (max={max_attempts})")
         raise HTTPException(
             status_code=400,
