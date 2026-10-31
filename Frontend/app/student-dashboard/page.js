@@ -184,7 +184,7 @@ function NewModuleDialog({ open, onClose, onCreated, userId }) {
         assignment_config: {
           features: {
             multiple_attempts: { enabled: true, max_attempts: form.maxAttempts, show_feedback_after_each: true },
-            chatbot_feedback:  { enabled: true, conversation_mode: 'guided', ai_model: 'gpt-4' },
+            chatbot_feedback:  { enabled: true, conversation_mode: 'guided' },
             mastery_learning:  { enabled: true, streak_required: 3 },
           },
           display_settings: { show_progress_bar: true, show_streak_counter: true, show_attempt_counter: true },

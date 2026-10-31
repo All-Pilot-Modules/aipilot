@@ -46,7 +46,7 @@ EXPLANATION_FIELDS = (
     "explanation", "feedback_text", "concept_explanation", "strengths", "weaknesses",
 )
 HINT_FIELDS = ("improvement_hint",)
-CORRECT_ANSWER_FIELDS = ("correct_option", "correct_options")
+CORRECT_ANSWER_FIELDS = ("correct_option", "correct_options", "answer_key")
 
 
 def _grading(module) -> dict:

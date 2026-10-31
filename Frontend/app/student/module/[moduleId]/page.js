@@ -8,7 +8,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MathText } from "@/components/MathText";
-import { feedbackCounts } from "@/lib/feedbackState.mjs";
+import AnswerComparison from "@/components/student/AnswerComparison";
+import ScoreBreakdown from "@/components/student/ScoreBreakdown";
+import FeedbackPanel, { hasWrittenFeedback } from "@/components/student/FeedbackPanel";
+import { STATUS_STYLES, StatusDot, QuestionStatusBadge } from "@/components/student/QuestionStatus";
+import { feedbackCounts, questionStatus } from "@/lib/feedbackState.mjs";
 import {
   BookOpen,
   FileText,
@@ -17,7 +21,6 @@ import {
   Calendar,
   Clock,
   CheckCircle,
-  XCircle,
   AlertCircle,
   Download,
   Play,
@@ -28,8 +31,6 @@ import {
   ArrowLeft,
   ArrowRight,
   ClipboardList,
-  ChevronDown,
-  ChevronUp,
   RefreshCw
 } from "lucide-react";
 import { apiClient, auth } from "@/lib/auth";
@@ -100,7 +101,6 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   const [useSSE, setUseSSE] = useState(true); // Try SSE first, fall back to polling
   const eventSourceRef = useRef(null); // Ref for SSE EventSource connection
   const [answeredQuestions, setAnsweredQuestions] = useState({}); // Track which questions were answered
-  const [expandedRubrics, setExpandedRubrics] = useState({}); // Track which rubric breakdowns are expanded
   const [hasTeacherGrades, setHasTeacherGrades] = useState(false); // Track if teacher has graded any work
   const [cleaningUp, setCleaningUp] = useState(false); // Track cleanup in progress
   const [regeneratingAll, setRegeneratingAll] = useState(false); // Track regenerate all in progress
@@ -188,7 +188,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
       .filter(attemptNum => {
         const isFinalAttempt = Number(attemptNum) >= maxAttempts;
         if (isFinalAttempt) {
-          return Object.values(feedbackByAttempt[attemptNum]).some(f => f.teacher_grade);
+          return Object.values(feedbackByAttempt[attemptNum]).some(f => f.teacher_grade || (f.released === true && f.generation_status === 'completed'));
         }
         return true;
       })
@@ -423,7 +423,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
             for (const qId in newFeedback) {
               const prevStatus = prevFeedback[qId]?.generation_status;
               const newStatus = newFeedback[qId]?.generation_status;
-              if (prevStatus !== newStatus) {
+              if (prevStatus !== newStatus || JSON.stringify(prevFeedback[qId]) !== JSON.stringify(newFeedback[qId])) {
                 console.log(`   🔄 Status changed for Q${qId}: ${prevStatus} → ${newStatus}`);
                 hasChanges = true;
                 break;
@@ -775,7 +775,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   const scrollToQuestion = (questionId) => {
     const element = document.getElementById(`feedback-question-${questionId}`);
     if (element) {
-      element.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      element.focus({ preventScroll: true });
+      element.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
     }
   };
 
@@ -1703,9 +1704,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                 {(() => {
                   const maxAttempts = submissionStatus?.max_attempts || 2;
                   const isFinalAttempt = selectedAttempt >= maxAttempts;
-                  const hasTeacherGradeInThisAttempt = Object.values(feedbackData).some(f => f.teacher_grade);
+                  const hasReleasedResults = Object.values(feedbackData).some(f => f.teacher_grade || (f.released === true && f.generation_status === 'completed'));
 
-                  if (isFinalAttempt && !hasTeacherGradeInThisAttempt) {
+                  if (isFinalAttempt && !hasReleasedResults) {
                     return (
                       <Card className=" bg-teal-50  dark:bg-teal-950/20  border border-teal-300 dark:border-teal-700">
                         <CardContent className="p-8 text-center">
@@ -1715,10 +1716,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                             </div>
                             <div>
                               <h3 className="text-2xl font-bold text-teal-900 dark:text-teal-100 mb-2">
-                                Final Attempt - Teacher Grading Only
+                                Final attempt results
                               </h3>
                               <p className="text-teal-700 dark:text-teal-300 mb-1">
-                                This is your final attempt and is reserved for manual grading by your teacher. AI feedback is only available for attempts 1-{maxAttempts - 1}.
+                                Your final submission is saved. Results appear when released by your teacher or the module’s grading policy.
                               </p>
                               <p className="text-sm text-teal-600 dark:text-teal-400 mt-4">
                                 Your teacher will manually grade this attempt. Check back later for feedback.
@@ -1732,16 +1733,21 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                   return null;
                 })()}
 
-                {/* Summary Card - Only show if NOT final attempt OR has teacher grade */}
+                {/* Summary of released scores */}
                 {(() => {
                   const maxAttempts = submissionStatus?.max_attempts || 2;
                   const isFinalAttempt = selectedAttempt >= maxAttempts;
-                  const hasTeacherGradeInThisAttempt = Object.values(feedbackData).some(f => f.teacher_grade);
+                  const hasReleasedResults = Object.values(feedbackData).some(f => f.teacher_grade || (f.released === true && f.generation_status === 'completed'));
 
-                  // Don't show feedback if it's final attempt with no teacher grade
-                  if (isFinalAttempt && !hasTeacherGradeInThisAttempt) {
+                  // Final results must be completed and released before display.
+                  if (isFinalAttempt && !hasReleasedResults) {
                     return null;
                   }
+
+                  // A withheld or unfinished score must not appear as zero.
+                  const hasScores = Object.values(feedbackData).every(f =>
+                    f.teacher_grade?.points_awarded != null || f.score != null || f.correctness_score != null);
+                  if (!hasScores) return null;
 
                   return (
                     <Card className=" bg-teal-50  dark:bg-teal-950/20  border-teal-200 dark:border-teal-800">
@@ -1777,10 +1783,10 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                           <User className="h-5 w-5 text-teal-600 dark:text-teal-300 mt-0.5 flex-shrink-0" />
                           <div className="flex-1">
                             <p className="text-sm font-medium text-teal-900 dark:text-teal-100">
-                              Final Attempt - Teacher Grading Only
+                              Final attempt results
                             </p>
                             <p className="text-xs text-teal-700 dark:text-teal-300 mt-1">
-                              This is your final attempt and is reserved for manual grading by your teacher. AI feedback is only available for attempts 1-{(submissionStatus?.max_attempts || 2) - 1}.
+                              These results have been released under your teacher’s grading policy.
                             </p>
                           </div>
                         </div>
@@ -1944,210 +1950,66 @@ const StudentModuleContent = memo(function StudentModuleContent() {
               );
             })()}
 
-                {/* Individual Question Feedback with Navigation - Only show if NOT final attempt OR has teacher grade */}
+                {/* Released question results with navigation */}
                 {(() => {
                   const maxAttempts = submissionStatus?.max_attempts || 2;
                   const isFinalAttempt = selectedAttempt >= maxAttempts;
-                  const hasTeacherGradeInThisAttempt = Object.values(feedbackData).some(f => f.teacher_grade);
+                  const hasReleasedResults = Object.values(feedbackData).some(f => f.teacher_grade || (f.released === true && f.generation_status === 'completed'));
 
-                  // Don't show question feedback if it's final attempt with no teacher grade
-                  if (isFinalAttempt && !hasTeacherGradeInThisAttempt) {
+                  // Accept released AI results as well as released teacher grades.
+                  if (isFinalAttempt && !hasReleasedResults) {
                     return null;
                   }
 
                   return (
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 lg:grid-cols-[7.5rem_minmax(0,1fr)] gap-6">
                   {/* Question Navigation Sidebar */}
-                  <div className="lg:col-span-1">
-                    <Card className="sticky top-6">
-                      <CardHeader className="pb-2">
-                        <CardTitle className="text-sm font-medium">Questions</CardTitle>
-                      </CardHeader>
-                      <CardContent className="p-3">
-                        <div className="grid grid-cols-5 lg:grid-cols-3 gap-2">
-                          {questions.map((q, index) => {
-                            const feedback = feedbackData[q.id];
-                            const isAnswered = answeredQuestions[q.id];
-                            const hasTeacherGradesInAttempt = Object.values(feedbackData).some(f => f.teacher_grade);
-
-                            return (
-                              <button
-                                key={q.id}
-                                onClick={() => scrollToQuestion(q.id)}
-                                className={`
-                                  w-12 h-12 rounded-lg text-sm font-bold border-2 transition-colors relative flex items-center justify-center
-                                  ${!isAnswered
-                                    ? 'border-border bg-muted text-gray-500 dark:text-muted-foreground'
-                                    : feedback
-                                    ? feedback.teacher_grade
-                                      ? feedback.teacher_grade.points_awarded >= feedback.points_possible
-                                        ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/30'
-                                        : 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/30'
-                                      : feedback.is_correct
-                                      ? 'border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 hover:bg-green-100 dark:hover:bg-green-900/30'
-                                      : 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 hover:bg-orange-100 dark:hover:bg-orange-900/30'
-                                    : hasTeacherGradesInAttempt
-                                    ? 'border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400'
-                                    : isPolling
-                                    ? 'border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-600 dark:text-teal-400'
-                                    : 'border-yellow-400 dark:border-yellow-500 bg-yellow-50 dark:bg-yellow-900/20 text-yellow-600 dark:text-yellow-400'
-                                  }
-                                `}
-                              >
-                                {!isAnswered ? (
-                                  <span className="text-base font-bold">{index + 1}</span>
-                                ) : feedback ? (
-                                  <div className="relative w-full h-full flex items-center justify-center">
-                                    <span className="absolute text-xs font-bold">{index + 1}</span>
-                                    {feedback.teacher_grade ? (
-                                      feedback.teacher_grade.points_awarded >= feedback.points_possible ? (
-                                        <CheckCircle className="w-4 h-4 opacity-60" />
-                                      ) : (
-                                        <XCircle className="w-4 h-4 opacity-60" />
-                                      )
-                                    ) : feedback.is_correct ? (
-                                      <CheckCircle className="w-4 h-4 opacity-60" />
-                                    ) : (
-                                      <XCircle className="w-4 h-4 opacity-60" />
-                                    )}
-                                  </div>
-                                ) : hasTeacherGradesInAttempt ? (
-                                  <div className="relative w-full h-full flex items-center justify-center">
-                                    <span className="text-base font-bold">{index + 1}</span>
-                                    <User className="w-3 h-3 absolute bottom-0.5 right-0.5 opacity-60" />
-                                  </div>
-                                ) : isPolling ? (
-                                  <div className="flex items-center justify-center">
-                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-teal-600 dark:border-teal-400"></div>
-                                  </div>
-                                ) : (
-                                  <span className="text-base font-bold">{index + 1}</span>
-                                )}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
+                  <nav aria-label="Question navigation" className="lg:sticky lg:top-6 lg:self-start">
+                    <p className="mb-2 text-xs font-medium uppercase tracking-wider text-muted-foreground">Questions</p>
+                    <div className="grid grid-cols-8 sm:grid-cols-12 lg:grid-cols-3 gap-1.5">
+                      {questions.map((q, index) => {
+                        const status = questionStatus(feedbackData[q.id], answeredQuestions[q.id]);
+                        return (
+                          <button key={q.id} type="button" aria-label={`Go to question ${index + 1}: ${STATUS_STYLES[status].label}`} title={STATUS_STYLES[status].label}
+                            onClick={() => scrollToQuestion(q.id)}
+                            className="relative h-9 rounded-md border border-border bg-background text-sm font-medium tabular-nums hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                            {index + 1}
+                            <StatusDot status={status} className="absolute right-1 top-1 h-1.5 w-1.5" />
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </nav>
 
                   {/* All Questions Feedback (Scrollable) */}
-                  <div className="lg:col-span-4 space-y-6">
+                  <div className="space-y-6">
                     {questions.map((question, index) => {
                       const feedback = feedbackData[question.id];
                       const isAnswered = answeredQuestions[question.id];
+                      const status = questionStatus(feedback, isAnswered);
 
                       return (
                         <Card
                           key={question.id}
                           id={`feedback-question-${question.id}`}
-                          className="border-border/70 shadow-none scroll-mt-6"
+                          tabIndex={-1}
+                          aria-label={`Question ${index + 1}`}
+                          className="overflow-hidden border-border shadow-none scroll-mt-6 gap-0 py-0 focus-visible:ring-2 focus-visible:ring-ring"
                         >
-                          <CardHeader className="pb-4">
+                          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-muted/50 px-6 py-3 dark:bg-muted/30">
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                              <span className="text-sm font-semibold">
+                                Question {index + 1} <span className="font-normal text-muted-foreground">of {questions.length}</span>
+                              </span>
+                              <QuestionStatusBadge status={status} />
+                              {feedback?.teacher_grade && <span className="text-sm text-muted-foreground">· Teacher graded</span>}
+                            </div>
+                            {feedback && isAnswered && <ScoreBreakdown feedback={feedback} questionNumber={index + 1} />}
+                          </div>
+                          <CardHeader className="pt-5 pb-4">
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-2">
-                                  {(() => {
-                                    // Check if any question in this attempt has teacher grades
-                                    const hasTeacherGradesInAttempt = Object.values(feedbackData).some(f => f.teacher_grade);
-
-                                    if (!isAnswered) {
-                                      return (
-                                        <Badge variant="secondary" className="bg-muted text-gray-600 dark:text-muted-foreground">
-                                          Not Answered
-                                        </Badge>
-                                      );
-                                    }
-
-                                    if (!feedback) {
-                                      // IMPORTANT: For final attempt (teacher grading only), always show waiting badge
-                                      const maxAttempts = submissionStatus?.max_attempts || 2;
-                                      if (selectedAttempt >= maxAttempts) {
-                                        return (
-                                          <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
-                                            <User className="w-3 h-3 mr-1" />
-                                            Awaiting Teacher Grading
-                                          </Badge>
-                                        );
-                                      }
-
-                                      // If there are teacher grades in this attempt, show waiting badge
-                                      if (hasTeacherGradesInAttempt) {
-                                        return (
-                                          <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
-                                            <User className="w-3 h-3 mr-1" />
-                                            Awaiting Teacher Grading
-                                          </Badge>
-                                        );
-                                      }
-
-                                      // Otherwise show AI generation status (only for non-final attempts)
-                                      if (isPolling) {
-                                        return (
-                                          <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
-                                            <div className="flex items-center gap-2">
-                                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-teal-600 dark:border-teal-400"></div>
-                                              Generating feedback...
-                                            </div>
-                                          </Badge>
-                                        );
-                                      }
-
-                                      return (
-                                        <Badge variant="secondary" className="bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-400">
-                                          Loading feedback...
-                                        </Badge>
-                                      );
-                                    }
-
-                                    // Has feedback
-                                    return null;
-                                  })()}
-                                  {feedback ? (
-                                    <>
-                                      {feedback.teacher_grade ? (
-                                        // Show teacher graded badge
-                                        <>
-                                          <User className="w-5 h-5 text-emerald-600 dark:text-emerald-300" />
-                                          <Badge variant="default" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300">
-                                            Teacher Graded
-                                          </Badge>
-                                        </>
-                                      ) : feedback.is_correct !== null ? (
-                                        // Show AI feedback badge
-                                        <>
-                                          {feedback.is_correct ? (
-                                            <CheckCircle className="w-5 h-5 text-green-600 dark:text-green-300" />
-                                          ) : (
-                                            <XCircle className="w-5 h-5 text-orange-600 dark:text-orange-300" />
-                                          )}
-                                          <Badge variant={feedback.is_correct ? "default" : "secondary"} className={
-                                            feedback.is_correct
-                                              ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300"
-                                              : "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300"
-                                          }>
-                                            Progress: {Math.round((feedback.correctness_score || feedback.score || 0) > 1 ? (feedback.correctness_score || feedback.score) : (feedback.correctness_score || feedback.score) * 100)}%
-                                          </Badge>
-                                        </>
-                                      ) : null}
-                                    </>
-                                  ) : isAnswered ? (
-                                    <Badge variant="secondary" className="bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400">
-                                      <div className="flex items-center gap-2">
-                                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-teal-600 dark:border-teal-400"></div>
-                                        Loading feedback...
-                                      </div>
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="secondary" className="bg-muted text-gray-600 dark:text-muted-foreground">
-                                      Not Answered
-                                    </Badge>
-                                  )}
-                                  <Badge variant="outline">
-                                    Question {index + 1} of {questions.length}
-                                  </Badge>
-                                </div>
-                                <MathText embedLinks className="text-base text-gray-900 dark:text-foreground leading-relaxed whitespace-pre-wrap">
+                                <MathText embedLinks className="text-lg font-medium text-gray-900 dark:text-foreground leading-relaxed whitespace-pre-wrap">
                                   {question.text}
                                 </MathText>
                                 {question.image_url && (
@@ -2164,7 +2026,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                               </div>
                             </div>
                           </CardHeader>
-                          <CardContent className="space-y-4">
+                          <CardContent className="space-y-4 pb-6">
                             {/* Show generation status indicator ONLY for truly failed states */}
                             {/* IMPORTANT: Only show if feedback EXISTS AND is explicitly failed/timeout */}
                             {/* Don't show if feedback doesn't exist - that's just pending, not failed */}
@@ -2222,379 +2084,23 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                               feedback.is_correct !== undefined ||
                               feedback.correctness_score !== undefined
                             ) ? (
-                              <>
-                                {/* Your Answer - MCQ */}
-                                {question.type === 'mcq' && feedback.selected_option && (
-                                  <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-muted-foreground mb-1">Your answer:</p>
-                                    <p className="flex items-start gap-1 text-base font-medium text-gray-900 dark:text-foreground whitespace-pre-wrap">
-                                      <span>{feedback.selected_option}.</span>
-                                      <MathText inline>{feedback.available_options?.[feedback.selected_option]}</MathText>
-                                    </p>
-                                  </div>
-                                )}
-
-                                {/* Correct Answer - MCQ (teacher-controlled) */}
-                                {question.type === 'mcq' && feedback.correct_option && (
-                                  <div className="bg-green-50 dark:bg-green-950/20 p-3 rounded-lg">
-                                    <p className="text-sm text-green-700 dark:text-green-300 mb-1">Correct answer:</p>
-                                    <p className="flex items-start gap-1 text-base font-medium text-green-900 dark:text-green-100 whitespace-pre-wrap">
-                                      <span>{feedback.correct_option}.</span>
-                                      <MathText inline>{feedback.available_options?.[feedback.correct_option]}</MathText>
-                                    </p>
-                                  </div>
-                                )}
-
-                                {/* Your Answer - MCQ Multiple */}
-                                {question.type === 'mcq_multiple' && feedback.selected_options && (
-                                  <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-muted-foreground mb-1">Your answers:</p>
-                                    <div className="space-y-1">
-                                      {feedback.selected_options.map((opt, idx) => (
-                                        <p key={idx} className="flex items-start gap-1 text-base font-medium text-gray-900 dark:text-foreground">
-                                          <span>{opt}.</span>
-                                          <MathText inline>{feedback.available_options?.[opt]}</MathText>
-                                        </p>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Correct Answer - MCQ Multiple (teacher-controlled) */}
-                                {question.type === 'mcq_multiple' && feedback.correct_options && (
-                                  <div className="bg-green-50 dark:bg-green-950/20 p-3 rounded-lg">
-                                    <p className="text-sm text-green-700 dark:text-green-300 mb-1">Correct answer(s):</p>
-                                    <div className="space-y-1">
-                                      {feedback.correct_options.map((opt, idx) => (
-                                        <p key={idx} className="flex items-start gap-1 text-base font-medium text-green-900 dark:text-green-100">
-                                          <span>{opt}.</span>
-                                          <MathText inline>{feedback.available_options?.[opt]}</MathText>
-                                        </p>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Your Answer - Fill-in-the-Blank */}
-                                {question.type === 'fill_blank' && feedback.grading_details?.blank_results && (
-                                  <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-muted-foreground mb-2">Your answers:</p>
-                                    <div className="space-y-2">
-                                      {feedback.grading_details.blank_results.map((blank, idx) => (
-                                        <div key={idx} className="flex items-start gap-2 flex-wrap">
-                                          <span className="text-sm font-medium text-gray-600 dark:text-muted-foreground">Blank {blank.position + 1}:</span>
-                                          <MathText inline className="text-base font-medium text-gray-900 dark:text-foreground">{blank.student_answer || '(empty)'}</MathText>
-                                          {blank.is_correct ? (
-                                            <CheckCircle className="w-5 h-5 text-green-500" />
-                                          ) : (
-                                            <XCircle className="w-5 h-5 text-red-500" />
-                                          )}
-                                          {/* Correct Answer - Fill-in-the-Blank (teacher-controlled) */}
-                                          {blank.accepted_answers && blank.accepted_answers.length > 0 && (
-                                            <span className="text-sm text-green-700 dark:text-green-300">
-                                              (Correct: {blank.accepted_answers.join(' / ')})
-                                            </span>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Your Answer - Multi-Part */}
-                                {question.type === 'multi_part' && feedback.sub_results && (
-                                  <div className="bg-muted/50 dark:bg-muted p-3 rounded-lg">
-                                    <p className="text-sm text-gray-600 dark:text-muted-foreground mb-2">Your answers:</p>
-                                    <div className="space-y-2">
-                                      {feedback.sub_results.map((sub, idx) => (
-                                        <div key={idx} className="flex items-start gap-2 flex-wrap">
-                                          <span className="text-sm font-medium text-teal-600 dark:text-teal-400">{sub.sub_id}:</span>
-                                          <MathText inline className="text-base font-medium text-gray-900 dark:text-foreground flex-1">
-                                            {typeof sub.student_answer === 'string' ? sub.student_answer : JSON.stringify(sub.student_answer)}
-                                          </MathText>
-                                          {sub.is_correct !== null && (
-                                            sub.is_correct ? (
-                                              <CheckCircle className="w-5 h-5 text-green-500" />
-                                            ) : (
-                                              <XCircle className="w-5 h-5 text-red-500" />
-                                            )
-                                          )}
-                                          {/* Correct Answer - Multi-Part (teacher-controlled) */}
-                                          {(sub.correct_option || sub.correct_answer) && (
-                                            <span className="text-sm text-green-700 dark:text-green-300 w-full">
-                                              Correct: {sub.correct_option || sub.correct_answer}
-                                            </span>
-                                          )}
-                                        </div>
-                                      ))}
-                                    </div>
-                                  </div>
-                                )}
-
-                                {/* Feedback */}
-                                <div className="space-y-3">
+                              <div className={hasWrittenFeedback(feedback)
+                                ? "grid gap-6 lg:grid-cols-[minmax(0,4fr)_minmax(0,5fr)] lg:items-start"
+                                : "space-y-4"}>
+                                <div className="min-w-0 space-y-4">
                                   {/* No AI Feedback Message - Only show when teacher graded but no AI feedback */}
                                   {!feedback.correctness_score && feedback.teacher_grade && (
-                                    <div className="bg-teal-50 dark:bg-teal-950/20 p-4 rounded-lg border border-teal-200 dark:border-teal-800">
-                                      <p className="text-sm text-teal-800 dark:text-teal-200">
-                                        <strong>Note:</strong> AI feedback was not generated for this question. Your teacher has manually graded your response below.
-                                      </p>
-                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      AI feedback was not generated for this question. Your teacher graded your response manually.
+                                    </p>
                                   )}
-
-                                  {/* Score Section */}
-                                  {feedback.correctness_score !== null && feedback.correctness_score !== undefined && (
-                                    <div
-                                      onClick={() => {
-                                        if (feedback.criterion_scores && Object.keys(feedback.criterion_scores).length > 0) {
-                                          setExpandedRubrics(prev => ({
-                                            ...prev,
-                                            [question.id]: !prev[question.id]
-                                          }));
-                                        }
-                                      }}
-                                      className={`p-4 rounded-lg border-2 transition-all ${
-                                        feedback.criterion_scores && Object.keys(feedback.criterion_scores).length > 0
-                                          ? 'cursor-pointer hover:shadow-md'
-                                          : ''
-                                      } ${
-                                        feedback.correctness_score === 100
-                                          ? 'bg-green-50 dark:bg-green-950/20 border-green-300 dark:border-green-700'
-                                          : feedback.correctness_score >= 70
-                                          ? 'bg-teal-50 dark:bg-teal-950/20 border-teal-300 dark:border-teal-700'
-                                          : feedback.correctness_score >= 50
-                                          ? 'bg-yellow-50 dark:bg-yellow-950/20 border-yellow-300 dark:border-yellow-700'
-                                          : 'bg-red-50 dark:bg-red-950/20 border-red-300 dark:border-red-700'
-                                      }`}
-                                    >
-                                      <div className="flex items-start justify-between">
-                                        <div>
-                                          <p className={`text-sm font-medium mb-1 ${
-                                            feedback.correctness_score === 100
-                                              ? 'text-green-900 dark:text-green-100'
-                                              : feedback.correctness_score >= 70
-                                              ? 'text-teal-900 dark:text-teal-100'
-                                              : feedback.correctness_score >= 50
-                                              ? 'text-yellow-900 dark:text-yellow-100'
-                                              : 'text-red-900 dark:text-red-100'
-                                          }`}>
-                                            Score
-                                          </p>
-                                          <div className="flex items-baseline gap-3">
-                                            <p className={`text-3xl font-bold ${
-                                              feedback.correctness_score === 100
-                                                ? 'text-green-700 dark:text-green-300'
-                                                : feedback.correctness_score >= 70
-                                                ? 'text-teal-700 dark:text-teal-300'
-                                                : feedback.correctness_score >= 50
-                                                ? 'text-yellow-700 dark:text-yellow-300'
-                                                : 'text-red-700 dark:text-red-300'
-                                            }`}>
-                                              {feedback.correctness_score}%
-                                            </p>
-                                            {feedback.points_earned !== null && feedback.points_earned !== undefined && feedback.points_possible && (
-                                              <p className={`text-sm font-medium ${
-                                                feedback.correctness_score === 100
-                                                  ? 'text-green-600 dark:text-green-400'
-                                                  : feedback.correctness_score >= 70
-                                                  ? 'text-teal-600 dark:text-teal-400'
-                                                  : feedback.correctness_score >= 50
-                                                  ? 'text-yellow-600 dark:text-yellow-400'
-                                                  : 'text-red-600 dark:text-red-400'
-                                              }`}>
-                                                ({feedback.points_earned} / {feedback.points_possible} points)
-                                              </p>
-                                            )}
-                                          </div>
-                                        </div>
-                                        {feedback.criterion_scores && Object.keys(feedback.criterion_scores).length > 0 && (
-                                          <div className={`mt-1 ${
-                                            feedback.correctness_score === 100
-                                              ? 'text-green-700 dark:text-green-300'
-                                              : feedback.correctness_score >= 70
-                                              ? 'text-teal-700 dark:text-teal-300'
-                                              : feedback.correctness_score >= 50
-                                              ? 'text-yellow-700 dark:text-yellow-300'
-                                              : 'text-red-700 dark:text-red-300'
-                                          }`}>
-                                            {expandedRubrics[question.id] ? (
-                                              <ChevronUp className="w-5 h-5" />
-                                            ) : (
-                                              <ChevronDown className="w-5 h-5" />
-                                            )}
-                                          </div>
-                                        )}
-                                      </div>
-
-                                      {/* Criterion Scores Breakdown - Collapsible */}
-                                      {feedback.criterion_scores && Object.keys(feedback.criterion_scores).length > 0 && expandedRubrics[question.id] && (
-                                        <div className="mt-4 pt-4 border-t border-current/20 space-y-3">
-                                          {Object.entries(feedback.criterion_scores).map(([criterion, details]) => {
-                                            const percentage = (details.score / details.out_of) * 100;
-                                            return (
-                                              <div key={criterion} className={`p-3 rounded-lg ${
-                                                feedback.correctness_score === 100
-                                                  ? 'bg-green-100/50 dark:bg-green-900/20'
-                                                  : feedback.correctness_score >= 70
-                                                  ? 'bg-teal-100/50 dark:bg-teal-900/20'
-                                                  : feedback.correctness_score >= 50
-                                                  ? 'bg-yellow-100/50 dark:bg-yellow-900/20'
-                                                  : 'bg-red-100/50 dark:bg-red-900/20'
-                                              }`}>
-                                                <div className="flex items-start justify-between mb-2">
-                                                  <span className={`text-sm font-semibold capitalize ${
-                                                    feedback.correctness_score === 100
-                                                      ? 'text-green-900 dark:text-green-100'
-                                                      : feedback.correctness_score >= 70
-                                                      ? 'text-teal-900 dark:text-teal-100'
-                                                      : feedback.correctness_score >= 50
-                                                      ? 'text-yellow-900 dark:text-yellow-100'
-                                                      : 'text-red-900 dark:text-red-100'
-                                                  }`}>
-                                                    {criterion}
-                                                  </span>
-                                                  <span className={`text-sm font-bold ${
-                                                    feedback.correctness_score === 100
-                                                      ? 'text-green-700 dark:text-green-300'
-                                                      : feedback.correctness_score >= 70
-                                                      ? 'text-teal-700 dark:text-teal-300'
-                                                      : feedback.correctness_score >= 50
-                                                      ? 'text-yellow-700 dark:text-yellow-300'
-                                                      : 'text-red-700 dark:text-red-300'
-                                                  }`}>
-                                                    {details.score}/{details.out_of} ({percentage.toFixed(0)}%)
-                                                  </span>
-                                                </div>
-                                                {details.reasoning && (
-                                                  <MathText className={`text-xs leading-relaxed ${
-                                                    feedback.correctness_score === 100
-                                                      ? 'text-green-800 dark:text-green-200'
-                                                      : feedback.correctness_score >= 70
-                                                      ? 'text-teal-800 dark:text-teal-200'
-                                                      : feedback.correctness_score >= 50
-                                                      ? 'text-yellow-800 dark:text-yellow-200'
-                                                      : 'text-red-800 dark:text-red-200'
-                                                  }`}>
-                                                    {details.reasoning}
-                                                  </MathText>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                        </div>
-                                      )}
-                                    </div>
-                                  )}
-
-                                  {/* Explanation */}
-                                  {feedback.explanation && (
-                                    <div className="bg-teal-50 dark:bg-teal-950/20 p-4 rounded-lg">
-                                      <p className="text-sm font-medium text-teal-900 dark:text-teal-100 mb-1">
-                                        Feedback
-                                      </p>
-                                      <MathText className="text-sm text-teal-800 dark:text-teal-200 leading-relaxed">
-                                        {feedback.explanation}
-                                      </MathText>
-                                    </div>
-                                  )}
-
-                                  {/* Strengths (for text answers) */}
-                                  {feedback.strengths && feedback.strengths.length > 0 && (
-                                    <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
-                                      <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">
-                                        What you did well
-                                      </p>
-                                      <ul className="space-y-1">
-                                        {feedback.strengths.map((strength, idx) => (
-                                          <li key={idx} className="text-sm text-green-800 dark:text-green-200 flex items-start gap-2">
-                                            <span className="mt-1">•</span>
-                                            <MathText inline>{strength}</MathText>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-
-                                  {/* Weaknesses (for text answers) */}
-                                  {feedback.weaknesses && feedback.weaknesses.length > 0 && (
-                                    <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-lg">
-                                      <p className="text-sm font-medium text-orange-900 dark:text-orange-100 mb-2">
-                                        Areas to improve
-                                      </p>
-                                      <ul className="space-y-1">
-                                        {feedback.weaknesses.map((weakness, idx) => (
-                                          <li key={idx} className="text-sm text-orange-800 dark:text-orange-200 flex items-start gap-2">
-                                            <span className="mt-1">•</span>
-                                            <MathText inline>{weakness}</MathText>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  )}
-
-                                  {/* Improvement Hint */}
-                                  {feedback.improvement_hint && (
-                                    <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
-                                      <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-1">
-                                        Suggestion
-                                      </p>
-                                      <MathText className="text-sm text-yellow-800 dark:text-yellow-200 leading-relaxed">
-                                        {feedback.improvement_hint}
-                                      </MathText>
-                                    </div>
-                                  )}
-
-                                  {/* Concept Explanation */}
-                                  {feedback.concept_explanation && (
-                                    <div className="bg-teal-50 dark:bg-teal-950/20 p-4 rounded-lg">
-                                      <p className="text-sm font-medium text-teal-900 dark:text-teal-100 mb-1">
-                                        Key concept
-                                      </p>
-                                      <MathText className="text-sm text-teal-800 dark:text-teal-200 leading-relaxed">
-                                        {feedback.concept_explanation}
-                                      </MathText>
-                                    </div>
-                                  )}
-
-                                  {/* Teacher Grade - Final Grade from Teacher */}
-                                  {feedback.teacher_grade && (
-                                    <div className=" bg-emerald-50  dark:bg-emerald-950/20  p-4 rounded-lg border border-emerald-300 dark:border-emerald-700">
-                                      <div className="flex items-start gap-3">
-                                        <div className="w-10 h-10 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
-                                          <User className="w-5 h-5 text-white" />
-                                        </div>
-                                        <div className="flex-1">
-                                          <p className="text-sm font-bold text-emerald-900 dark:text-emerald-100 mb-2">
-                                            Teacher&apos;s Final Grade
-                                          </p>
-                                          <div className="bg-card p-3 rounded-md mb-2">
-                                            <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
-                                              {feedback.teacher_grade.points_awarded} / {feedback.points_possible} points
-                                            </p>
-                                          </div>
-                                          {feedback.teacher_grade.feedback_text && (
-                                            <div className="bg-card p-3 rounded-md">
-                                              <p className="text-sm font-medium text-gray-900 dark:text-foreground mb-1">
-                                                Teacher&apos;s Comments:
-                                              </p>
-                                              <MathText className="text-sm text-gray-700 dark:text-foreground leading-relaxed whitespace-pre-wrap">
-                                                {feedback.teacher_grade.feedback_text}
-                                              </MathText>
-                                            </div>
-                                          )}
-                                          {feedback.teacher_grade.graded_at && (
-                                            <p className="text-xs text-emerald-700 dark:text-emerald-300 mt-2">
-                                              Graded on {new Date(feedback.teacher_grade.graded_at).toLocaleDateString()}
-                                            </p>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  )}
+                                  <AnswerComparison question={question} feedback={feedback} />
                                 </div>
 
+                                {hasWrittenFeedback(feedback) && (
+                                <FeedbackPanel feedback={feedback}>
                                 {isChatbotEnabled && feedback?.id && feedback.generation_status === 'completed' && !feedback.fallback && feedback.explanation?.trim() && (
-                                  <Button type="button" variant="outline" className="mt-4" disabled={Boolean(feedbackChat)} onClick={() => {
+                                  <Button type="button" variant="outline" className="w-full" disabled={Boolean(feedbackChat)} onClick={() => {
                                     setFeedbackChat({
                                       id: `${question.id}-${selectedAttempt}-${Date.now()}`,
                                       feedbackId: feedback.id,
@@ -2624,7 +2130,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                     }}
                                   />
                                 )}
-                              </>
+                                </FeedbackPanel>
+                                )}
+                              </div>
                             ) : (
                               // Check if feedback is truly not ready yet vs failed
                               (() => {

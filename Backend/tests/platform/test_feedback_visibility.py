@@ -216,6 +216,54 @@ def test_between_attempt_arm_applies_to_every_student_exit(
     assert discuss.status_code == (403 if not wants_prose else 200), discuss.text
 
 
+@pytest.mark.parametrize("arm,expect_key", [("both", True), ("ai_feedback_only", False)])
+def test_text_question_reference_answer_follows_correct_answer_flag(
+    client, db_session, student_answer_text, short_question, test_module, student_session, arm, expect_key,
+):
+    """With AI feedback on, a text question's authored answer was never sent at all."""
+    short_question.correct_answer = "The derivative is 2x."
+    _graded(db_session, student_answer_text, test_module, **ARMS[arm])
+
+    listed = client.get(f"/api/student/modules/{test_module.id}/feedback", headers=student_session).json()
+    item = next(entry for entry in listed if entry["answer_id"] == str(student_answer_text.id))
+    if expect_key:
+        assert item["answer_key"] == [{"label": "Reference answer", "text": "The derivative is 2x."}]
+        assert item["explanation"] == FULL_FEEDBACK["explanation"]
+    else:
+        assert not item.get("answer_key")
+
+
+@pytest.mark.parametrize("arm,expect_ai", [("correct_answer_only", False), ("both", True)])
+def test_correct_answer_only_arm_scores_mcq_without_openai(
+    db_session, student_answer_mcq, test_module, monkeypatch, arm, expect_ai,
+):
+    """With all AI prose hidden from the student, the OpenAI call is pure latency."""
+    from unittest.mock import Mock
+    from app.services.ai_feedback import AIFeedbackService
+    from app.crud.ai_feedback import get_feedback_by_answer
+
+    test_module.ai_config = {"grading": {"mode": "auto", **ARMS[arm]}}
+    db_session.flush()
+    service = AIFeedbackService()
+    service.client = Mock()
+    service.client.create_chat_completion.side_effect = RuntimeError("OpenAI called")
+
+    service.generate_instant_feedback(
+        db=db_session, student_answer=student_answer_mcq,
+        question_id=str(student_answer_mcq.question_id), module_id=str(test_module.id),
+        previous_feedback_context=[{"attempt": 1, "ai_feedback": "x"}],  # bypass MCQ cache
+    )
+
+    assert service.client.create_chat_completion.called is expect_ai
+    if not expect_ai:
+        stored = get_feedback_by_answer(db_session, student_answer_mcq.id)
+        assert stored.generation_status == "completed"
+        assert stored.feedback_data["model_used"] == "rule-based"
+        assert stored.is_correct is not None and stored.score in (0, 100)
+        assert stored.feedback_data["correct_option"]
+        assert not stored.feedback_data["fallback"]
+
+
 def test_hiding_score_applies_beyond_the_module_feedback_list(
     client, db_session, student_answer_mcq, test_module, student_session,
 ):
@@ -275,6 +323,73 @@ def test_final_attempt_mode_controls_feedback_on_last_attempt(
     # bare final_submission, "learn" queues a grading job like any other attempt.
     assert ("feedback_status" in body) is expect_feedback, body
     assert body.get("final_submission", False) is not expect_feedback, body
+
+
+@pytest.mark.parametrize("mode,expect_ai", [("submit_only", False), ("learn", True)])
+def test_final_attempt_mode_controls_ai_on_submit_test(
+    client, db_session, student_answer_mcq, test_module, student_session,
+    monkeypatch, mode, expect_ai,
+):
+    """submit-test is what the test page calls; it must honour submit_only too,
+    and drop autosave jobs already queued for the final attempt."""
+    from unittest.mock import Mock
+    from app.api.routes import student
+    from app.models.feedback_job import FeedbackJob
+    from app.services.feedback_worker import create_feedback_job
+
+    test_module.ai_config = {"grading": {"mode": "auto", "final_attempt_mode": mode}}
+    test_module.assignment_config = {"features": {"multiple_attempts": {
+        "max_attempts": 2, "show_feedback_after_each": True,
+    }}}
+    student_answer_mcq.attempt = 2
+    db_session.flush()
+    create_feedback_job(db=db_session, answer_id=student_answer_mcq.id,
+                        student_id=student_answer_mcq.student_id, module_id=str(test_module.id),
+                        attempt=2, priority=3, content_hash="stale", commit=False)
+    db_session.flush()
+
+    enqueue = Mock()
+    monkeypatch.setattr(student, "create_feedback_jobs_batch", enqueue)
+    response = client.post(
+        f"/api/student/modules/{test_module.id}/submit-test?attempt=2",
+        headers=student_session,
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["can_retry"] is False
+    # "learn" bumps the queued job in place instead of enqueueing a duplicate;
+    # "submit_only" removes it so the worker never makes the OpenAI call.
+    enqueue.assert_not_called()
+    jobs = db_session.query(FeedbackJob).filter(
+        FeedbackJob.answer_id == student_answer_mcq.id).all()
+    if expect_ai:
+        assert len(jobs) == 1 and jobs[0].priority == 1
+    else:
+        assert jobs == []
+
+
+@pytest.mark.parametrize("mode,expect_ai", [("submit_only", False), ("learn", True)])
+def test_final_attempt_mode_controls_speculative_grading(
+    client, db_session, mcq_question, test_module, student_session,
+    student_user, monkeypatch, mode, expect_ai,
+):
+    from unittest.mock import Mock
+    from app.api.routes import student
+
+    test_module.ai_config = {"grading": {"mode": "auto", "final_attempt_mode": mode}}
+    test_module.assignment_config = {"features": {"multiple_attempts": {"max_attempts": 2}}}
+    db_session.flush()
+
+    enqueue = Mock()
+    monkeypatch.setattr(student, "create_feedback_job", enqueue)
+    response = client.post("/api/student/save-answer?speculative=true", headers=student_session, json={
+        "student_id": student_user.id,
+        "module_id": str(test_module.id),
+        "question_id": str(mcq_question.id),
+        "answer": {"selected_option": "A"},
+        "attempt": 2,
+    })
+    assert response.status_code == 200, response.text
+    assert enqueue.called is expect_ai
 
 
 @pytest.mark.parametrize("mode,allowed", [("submit_only", False), ("learn", True)])

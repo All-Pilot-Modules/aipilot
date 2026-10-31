@@ -55,13 +55,9 @@ def validate_assignment_config(config: Dict[str, Any]) -> List[str]:
     # Validate chatbot feedback
     if features.get("chatbot_feedback", {}).get("enabled", False):
         conversation_mode = features["chatbot_feedback"].get("conversation_mode", "guided")
-        ai_model = features["chatbot_feedback"].get("ai_model", "gpt-4")
-        
+
         if conversation_mode not in ["guided", "free_form"]:
             errors.append("Conversation mode must be 'guided' or 'free_form'")
-        
-        if ai_model not in ["gpt-4", "gpt-3.5"]:
-            errors.append("AI model must be 'gpt-4' or 'gpt-3.5'")
     
     return errors
 

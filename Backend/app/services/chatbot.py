@@ -44,7 +44,10 @@ def get_chatbot_response(
 
     module_name = module.name
     chatbot_config = module.assignment_config.get("features", {}).get("chatbot_feedback", {})
-    ai_model = chatbot_config.get("ai_model", "gpt-4")
+    # Modules store a model label from the settings UI ("gpt-4" / "gpt-3.5");
+    # OpenAI has retired both, so honouring it fails every message with a 404.
+    # Grading already ignores the label and uses LLM_MODEL; the tutor does too.
+    ai_model = LLM_MODEL
     chatbot_enabled = chatbot_config.get("enabled", True)
 
     if not chatbot_enabled:

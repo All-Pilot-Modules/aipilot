@@ -16,12 +16,12 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Slider } from "@/components/ui/slider";
 import ConsentFormEditor from "@/components/ConsentFormEditor";
+import LearningFlowSettings from "@/components/settings/LearningFlowSettings";
 import {
-  Brain, Eye,
   Loader2, Check, AlertCircle,
   Globe, Lock, ChevronRight,
   GraduationCap, RotateCcw,
-  Plus, Trash2, ClipboardList, Info,
+  Plus, Trash2, ClipboardList,
   BarChart3, Pencil, Copy, Link2,
 } from "lucide-react";
 import Link from "next/link";
@@ -33,30 +33,13 @@ import { apiClient } from "@/lib/auth";
 const TABS = [
   { id: 'general', label: 'Module details', group: 'Module setup', description: 'Name, instructions, schedule, and enrollment access.' },
   { id: 'features', label: 'Attempts & practice', group: 'Teaching', description: 'Submission limits, feedback timing, and mastery practice.' },
-  { id: 'grading', label: 'Grading & feedback', group: 'Teaching', description: 'Review policy, scoring criteria, and AI feedback style.' },
+  { id: 'grading', label: 'Grading & feedback', group: 'Teaching', description: 'Choose learning support, final grading, and what students can see.' },
   { id: 'chatbot', label: 'AI tutor', group: 'Teaching', description: 'Enable the tutor and guide how it helps students.' },
   { id: 'survey', label: 'Student survey', group: 'Student forms', description: 'Questions students answer after completing their work.' },
   { id: 'consent', label: 'Research consent', group: 'Student forms', description: 'Consent requirements and the form students see before starting.' },
 ];
 
 const SHARED_SAVE_TABS = new Set(['general', 'grading', 'features', 'chatbot']);
-
-const GRADING_MODES = [
-  {
-    value: 'auto',
-    label: 'AI Grading',
-    sub: 'Automated',
-    description: 'AI evaluates and returns score, explanation, and hints to students immediately.',
-    icon: Brain,
-  },
-  {
-    value: 'manual',
-    label: 'Teacher Review',
-    sub: 'Supervised',
-    description: 'AI grades every answer, but nothing reaches the student until a teacher reviews, edits if needed, and releases it.',
-    icon: Eye,
-  },
-];
 
 // ─── Layout primitives ────────────────────────────────────────────────────────
 
@@ -148,58 +131,14 @@ const TONES = [
   { value: 'strict',      label: 'Direct'   },
 ];
 
-// The between-attempt conditions. Each writes the timing flag and both content
-// flags together — see setBetweenAttemptsArm.
-const BETWEEN_ATTEMPT_ARMS = [
-  { value: 'nothing', label: 'Nothing',
-    description: 'Results are withheld until the student reaches their final attempt.' },
-  { value: 'answer',  label: 'The correct answer only',
-    description: 'Students see the right answer next to their own, with no AI commentary.' },
-  { value: 'ai',      label: 'AI feedback only',
-    description: 'Students get the explanation and improvement hints, but not the answer itself.' },
-  { value: 'both',    label: 'The correct answer and AI feedback',
-    description: 'Students see the right answer alongside the full AI explanation and hints.' },
-];
-
-const FINAL_ATTEMPT_MODES = [
-  { value: 'submit_only', label: 'Submission only',
-    description: 'No AI feedback on the last attempt — it is graded by you and measures what the student learned.' },
-  { value: 'learn',       label: 'Also a learning step',
-    description: 'The last attempt is graded by AI like every other one, so students get feedback on it too.' },
-];
-
 const GRADING_SECTIONS = [
-  { id: 'policy',   label: 'Review & visibility' },
+  { id: 'policy',   label: 'Learning & final submission' },
   { id: 'criteria', label: 'Grading criteria' },
   { id: 'feedback', label: 'Feedback style' },
   { id: 'scoring',  label: 'Scoring & sources' },
 ];
 
-// Reduce the three stored flags back to the arm the teacher picked. 'custom'
-// covers timing-on-but-both-content-flags-off (score only), which the radio
-// group cannot produce but older or hand-edited modules may hold.
-function deriveBetweenAttemptsArm({ showFeedbackAfterEach, showCorrectAnswer, showExplanation }) {
-  if (!showFeedbackAfterEach) return 'nothing';
-  if (showCorrectAnswer && showExplanation) return 'both';
-  if (showCorrectAnswer) return 'answer';
-  if (showExplanation) return 'ai';
-  return 'custom';
-}
-
-function GradingTab({ section, setSection, formData, setGradingMode, setShowScoreToStudent,
-                      setBetweenAttemptsArm, setFinalAttemptMode, setRequireTeacherApproval, moduleId }) {
-  const grading = formData.assignment_config?.grading || {};
-  const gradingMode = grading.mode || 'auto';
-  const showScoreToStudent = grading.show_score_to_student ?? true;
-  const finalAttemptMode = grading.final_attempt_mode || 'submit_only';
-  const requireTeacherApproval = grading.require_teacher_approval ?? false;
-  const maxAttempts = formData.assignment_config?.features?.multiple_attempts?.max_attempts ?? 2;
-  const betweenAttemptsArm = deriveBetweenAttemptsArm({
-    showFeedbackAfterEach: formData.assignment_config?.features?.multiple_attempts?.show_feedback_after_each ?? true,
-    showCorrectAnswer: grading.show_correct_answer_to_student ?? false,
-    showExplanation: grading.show_explanation_to_student ?? true,
-  });
-
+function GradingTab({ section, setSection, formData, setFormData, moduleId }) {
   const [rubric, setRubric] = useState(null);
   const [originalRubric, setOriginalRubric] = useState(null);
   const [rubricLoading, setRubricLoading] = useState(true);
@@ -291,7 +230,7 @@ function GradingTab({ section, setSection, formData, setGradingMode, setShowScor
         <div className="flex flex-wrap items-center gap-1 p-1 bg-muted rounded-lg">
           {GRADING_SECTIONS.map(s => (
             <button key={s.id} aria-pressed={section === s.id} onClick={() => setSection(s.id)}
-              className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${section === s.id ? 'bg-card shadow-sm text-gray-900 dark:text-foreground' : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground'}`}>
+              className={`px-4 py-2.5 text-sm font-medium rounded-md transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${section === s.id ? 'bg-card shadow-sm text-gray-900 dark:text-foreground' : 'text-gray-500 dark:text-muted-foreground hover:text-gray-700 dark:hover:text-foreground'}`}>
               {s.label}
             </button>
           ))}
@@ -314,122 +253,7 @@ function GradingTab({ section, setSection, formData, setGradingMode, setShowScor
         )}
       </div>
 
-      {/* ── Policy ── */}
-      {section === 'policy' && (
-        <div>
-          <p className="text-sm text-gray-500 dark:text-muted-foreground mb-5">
-            Select how student responses will be evaluated for this module.
-          </p>
-          <div className="divide-y divide-border ">
-            {GRADING_MODES.map(({ value, label, description, icon: Icon }) => {
-              const active = gradingMode === value;
-              return (
-                <button key={value} type="button" onClick={() => setGradingMode(value)}
-                  className="w-full flex items-center gap-4 py-4 text-left hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors -mx-6 px-6">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${active ? 'border-gray-900 dark:border-gray-300' : 'border-border '}`}>
-                    {active && <div className="w-2 h-2 rounded-full bg-primary dark:bg-gray-400 text-primary-foreground" />}
-                  </div>
-                  <Icon className={`w-4 h-4 shrink-0 ${active ? 'text-gray-900 dark:text-foreground' : 'text-gray-400 dark:text-muted-foreground'}`} />
-                  <div className="min-w-0">
-                    <p className={`text-sm font-medium ${active ? 'text-gray-900 dark:text-foreground' : 'text-gray-700 dark:text-foreground'}`}>{label}</p>
-                    <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{description}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {gradingMode === 'manual' && (
-            <div className="flex items-start gap-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/20 px-4 py-3 mt-4">
-              <Info className="w-4 h-4 text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" />
-              <p className="text-sm text-amber-700 dark:text-amber-300">
-                Pending reviews appear as a badge on the Grading tab. Students see no results until you explicitly release each evaluation.
-              </p>
-            </div>
-          )}
-          <Row
-            label="Hold results for review"
-            description="Require your approval on the final attempt even while AI grading runs automatically on the earlier ones."
-          >
-            <div className="flex items-center gap-3">
-              <Switch
-                aria-label="Hold results for review"
-                disabled={gradingMode === 'manual'}
-                checked={gradingMode === 'manual' || requireTeacherApproval}
-                onCheckedChange={setRequireTeacherApproval}
-              />
-              <span className="text-sm text-gray-600 dark:text-muted-foreground">
-                {gradingMode === 'manual'
-                  ? 'Teacher Review already holds every attempt'
-                  : requireTeacherApproval
-                    ? 'Final attempt waits for your approval'
-                    : 'All attempts release automatically'}
-              </span>
-            </div>
-          </Row>
-
-          <SectionHeading>Between attempts</SectionHeading>
-          <p className="text-sm text-gray-500 dark:text-muted-foreground mb-4">
-            What students receive after each attempt, before their final submission.
-          </p>
-          <div className="divide-y divide-border">
-            {BETWEEN_ATTEMPT_ARMS.map(({ value, label, description }) => {
-              const active = betweenAttemptsArm === value;
-              return (
-                <button key={value} type="button" onClick={() => setBetweenAttemptsArm(value)}
-                  className="w-full flex items-center gap-4 py-3.5 text-left hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors -mx-6 px-6">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${active ? 'border-gray-900 dark:border-gray-300' : 'border-border'}`}>
-                    {active && <div className="w-2 h-2 rounded-full bg-primary dark:bg-gray-400" />}
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`text-sm font-medium ${active ? 'text-gray-900 dark:text-foreground' : 'text-gray-700 dark:text-foreground'}`}>{label}</p>
-                    <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{description}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-          {betweenAttemptsArm === 'custom' && (
-            <p className="mt-3 text-sm text-amber-600 dark:text-amber-400">
-              This module is currently set to show the score only. Pick an option above to change it.
-            </p>
-          )}
-
-          <Row
-            label="Show score to students"
-            description="Applies to every option above except “Nothing”. Turn off to show feedback without the numeric score or percentage."
-            noBorder
-          >
-            <div className="flex items-center gap-3">
-              <Switch aria-label="Show score to students" checked={showScoreToStudent} onCheckedChange={setShowScoreToStudent} />
-              <span className="text-sm text-gray-600 dark:text-muted-foreground">
-                {showScoreToStudent ? 'Students see their score' : 'Score hidden'}
-              </span>
-            </div>
-          </Row>
-
-          <SectionHeading>The final attempt</SectionHeading>
-          <p className="text-sm text-gray-500 dark:text-muted-foreground mb-4">
-            Attempt {maxAttempts} of {maxAttempts} — a submission to be graded, or one more chance to learn.
-          </p>
-          <div className="divide-y divide-border">
-            {FINAL_ATTEMPT_MODES.map(({ value, label, description }) => {
-              const active = finalAttemptMode === value;
-              return (
-                <button key={value} type="button" onClick={() => setFinalAttemptMode(value)}
-                  className="w-full flex items-center gap-4 py-3.5 text-left hover:bg-muted/50 dark:hover:bg-muted/20 transition-colors -mx-6 px-6">
-                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors ${active ? 'border-gray-900 dark:border-gray-300' : 'border-border'}`}>
-                    {active && <div className="w-2 h-2 rounded-full bg-primary dark:bg-gray-400" />}
-                  </div>
-                  <div className="min-w-0">
-                    <p className={`text-sm font-medium ${active ? 'text-gray-900 dark:text-foreground' : 'text-gray-700 dark:text-foreground'}`}>{label}</p>
-                    <p className="text-xs text-gray-400 dark:text-muted-foreground mt-0.5">{description}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {section === 'policy' && <LearningFlowSettings formData={formData} setFormData={setFormData} />}
 
       {/* ── Rubric sections (Criteria / Feedback / Scoring) ── */}
       {isRubricSection && (rubricLoading || !moduleId) && (
@@ -629,35 +453,19 @@ function Stepper({ value, min = 1, max = 10, onChange }) {
   );
 }
 
-function FeaturesTab({ formData, setFeature }) {
+function FeaturesTab({ formData, setFeature, onConfigureLearning }) {
   const feat = formData.assignment_config?.features || {};
 
   return (
     <div>
       <SectionHeading>Submission attempts</SectionHeading>
 
-      {/* Multiple attempts */}
-      <Row label="Multiple attempts" description="Allow students to submit more than once.">
-        <div className="flex items-center h-9">
-          <Switch aria-label="Multiple attempts" checked={feat.multiple_attempts?.enabled ?? true} onCheckedChange={v => setFeature('multiple_attempts', 'enabled', v)} />
+      <Row label="Attempts and learning feedback" description="Keep the attempt count, learning support, and final grading together.">
+        <div className="space-y-3">
+          <p className="text-sm text-muted-foreground">{feat.multiple_attempts?.max_attempts ?? 2} total attempts, including the final submission.</p>
+          <Button variant="outline" onClick={onConfigureLearning}>Edit learning flow<ChevronRight className="ml-2 h-4 w-4" /></Button>
         </div>
       </Row>
-      {feat.multiple_attempts?.enabled && (
-        <>
-          <Row label="Maximum attempts" description="How many times a student can submit.">
-            <Stepper
-              value={feat.multiple_attempts?.max_attempts ?? 2}
-              min={1} max={5}
-              onChange={v => setFeature('multiple_attempts', 'max_attempts', v)}
-            />
-          </Row>
-          <Row label="Feedback between attempts" description="What students receive after each attempt is set on the Grading &amp; feedback tab, so the timing and the content stay in step.">
-            <p className="text-sm text-gray-500 dark:text-muted-foreground h-9 flex items-center">
-              Grading &amp; feedback → Review &amp; visibility
-            </p>
-          </Row>
-        </>
-      )}
 
       <SectionHeading>Mastery practice</SectionHeading>
       <Row label="Mastery learning" description="Adaptive practice queue until the student demonstrates proficiency." noBorder={!feat.mastery_learning?.enabled}>
@@ -1078,7 +886,7 @@ function SettingsPageContent() {
       },
       features: {
         multiple_attempts: { enabled: true, max_attempts: 2, show_feedback_after_each: true },
-        chatbot_feedback:  { enabled: true, conversation_mode: 'guided', ai_model: 'gpt-4' },
+        chatbot_feedback:  { enabled: true, conversation_mode: 'guided' },
         mastery_learning:  { enabled: false, streak_required: 3, queue_randomization: true, reset_on_wrong: false },
       },
     },
@@ -1176,28 +984,6 @@ function SettingsPageContent() {
       ...p,
       assignment_config: { ...p.assignment_config, features: { ...p.assignment_config.features, [feature]: { ...p.assignment_config.features[feature], [key]: value } } },
     }));
-  // Merge keys into assignment_config.grading. Everything here is saved by the
-  // grading-settings PATCH into ai_config.grading, which is the canonical store.
-  const setGrading = (patch) =>
-    setFormData(p => ({ ...p, assignment_config: { ...p.assignment_config, grading: { ...p.assignment_config?.grading, ...patch } } }));
-  const setGradingMode = (mode) => setGrading({ mode });
-  const setShowScoreToStudent = (show_score_to_student) => setGrading({ show_score_to_student });
-
-  // The between-attempt arm writes the timing flag and both content flags
-  // together, so the half-configured states (correct answer on but timing off,
-  // where the reveal silently does nothing) are unreachable from the UI.
-  const setBetweenAttemptsArm = (arm) => {
-    setFeature('multiple_attempts', 'show_feedback_after_each', arm !== 'nothing');
-    if (arm === 'nothing') return;
-    setGrading({
-      show_correct_answer_to_student: arm === 'answer' || arm === 'both',
-      show_explanation_to_student: arm === 'ai' || arm === 'both',
-      show_hints_to_student: arm === 'ai' || arm === 'both',
-    });
-  };
-  const setFinalAttemptMode = (final_attempt_mode) => setGrading({ final_attempt_mode });
-  const setRequireTeacherApproval = (require_teacher_approval) => setGrading({ require_teacher_approval });
-
   const shell = (
     <SidebarProvider style={{ "--sidebar-width": "calc(var(--spacing) * 72)", "--header-height": "calc(var(--spacing) * 12)" }}>
       <AppSidebar variant="inset" />
@@ -1299,7 +1085,7 @@ function SettingsPageContent() {
             </nav>
 
             <div className="flex-1 min-w-0 px-4 sm:px-8 py-6 pb-28">
-              <div className="w-full">
+              <div className="w-full max-w-6xl mx-auto">
                 <header className="mb-8 border-b border-border pb-5">
                   <h2 className="text-xl font-semibold text-foreground">{currentTab.label}</h2>
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{currentTab.description}</p>
@@ -1312,8 +1098,8 @@ function SettingsPageContent() {
                       onRegenerated={newCode => setModuleData(prev => ({ ...prev, access_code: newCode }))} />
                   </div>}
                 </div>
-                <div hidden={activeTab !== 'features'}>{visitedTabs.includes('features') && <FeaturesTab formData={formData} setFeature={setFeature} />}</div>
-                <div hidden={activeTab !== 'grading'}>{visitedTabs.includes('grading') && <GradingTab section={gradingSection} setSection={setGradingSection} formData={formData} setGradingMode={setGradingMode} setShowScoreToStudent={setShowScoreToStudent} setBetweenAttemptsArm={setBetweenAttemptsArm} setFinalAttemptMode={setFinalAttemptMode} setRequireTeacherApproval={setRequireTeacherApproval} moduleId={moduleId} />}</div>
+                <div hidden={activeTab !== 'features'}>{visitedTabs.includes('features') && <FeaturesTab formData={formData} setFeature={setFeature} onConfigureLearning={() => { setGradingSection('policy'); selectTab('grading'); }} />}</div>
+                <div hidden={activeTab !== 'grading'}>{visitedTabs.includes('grading') && <GradingTab section={gradingSection} setSection={setGradingSection} formData={formData} setFormData={setFormData} moduleId={moduleId} />}</div>
                 <div hidden={activeTab !== 'chatbot'}>{visitedTabs.includes('chatbot') && <ChatbotTab moduleId={moduleId} formData={formData} setFeature={setFeature} />}</div>
                 <div hidden={activeTab !== 'survey'}>{visitedTabs.includes('survey') && <SurveyTab moduleId={moduleId} />}</div>
                 <div hidden={activeTab !== 'consent'}>{visitedTabs.includes('consent') && <ConsentTab moduleId={moduleId} moduleData={moduleData} onUpdate={syncConsent} />}</div>

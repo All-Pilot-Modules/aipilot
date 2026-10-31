@@ -65,8 +65,7 @@ DEFAULT_ASSIGNMENT_CONFIG = {
         },
         "chatbot_feedback": {
             "enabled": True,
-            "conversation_mode": "guided",
-            "ai_model": "gpt-4"
+            "conversation_mode": "guided"
         },
         "display": {
             "show_progress_bar": True,

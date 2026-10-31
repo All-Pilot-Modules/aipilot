@@ -39,21 +39,42 @@ test('settings preserve drafts across sections and save the existing module payl
   await nav.getByRole('button', { name: 'AI tutor', exact: true }).click();
   await page.getByRole('textbox', { name: 'Tutor instructions' }).fill('Ask a guiding question first.');
   await nav.getByRole('button', { name: 'Attempts & practice' }).click();
-  await expect(page.getByText('Feedback between attempts', { exact: true })).toBeVisible();
-  await page.getByRole('switch', { name: 'Feedback between attempts' }).click();
+  await expect(page.getByRole('button', { name: 'Edit learning flow', exact: true })).toBeVisible();
+  await nav.getByRole('button', { name: 'Grading & feedback' }).click();
+  await page.getByLabel('Total attempts', { exact: true }).selectOption('5');
+  const answerChoice = page.getByRole('radio', { name: 'Correct answers', exact: false }).first();
+  await answerChoice.check();
+  await answerChoice.focus();
+  await page.keyboard.press('ArrowUp');
+  await expect(page.getByRole('radio', { name: 'AI feedback Explanations', exact: false })).toBeChecked();
+  await page.keyboard.press('ArrowDown');
+  await expect(answerChoice).toBeChecked();
+  await page.getByRole('radio', { name: 'AI drafts; I review and release', exact: false }).check();
+  await page.getByRole('switch', { name: 'Show scores and correctness' }).click();
+  await expect(page.getByRole('complementary', { name: 'Student journey preview' })).toContainText('Attempts 1–4');
+  await expect(page.getByRole('complementary', { name: 'Student journey preview' })).toContainText('AI draft → teacher review → release.');
+  await page.screenshot({ path: '/tmp/settings-learning-flow.png', fullPage: true });
   await nav.getByRole('button', { name: 'AI tutor', exact: true }).click();
   await expect(page.getByRole('textbox', { name: 'Tutor instructions' })).toHaveValue('Ask a guiding question first.');
   await page.getByRole('button', { name: 'Save instructions', exact: true }).click();
   await page.getByRole('button', { name: 'Save module settings', exact: true }).click();
-  await expect.poll(() => writes.find(w => w.path === '/api/modules/settings-module')?.data.assignment_config.features.multiple_attempts.show_feedback_after_each).toBe(false);
+  await expect.poll(() => writes.find(w => w.path === '/api/modules/settings-module')?.data.assignment_config.features.multiple_attempts.show_feedback_after_each).toBe(true);
+  const gradingWrite = writes.find(w => w.path.endsWith('/grading-settings')).data;
+  expect(gradingWrite).toMatchObject({ final_attempt_mode: 'learn', require_teacher_approval: true, show_correct_answer_to_student: true, show_explanation_to_student: false, show_score_to_student: false });
+  expect(writes.find(w => w.path === '/api/modules/settings-module').data.assignment_config.features.multiple_attempts.max_attempts).toBe(5);
   expect(writes.find(w => w.path.endsWith('/chatbot-instructions')).data.instructions).toBe('Ask a guiding question first.');
   await nav.getByRole('button', { name: 'Grading & feedback' }).click();
+  await page.getByText('Review every attempt', { exact: true }).click();
+  await page.getByRole('switch', { name: 'Require teacher release for all AI results' }).click();
+  await expect(page.getByRole('radio', { name: 'AI grades and releases automatically', exact: false })).toBeDisabled();
+  await page.getByRole('switch', { name: 'Require teacher release for all AI results' }).click();
+  await expect(page.getByRole('radio', { name: 'AI drafts; I review and release', exact: false })).toBeChecked();
   await page.getByRole('button', { name: 'Grading criteria', exact: true }).click();
   await expect(page.getByRole('button', { name: 'Save module settings', exact: true })).toBeHidden();
   await expect(page.getByRole('button', { name: 'Save rubric', exact: true })).toBeVisible();
   await page.setViewportSize({ width: 375, height: 812 });
   await page.getByLabel('Settings section', { exact: true }).selectOption('features');
-  await expect(page.getByText('Feedback between attempts', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Edit learning flow', exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: '/tmp/settings-mobile.png', fullPage: true });
   await page.evaluate(() => document.documentElement.classList.add('dark'));
@@ -61,6 +82,15 @@ test('settings preserve drafts across sections and save the existing module payl
   await page.setViewportSize({ width: 320, height: 812 });
   for (const section of ['general', 'grading', 'chatbot', 'survey', 'consent']) {
     await page.getByLabel('Settings section', { exact: true }).selectOption(section);
+    if (section === 'grading') {
+      await page.getByRole('button', { name: 'Learning & final submission', exact: true }).click();
+      await page.screenshot({ path: '/tmp/settings-learning-mobile-dark.png', fullPage: true });
+      await page.getByLabel('Total attempts', { exact: true }).selectOption('1');
+      await expect(page.getByText('With one attempt, students go straight to the final submission.', { exact: false })).toBeVisible();
+      await page.getByLabel('Content in released AI results').selectOption('ai');
+      await page.getByLabel('Total attempts', { exact: true }).selectOption('5');
+      await expect(page.getByRole('radio', { name: 'AI feedback Explanations', exact: false })).toBeChecked();
+    }
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), section).toBe(true);
   }
 });

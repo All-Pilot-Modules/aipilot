@@ -33,11 +33,23 @@ GENERATION_TIMEOUT_SECONDS = 150
 
 import re
 
+# LaTeX commands whose first letter is also a JSON escape (\t, \n). Matched as
+# whole words so genuine prose escapes like "\nThe" or "\tStep" stay escapes.
+_TN_LATEX_COMMANDS = re.compile(
+    r'(?:theta|tau|times|tan|tanh|text[a-z]*|tfrac|tilde|top|to|triangle'
+    r'|nabla|neq|ne|nu|not|neg|ni|nmid|newline)(?![A-Za-z])'
+)
+
+
 def _loads_feedback_json(feedback_text: str):
     """Repair bare LaTeX escapes inside JSON strings without rewriting pairs.
 
     Consume existing JSON escapes as units. In particular, the second slash
     of an already escaped LaTeX command must never be escaped again.
+
+    Math is recognised inside $...$, $$...$$, \\(...\\) and \\[...\\]. Outside
+    those, \\b \\f \\r followed by a letter are always LaTeX (\\frac, \\right,
+    \\beta): an LLM never means backspace, form feed or carriage return.
     """
     output = []
     in_string = False
@@ -65,8 +77,17 @@ def _loads_feedback_json(feedback_text: str):
                 output.append(feedback_text[i:i + 6])
                 i += 6
                 continue
-            command_in_math = math_delimiter and re.match(r'[A-Za-z]{2,}', feedback_text[i + 1:])
-            if following in 'bfnrt' and not command_in_math:
+            if following in '([':
+                math_delimiter = chr(92) + following
+            elif following in ')]' and math_delimiter in (chr(92) + '(', chr(92) + '['):
+                math_delimiter = None
+            rest = feedback_text[i + 1:]
+            is_latex = (
+                (math_delimiter and re.match(r'[A-Za-z]{2,}', rest))
+                or (following in 'bfr' and re.match(r'[A-Za-z]{2,}', rest))
+                or (following in 'tn' and _TN_LATEX_COMMANDS.match(rest))
+            )
+            if following in 'bfnrt' and not is_latex:
                 output.append(feedback_text[i:i + 2])
                 i += 2
                 continue
@@ -101,6 +122,7 @@ from app.models.module import Module
 from app.crud.question import get_question_by_id
 from app.services.embedding import search_similar_chunks
 from app.services.rubric import get_module_rubric
+from app.services.feedback_visibility import content_policy, get_max_attempts
 from app.services.rag_retriever import get_context_for_feedback
 from app.services.prompt_builder import (
     build_mcq_feedback_prompt,
@@ -296,6 +318,16 @@ class AIFeedbackService:
             student_answer_text = self._extract_answer_text(student_answer.answer)
             logger.info(f"📝 Extracted answer text: '{student_answer_text}' from raw answer: {student_answer.answer}")
 
+            # When the teacher hides all AI prose from the student, objective
+            # questions are scored without OpenAI (and without RAG) at all.
+            policy = content_policy(module)
+            prose_free = None
+            # A final AI evaluation is also a teacher draft: keep its rationale
+            # even when students received answer keys only while learning.
+            if (student_answer.attempt < get_max_attempts(module)
+                    and not policy["explanation"] and not policy["hints"]):
+                prose_free = self._grade_without_prose(student_answer, question, rubric)
+
             # Check the MCQ cache BEFORE RAG retrieval — _analyze_mcq_answer
             # already skips the OpenAI call on a cache hit, but RAG retrieval
             # ran unconditionally before dispatch, paying for a vector search
@@ -311,7 +343,9 @@ class AIFeedbackService:
 
             # Get RAG context if enabled in rubric
             rag_context = None
-            should_use_rag = should_include_context(rubric, question.type) and not mcq_cache_hit
+            should_use_rag = (
+                should_include_context(rubric, question.type) and not mcq_cache_hit and prose_free is None
+            )
             logger.info(f"🔍 RAG CHECK: should_include_context={should_use_rag}, question_type={question.type}, mcq_cache_hit={mcq_cache_hit}")
             logger.info(f"🔍 RAG SETTINGS: {rubric.get('rag_settings', {})}")
 
@@ -347,7 +381,10 @@ class AIFeedbackService:
             # Use GPT-4o-mini for MCQ types — binary grading doesn't need full GPT-4
             mcq_model = "gpt-4o-mini"
 
-            if question.type == 'mcq':
+            if prose_free is not None:
+                feedback = prose_free
+                ai_model = "rule-based"
+            elif question.type == 'mcq':
                 feedback = self._analyze_mcq_answer(
                     student_answer=student_answer_text,
                     question=question,
@@ -542,7 +579,91 @@ class AIFeedbackService:
             return answer_data["text_response"]
 
         return str(answer_data)
-    
+
+    def _grade_without_prose(
+        self,
+        student_answer: StudentAnswer,
+        question: Question,
+        rubric: Dict[str, Any],
+    ) -> Optional[Dict[str, Any]]:
+        """Score an objective question with no OpenAI call, or None if it needs one.
+
+        MCQ, MCQ-multiple and fill-blank are scored by rule; the AI call only
+        writes the explanation and hints. When the teacher hides both from the
+        student (e.g. the "correct answer only" condition), that call is pure
+        latency and cost. Open-ended types still need the AI for the score itself.
+        """
+        from app.services.question_grading import QuestionGradingService
+
+        no_prose = {"explanation": "", "improvement_hint": None, "concept_explanation": None,
+                    "criterion_scores": {}, "points_possible": question.points}
+
+        if question.type == 'mcq':
+            selected = self._extract_answer_text(student_answer.answer)
+            is_correct = _compute_mcq_is_correct(selected, question)
+            score = None if is_correct is None else (100 if is_correct else 0)
+            return {
+                **no_prose,
+                "is_correct": is_correct,
+                "correctness_score": score,
+                "points_earned": round(question.points * score / 100.0, 2) if score else None,
+                "confidence_level": "high",
+                "feedback_type": "mcq",
+                "selected_option": selected,
+                "correct_option": question.correct_option_id or question.correct_answer,
+                "available_options": question.options or {},
+            }
+
+        extended_config = question.extended_config or {}
+
+        if question.type == 'mcq_multiple':
+            correct_option_ids = extended_config.get('correct_option_ids', [])
+            if not correct_option_ids:
+                return None
+            settings = rubric.get('question_type_settings', {}).get('mcq_multiple', {})
+            selected_options = (student_answer.answer or {}).get('selected_options', [])
+            result = QuestionGradingService().grade_mcq_multiple(
+                selected_options=selected_options,
+                correct_option_ids=correct_option_ids,
+                total_options=len(question.options or {}),
+                partial_credit=True,
+                penalty_for_wrong=settings.get('penalty_for_wrong', extended_config.get('penalty_for_wrong', True)),
+            )
+            return {
+                **no_prose,
+                "is_correct": result['is_correct'],
+                "correctness_score": int(result['score']),
+                "points_earned": round(result['score'] / 100.0 * question.points, 2),
+                "confidence_level": "high",
+                "grading_details": result,
+                "selected_options": selected_options,
+                "correct_options": correct_option_ids,
+                "available_options": question.options or {},
+                "feedback_type": "mcq_multiple",
+            }
+
+        if question.type == 'fill_blank':
+            blank_configs = extended_config.get('blanks', [])
+            if not blank_configs:
+                return None
+            blanks = (student_answer.answer or {}).get('blanks', {})
+            result = QuestionGradingService().grade_fill_blank(
+                student_answers={int(k): v for k, v in blanks.items()},
+                blank_configs=blank_configs,
+                use_ai_semantic_matching=True,
+            )
+            return {
+                **no_prose,
+                "is_correct": result['is_correct'],
+                "correctness_score": int(result['percentage']),
+                "points_earned": round(result['percentage'] / 100.0 * question.points, 2),
+                "confidence_level": "high",
+                "grading_details": result,
+                "feedback_type": "fill_blank",
+            }
+
+        return None
+
     def _analyze_mcq_answer(
         self,
         student_answer: str,

@@ -1,9 +1,11 @@
 from app.services.feedback_visibility import (
     ai_feedback_allowed_for_attempt,
+    content_policy,
     redact_feedback,
     redact_feedback_list,
     student_feedback_is_available,
 )
+from app.services.answer_key_visibility import answer_key_entries, immediate_answer_keys
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -529,6 +531,15 @@ def get_module_feedback(
     ).all()
     teacher_grades_by_answer = {tg.answer_id: tg for tg in teacher_grades_list}
 
+    # The authored key reaches the student whenever the teacher reveals correct
+    # answers, alongside AI feedback too — not only in the answer-key-only arm.
+    # Text questions have no other way to show it. redact_feedback_list strips
+    # it again when the setting is off.
+    questions_by_id = {}
+    if content_policy(module)["correct_answer"]:
+        question_ids = {answer.question_id for _, answer in feedback_rows}
+        questions_by_id = {q.id: q for q in db.query(Question).filter(Question.id.in_(question_ids)).all()}
+
     processed_answer_ids = set()
     student_feedback = []
 
@@ -542,6 +553,7 @@ def get_module_feedback(
             "answer_id": str(feedback.answer_id),
             "question_id": str(answer.question_id),
             "attempt": answer.attempt,
+            "student_answer": answer.answer,
             "is_correct": feedback.is_correct,
             "score": feedback.score,
             "correctness_score": feedback.score,
@@ -562,6 +574,8 @@ def get_module_feedback(
             "selected_options": data.get("selected_options"),
             "correct_options": data.get("correct_options"),
             "sub_results": data.get("sub_results"),
+            "answer_key": answer_key_entries(questions_by_id[answer.question_id])
+                if answer.question_id in questions_by_id else None,
             "teacher_grade": {
                 "points_awarded": teacher_grade.points_awarded,
                 "feedback_text": teacher_grade.feedback_text,
@@ -585,10 +599,14 @@ def get_module_feedback(
         StudentAnswer, TeacherGrade.answer_id == StudentAnswer.id
     ).join(
         Question, StudentAnswer.question_id == Question.id
+    ).outerjoin(
+        AIFeedback, AIFeedback.answer_id == StudentAnswer.id
     ).filter(
         TeacherGrade.student_id == student_id,
         TeacherGrade.module_id == module_id,
         StudentAnswer.is_mastery == False,
+        # A saved teacher edit must not bypass a still-held AI result.
+        (AIFeedback.id.is_(None)) | (AIFeedback.released == True),
     )
     if processed_answer_ids:
         teacher_only_query = teacher_only_query.filter(
@@ -602,6 +620,7 @@ def get_module_feedback(
             "answer_id": str(answer.id),
             "question_id": str(answer.question_id),
             "attempt": answer.attempt,
+            "student_answer": answer.answer,
             "is_correct": None,
             "score": None,
             "correctness_score": None,
@@ -630,7 +649,18 @@ def get_module_feedback(
             "is_teacher_graded": True
         })
 
-    return redact_feedback_list(student_feedback, module)
+    # Authored keys are available as soon as a learning attempt is submitted.
+    # They do not depend on a queued/running/failed AI record. Keep any released
+    # score/teacher grade, but never make the key wait for those optional layers.
+    by_answer = {item["answer_id"]: item for item in student_feedback}
+    for key in immediate_answer_keys(db, module, student_id):
+        existing = by_answer.get(key["answer_id"], {})
+        if existing.get("generation_status") == "completed" and not existing.get("fallback"):
+            for field in ("score", "correctness_score", "is_correct", "points_earned", "teacher_grade", "is_teacher_graded"):
+                if field in existing:
+                    key[field] = existing[field]
+        by_answer[key["answer_id"]] = key
+    return redact_feedback_list(list(by_answer.values()), module)
 
 # 🧠 Get AI feedback for a specific question
 @router.get("/questions/{question_id}/feedback")
@@ -833,6 +863,11 @@ def _maybe_queue_speculative_job(db: Session, answer_id, answer_data: StudentAns
         if not module:
             return
 
+        # Final attempt under final_attempt_mode="submit_only" gets no AI
+        # feedback, so grading it ahead of time would be a wasted OpenAI call.
+        if not ai_feedback_allowed_for_attempt(module, answer_data.attempt):
+            return
+
         content_hash = compute_answer_hash(answer_data.answer)
 
         # Already graded this exact content? Nothing to do.
@@ -982,6 +1017,29 @@ async def submit_test(
     from app.services.feedback_worker import calculate_test_score
 
     current_hashes = {answer.id: compute_answer_hash(answer.answer) for answer in answers}
+
+    if not ai_feedback_allowed_for_attempt(module, attempt, max_attempts):
+        # Final attempt under final_attempt_mode="submit_only": reserved for
+        # teacher grading, so no AI call at all. Drop any background jobs the
+        # autosave queued for these answers before the worker picks them up.
+        db.query(FeedbackJob).filter(
+            FeedbackJob.answer_id.in_(current_hashes.keys()),
+            FeedbackJob.status == "queued",
+        ).delete(synchronize_session=False)
+        db.commit()
+        logger.info(f"submit-test: {len(answers)} answers — final attempt is submit-only, no AI jobs")
+        return {
+            "success": True,
+            "submission_id": str(submission.id),
+            "attempt": attempt,
+            "questions_submitted": len(answers),
+            "answer_ids": answer_ids,
+            "can_retry": not is_final,
+            "max_attempts": max_attempts,
+            "feedback_status": "teacher_grading",
+            "feedback_available": student_feedback_is_available(db, module_id, student_id, module),
+            "message": "Test submitted! Your teacher will grade this attempt."
+        }
 
     existing_feedback = {
         fb.answer_id: fb
@@ -1196,6 +1254,9 @@ def get_feedback_status(
     ).all()
     feedback_by_answer = {fb.answer_id: fb for fb in all_feedback}
 
+    module = db.query(Module).filter(Module.id == module_id).first()
+    immediate = {item["answer_id"] for item in immediate_answer_keys(db, module, student_id, attempt)}
+
     # Batch-fetch ALL jobs in one query
     jobs = db.query(FeedbackJob).filter(
         FeedbackJob.student_id == student_id,
@@ -1208,6 +1269,18 @@ def get_feedback_status(
     feedback_status = []
     ready_count = failed_count = retrying_count = queued_count = 0
     for answer in answers:
+        if str(answer.id) in immediate:
+            # Student delivery is complete even while teacher-side AI work runs.
+            ready_count += 1
+            feedback_status.append({
+                "question_id": str(answer.question_id), "answer_id": str(answer.id),
+                "has_feedback": True, "is_completed": True, "is_fallback": False,
+                "generation_status": "completed", "answer_key_only": True,
+                "job_status": None, "feedback_id": None,
+                "is_retrying": False, "is_failed": False, "retry_count": 0,
+                "max_retries": None, "error_category": None,
+            })
+            continue
         feedback = feedback_by_answer.get(answer.id)
         job = jobs_by_answer.get(answer.id)
         is_fallback = bool(feedback and (feedback.feedback_data or {}).get('fallback'))

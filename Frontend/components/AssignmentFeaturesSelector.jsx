@@ -57,8 +57,7 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
       },
       chatbot_feedback: {
         enabled: true,
-        conversation_mode: "guided",
-        ai_model: "gpt-4"
+        conversation_mode: "guided"
       },
       mastery_learning: {
         enabled: false,
@@ -345,24 +344,6 @@ export default function AssignmentFeaturesSelector({ value, onChange }) {
                         <SelectContent>
                           <SelectItem value="guided">Guided</SelectItem>
                           <SelectItem value="free_form">Free-form</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="opacity-50">
-                      <Label className="text-xs flex items-center gap-1">
-                        AI Model
-                        <Badge variant="secondary" className="text-[10px] px-1 py-0">Soon</Badge>
-                      </Label>
-                      <Select
-                        value={config.features.chatbot_feedback.ai_model}
-                        disabled={true}
-                      >
-                        <SelectTrigger className="mt-1 h-8" disabled>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="gpt-4">GPT-4</SelectItem>
-                          <SelectItem value="gpt-3.5">GPT-3.5</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

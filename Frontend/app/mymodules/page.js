@@ -39,7 +39,7 @@ export default function MyModules() {
     },
     features: {
       multiple_attempts: { enabled: true, max_attempts: 2, show_feedback_after_each: true },
-      chatbot_feedback:  { enabled: true, conversation_mode: 'guided', ai_model: 'gpt-4' },
+      chatbot_feedback:  { enabled: true, conversation_mode: 'guided' },
       mastery_learning:  { enabled: false, streak_required: 3, queue_randomization: true, reset_on_wrong: false },
     },
     display_settings: {
