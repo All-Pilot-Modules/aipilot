@@ -39,17 +39,8 @@ import {
   Upload,
   Download,
   FileCheck,
-  Cpu,
   Sigma,
 } from "lucide-react";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,7 +50,8 @@ import {
 import Link from "next/link";
 import { useState, useEffect, Suspense, useCallback, useMemo, memo } from "react";
 import { apiClient } from "@/lib/auth";
-import { validateDocumentFile } from "@/lib/documents";
+import { uploadDocument } from "@/lib/documents";
+import DocumentUploadDialog from "@/components/document-upload-dialog";
 import {
   Drawer,
   DrawerClose,
@@ -93,9 +85,8 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isTestbank, setIsTestbank] = useState(true);
+  const [uploadError, setUploadError] = useState("");
   const [importJob, setImportJob] = useState(null);
-  const [uploadStage, setUploadStage] = useState(0);
   const [uploadForm, setUploadForm] = useState({ title: "", file: null });
 
   const [showCreateForm, setShowCreateForm] = useState(false);
@@ -205,11 +196,11 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
   // Reset import form when dialog closes
   useEffect(() => {
-    if (!isImportOpen) {
+    if (!isImportOpen && !isUploading) {
       setUploadForm({ title: "", file: null });
-      setIsTestbank(true);
+      setUploadError("");
     }
-  }, [isImportOpen]);
+  }, [isImportOpen, isUploading]);
 
   // Cycle through upload stages during import
   useEffect(() => {
@@ -226,60 +217,21 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     return () => { active = false; clearInterval(timer); };
   }, [importJob, fetchModuleAndQuestions]);
 
-  const formatFileSize = (bytes) => {
-    if (!bytes) return '0 KB';
-    const kb = bytes / 1024;
-    if (kb < 1024) return `${kb.toFixed(1)} KB`;
-    return `${(kb / 1024).toFixed(1)} MB`;
-  };
-
-  const handleImport = async (e) => {
-    e.preventDefault();
-    if (!uploadForm.file) {
-      alert("Please select a file to upload");
-      return;
-    }
-    if (!currentModule) {
-      alert("Module not found. Please refresh the page and try again.");
-      return;
-    }
-    const userId = user?.id || user?.sub;
-    if (!userId) {
-      alert("User session error. Please refresh the page and try again.");
-      return;
-    }
+  const handleImport = async (event) => {
+    event.preventDefault();
+    if (isUploading) return;
+    setUploadError('');
+    setIsUploading(true);
     try {
-      validateDocumentFile(uploadForm.file, true);
-      setIsUploading(true);
-      const formData = new FormData();
-      formData.append("file", uploadForm.file);
-      formData.append("is_testbank", "true");
-      formData.append("module_name", currentModule.name);
-      formData.append("teacher_id", userId);
-      formData.append("title", uploadForm.title || uploadForm.file.name);
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/api/upload`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (response.ok) {
-        setImportJob(await response.json());
-        setUploadForm({ title: "", file: null });
-        setIsImportOpen(false);
-        // Refresh questions list (relevant for testbank uploads)
-        await fetchModuleAndQuestions();
-      } else {
-        const errorData = await response.json().catch(() => ({}));
-        alert(errorData.detail || `Upload failed: ${response.statusText}`);
-      }
+      const doc = await uploadDocument({ ...uploadForm, module: currentModule, userId: user?.id || user?.sub, testbank: true });
+      setImportJob(doc);
+      if (doc.processing_status === 'failed') throw new Error(doc.parse_error || doc.processing_metadata?.error || 'Processing failed. Retry from the Documents tab.');
+      setIsImportOpen(false);
+      await fetchModuleAndQuestions();
     } catch (error) {
-      console.error("Import error:", error);
-      alert("Upload failed. Please check your connection and try again.");
-    } finally {
-      setIsUploading(false);
-    }
+      setUploadError(error.message || 'Could not upload the testbank. Try again.');
+      setIsImportOpen(true);
+    } finally { setIsUploading(false); }
   };
 
   // Build question rows shared by PDF and Word exports
@@ -941,24 +893,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
       console.log('File size:', selectedImageFile.size, 'bytes');
       console.log('API endpoint:', `/api/questions/${questionId}/upload-image`);
 
-      // Use native fetch instead of apiClient to properly handle multipart/form-data
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const token = localStorage.getItem('token');
-      const fetchResponse = await fetch(`${API_BASE_URL}/api/questions/${questionId}/upload-image`, {
-        method: 'POST',
-        headers: {
-          ...(token && { 'Authorization': `Bearer ${token}` }),
-          // Do NOT set Content-Type - browser sets it automatically with boundary for FormData
-        },
-        body: formData
-      });
-
-      if (!fetchResponse.ok) {
-        const errorData = await fetchResponse.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${fetchResponse.status}`);
-      }
-
-      const response = await fetchResponse.json();
+      const response = await apiClient.upload(`/api/questions/${questionId}/upload-image`, formData);
 
       console.log('✅ Upload successful!');
       console.log('Response:', JSON.stringify(response, null, 2));
@@ -1007,20 +942,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     if (!confirm('Remove image from this question?')) return;
 
     try {
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/api/questions/${questionId}/image`, {
-        method: 'DELETE',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { 'Authorization': `Bearer ${token}` }),
-        },
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-      }
+      await apiClient.delete(`/api/questions/${questionId}/image`);
 
       // Update local state
       setQuestionForm({...questionForm, image_url: ""});
@@ -1141,143 +1063,11 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 {importJob.processing_status === 'queued' ? 'Testbank queued for extraction. You can keep working.' :
                  importJob.processing_status === 'parsed' ? 'Questions extracted. Review any unreviewed questions before publishing.' :
                  (importJob.parse_error || importJob.processing_metadata?.error || 'Processing needs attention.')}
-                <Link className="underline ml-2" href={`/dashboard/documents?module_id=${currentModule?.id}&module_name=${encodeURIComponent(currentModule?.name || '')}`}>View status or retry</Link>
+                <Link className="underline ml-2" href={`/dashboard/documents?moduleId=${currentModule?.id}&module=${encodeURIComponent(currentModule?.name || '')}`}>View status or retry</Link>
               </div>}
-              <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-              <DialogContent className="max-w-3xl">
-                {isUploading ? (
-                  <div className="py-16">
-                    <div className="flex flex-col items-center justify-center space-y-8">
-                      {/* Spinner — always purple for testbank */}
-                      <div className="relative">
-                        <div className="w-32 h-32 border-8 border-border/30 rounded-full"></div>
-                        <div className="w-32 h-32 border-8 border-purple-600 border-t-transparent rounded-full animate-spin absolute top-0"></div>
-                        <div className="w-24 h-24 border-4 border-pink-500/40 border-b-transparent rounded-full animate-spin absolute top-4 left-4" style={{ animationDuration: '3s', animationDirection: 'reverse' }}></div>
-                        <Sparkles className="w-12 h-12 text-foreground absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 animate-pulse" />
-                      </div>
-                      <div className="text-center space-y-3">
-                        <h3 className="text-3xl font-bold bg-gradient-to-r from-purple-600 dark:from-purple-300 via-pink-600 dark:via-pink-300 to-purple-600 dark:to-purple-300 bg-clip-text text-transparent">
-                          {uploadStage === 0 && 'Uploading Testbank'}
-                          {uploadStage === 1 && 'Extracting Questions'}
-                          {uploadStage === 2 && 'Parsing Questions'}
-                          {uploadStage === 3 && 'Saving to Database'}
-                        </h3>
-                        <p className="text-lg text-muted-foreground">
-                          {uploadStage === 0 && 'Uploading your testbank file to the server...'}
-                          {uploadStage === 1 && 'AI is analyzing and extracting text from testbank...'}
-                          {uploadStage === 2 && 'Identifying questions, options, and correct answers...'}
-                          {uploadStage === 3 && 'Saving questions to your question bank...'}
-                        </p>
-                        {uploadForm.file && (
-                          <div className="mt-6 p-6 bg-gradient-to-br from-purple-50 via-pink-50 to-purple-50 dark:from-purple-950/30 dark:via-pink-950/20 dark:to-purple-950/30 border border-border rounded-xl inline-block">
-                            <div className="flex items-center gap-3 mb-3">
-                              <FileCheck className="w-6 h-6 text-foreground" />
-                              <p className="text-base font-semibold">{uploadForm.file.name}</p>
-                            </div>
-                            <p className="text-sm text-muted-foreground">{formatFileSize(uploadForm.file.size)}</p>
-                            <div className="mt-3 flex items-center gap-2 px-3 py-2 bg-purple-200/50 dark:bg-muted/20 rounded-full">
-                              <Sparkles className="w-4 h-4 text-gray-700 dark:text-muted-foreground" />
-                              <span className="text-sm font-semibold text-gray-800 dark:text-muted-foreground">Testbank File</span>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                      {/* 4-stage progress */}
-                      <div className="flex items-center gap-3 mt-4">
-                        {[{ icon: Upload, label: 'Upload' }, { icon: FileText, label: 'Extract' }, { icon: Cpu, label: 'Parse' }, { icon: CheckCircle, label: 'Save' }].map((step, i) => (
-                          <div key={i} className="flex items-center">
-                            <div className="flex flex-col items-center gap-2">
-                              <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all ${uploadStage >= i ? 'bg-primary text-primary-foreground scale-110' : 'bg-muted text-muted-foreground'}`}>
-                                <step.icon className="w-6 h-6" />
-                              </div>
-                              <span className={`text-xs font-medium ${uploadStage >= i ? 'text-foreground' : 'text-muted-foreground'}`}>{step.label}</span>
-                            </div>
-                            {i < 3 && <div className={`w-12 h-1 rounded-full mx-2 transition-all ${uploadStage > i ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}></div>}
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <DialogHeader>
-                      <DialogTitle className="text-2xl flex items-center gap-2">
-                        <Sparkles className="w-6 h-6 text-foreground" />
-                        Import Testbank
-                      </DialogTitle>
-                      <DialogDescription>
-                        Upload a PDF, DOCX or TXT testbank up to 20 MB. Questions are extracted in the background. AI-extracted questions require review.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <form onSubmit={handleImport} className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="import-file">Select Testbank File</Label>
-                        <Input
-                          id="import-file"
-                          type="file"
-                          onChange={(e) => {
-                            const selectedFile = e.target.files[0];
-                            setUploadForm({ ...uploadForm, file: selectedFile });
-                            if (selectedFile) {
-                              const isTestbankFile = true;
-                              setIsTestbank(isTestbankFile);
-                            }
-                          }}
-                          required
-                        />
-                        {uploadForm.file && (
-                          <div className={`mt-2 p-3 rounded-lg border ${isTestbank ? 'bg-muted/50 dark:bg-muted/20 border-border ' : 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-800'}`}>
-                            <div className="flex items-center gap-2 text-sm">
-                              <FileCheck className={`w-4 h-4 ${isTestbank ? 'text-muted-foreground' : 'text-red-500'}`} />
-                              <span className="font-medium">{uploadForm.file.name}</span>
-                              <span className="text-muted-foreground ml-auto">{formatFileSize(uploadForm.file.size)}</span>
-                            </div>
-                            {isTestbank ? (
-                              <div className="mt-2 flex items-center gap-2">
-                                <Badge className="bg-muted text-gray-800 dark:bg-muted/20 dark:text-muted-foreground border-border ">
-                                  <Sparkles className="w-3 h-3 mr-1" />
-                                  Testbank Detected
-                                </Badge>
-                                <span className="text-xs text-muted-foreground">Questions will be auto-extracted</span>
-                              </div>
-                            ) : (
-                              <div className="mt-2 flex items-center gap-2">
-                                <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                                <span className="text-xs text-red-600 dark:text-red-400">
-                                  Filename must contain &quot;testbank&quot;. Rename your file or use the Documents tab for regular files.
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="import-title">Title (optional)</Label>
-                        <Input
-                          id="import-title"
-                          value={uploadForm.title}
-                          onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
-                          placeholder="Leave empty to use filename"
-                        />
-                      </div>
-                      <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setIsImportOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button
-                          type="submit"
-                          disabled={!uploadForm.file || !isTestbank}
-                          className="bg-primary hover:bg-primary/90 disabled:opacity-50 text-primary-foreground"
-                        >
-                          <Sparkles className="w-4 h-4 mr-2" />
-                          Import Testbank
-                        </Button>
-                      </DialogFooter>
-                    </form>
-                  </>
-                )}
-              </DialogContent>
-            </Dialog>
+              <DocumentUploadDialog open={isImportOpen} onOpenChange={setIsImportOpen}
+                form={uploadForm} onFormChange={setUploadForm} testbank
+                uploading={isUploading} error={uploadError} onErrorChange={setUploadError} onSubmit={handleImport} />
 
             {/* Unreviewed Questions Alert */}
             {unreviewedCount > 0 && (
@@ -1306,7 +1096,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       asChild
                       className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
-                      <Link href={`/dashboard/questions/review?module_id=${currentModule?.id}&module_name=${encodeURIComponent(moduleName)}&status=unreviewed`}>
+                      <Link href={`/dashboard/questions/review?moduleId=${currentModule?.id}&module=${encodeURIComponent(moduleName)}&status=unreviewed`}>
                         <AlertCircle className="w-4 h-4 mr-2" />
                         Review Questions
                         <ArrowRight className="w-4 h-4 ml-2" />

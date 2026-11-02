@@ -1,4 +1,5 @@
 import bundleAnalyzer from '@next/bundle-analyzer';
+import { PHASE_DEVELOPMENT_SERVER } from 'next/constants.js';
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',
@@ -6,8 +7,6 @@ const withBundleAnalyzer = bundleAnalyzer({
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Keep browser-test bundles separate from an already running dev server.
-  distDir: process.env.NEXT_DIST_DIR || '.next',
   reactStrictMode: true,
   compress: true,
 
@@ -111,4 +110,10 @@ const nextConfig = {
   productionBrowserSourceMaps: false, // Disable for faster builds and smaller bundles
 };
 
-export default withBundleAnalyzer(nextConfig);
+export default (phase) => withBundleAnalyzer({
+  ...nextConfig,
+  // Production builds must not overwrite chunks used by a running dev server.
+  // Keep explicit browser-test output overrides supported.
+  distDir: process.env.NEXT_DIST_DIR ||
+    (phase === PHASE_DEVELOPMENT_SERVER ? '.next-dev' : '.next'),
+});

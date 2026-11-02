@@ -496,11 +496,12 @@ export const auth = {
 // API helper with authentication, auto-refresh, and retry
 export const apiClient = {
   async request(endpoint, options = {}) {
-    const { skipAuthLogout, ...fetchOptions } = options;
+    const { skipAuthLogout, responseType, ...fetchOptions } = options;
+    const parse = (response) => responseType === 'blob' ? response.blob() : response.json();
     options = fetchOptions;
     let token = auth.getToken();
     let studentSession = typeof window !== 'undefined' && window.location?.pathname?.startsWith('/student/');
-    try { studentSession = studentSession || (token && jwtDecode(token).role === 'student'); } catch {}
+    try { studentSession = studentSession || (token && Boolean(jwtDecode(token).module_id)); } catch {}
 
 
     // Check if token is about to expire (within 5 minutes)
@@ -524,7 +525,7 @@ export const apiClient = {
     const config = {
       ...options,
       headers: {
-        'Content-Type': 'application/json',
+        ...(!(typeof FormData !== 'undefined' && options.body instanceof FormData) && { 'Content-Type': 'application/json' }),
         ...(token && { 'Authorization': `Bearer ${token}` }),
         ...options.headers,
       },
@@ -534,7 +535,13 @@ export const apiClient = {
     let timeout = 15000; // Default: 15 seconds
     let retries = 2;     // Default: 2 retries (3 total attempts)
 
-    if (/\/api\/chat\/feedback\/[^/]+\/discuss$/.test(endpoint)) {
+    if (typeof FormData !== 'undefined' && options.body instanceof FormData) {
+      timeout = 120000; // Server-side storage upload may retry once on a stalled connection.
+      retries = 0; // A failed upload stays in the form for an explicit retry.
+    } else if (responseType === 'blob') {
+      timeout = 60000; // File exports are generated on request.
+      retries = 0;
+    } else if (/\/api\/chat\/feedback\/[^/]+\/discuss$/.test(endpoint)) {
       timeout = 90000;
       retries = 0;
     } else if (endpoint.includes('/dashboard-metrics') || endpoint.includes('/performance')) {
@@ -592,9 +599,9 @@ export const apiClient = {
             const newToken = await auth.refreshAccessToken();
             if (newToken) {
               config.headers['Authorization'] = `Bearer ${newToken}`;
-              const retryResponse = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, config, 15000, 1);
+              const retryResponse = await fetchWithTimeout(`${API_BASE_URL}${endpoint}`, config, timeout, 0);
               if (retryResponse.ok) {
-                return retryResponse.json();
+                return parse(retryResponse);
               }
               // A newly issued token does not authorize every endpoint. Keep the
               // session when this particular request is rejected or unavailable.
@@ -627,7 +634,7 @@ export const apiClient = {
           throw httpError(errorMessage, response.status);
         }
 
-        return response.json();
+        return parse(response);
 
       } catch (error) {
         lastError = error;
@@ -655,6 +662,19 @@ export const apiClient = {
 
   get(endpoint, options = {}) {
     return this.request(endpoint, options);
+  },
+
+  blob(endpoint) {
+    return this.request(endpoint, { responseType: 'blob' });
+  },
+
+  async upload(endpoint, formData) {
+    if (!(formData instanceof FormData)) throw new TypeError('Upload requires FormData');
+    if (!auth.getToken()) {
+      const refreshed = await auth.refreshAccessToken();
+      if (!refreshed) throw httpError('Your session has expired. Sign in again, then retry your upload.', 401);
+    }
+    return this.request(endpoint, { method: 'POST', body: formData, skipAuthLogout: true });
   },
 
   post(endpoint, data) {

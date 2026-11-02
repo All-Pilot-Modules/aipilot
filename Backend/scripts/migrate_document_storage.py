@@ -36,7 +36,7 @@ def migrate(db, apply=False):
         db.query(Module).filter(Module.id == doc.module_id).with_for_update().first()
         doc = db.query(Document).filter(Document.id == document_id).populate_existing().with_for_update().one()
         if needs_move:
-            content = document_storage.client.storage.from_(bucket).download(key)
+            content = document_storage.storage.from_(bucket).download(key)
             if sha256(content).hexdigest() != doc.file_hash:
                 print(f'{doc.id}: stored content hash mismatch; manual review required')
                 db.rollback()

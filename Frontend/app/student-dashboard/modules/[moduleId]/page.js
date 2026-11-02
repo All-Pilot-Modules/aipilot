@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { uploadDocument } from '@/lib/documents';
 import { useAuth } from '@/context/AuthContext';
 import { apiClient } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -321,20 +322,7 @@ export default function StudentModuleManage() {
     setUploading(true);
     setUploadError(null);
     try {
-      const form = new FormData();
-      form.append('file', file);
-      form.append('is_testbank', 'false');
-      form.append('module_name', module.name);
-      form.append('teacher_id', user.id);
-      const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
-      const authToken = (await import('@/lib/auth')).auth.getToken();
-      const resp = await fetch(`${API_BASE}/api/upload`, {
-        method: 'POST',
-        headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
-        body: form,
-      });
-      if (!resp.ok) throw new Error(await resp.text());
-      const doc = await resp.json();
+      const doc = await uploadDocument({ file, module, userId: user?.id || user?.sub });
       setDocument(doc);
     } catch (e) {
       setUploadError(e.message || 'Upload failed');

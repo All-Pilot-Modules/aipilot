@@ -427,19 +427,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
 
     try {
       // Call backend export endpoint
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/modules/${moduleData.id}/export`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Export failed: ${response.statusText}`);
-      }
-
-      // Get the blob from response
-      const blob = await response.blob();
+      const blob = await apiClient.blob(`/api/modules/${moduleData.id}/export`);
 
       // Create download link
       const url = window.URL.createObjectURL(blob);
@@ -465,19 +453,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
 
     try {
       // Call backend feedback export endpoint
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/modules/${moduleData.id}/export/feedback`, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${typeof window !== 'undefined' ? localStorage.getItem('token') : ''}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`Export failed: ${response.statusText}`);
-      }
-
-      // Get the blob from response
-      const blob = await response.blob();
+      const blob = await apiClient.blob(`/api/modules/${moduleData.id}/export/feedback`);
 
       // Create download link
       const url = window.URL.createObjectURL(blob);

@@ -97,6 +97,7 @@ def handle_document_upload(db: Session, file_bytes: bytes, filename: str, teache
         document.processing_metadata.pop('error', None)
         db.commit()
     except Exception:
+        logger.exception('Storage upload failed for document %s', doc_id)
         db.rollback()
         # Keep the reserved key for retry/cleanup; never delete an object after an
         # ambiguous commit failure (the committed row may already reference it).

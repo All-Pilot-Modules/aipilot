@@ -13,7 +13,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
-  DialogHeader, DialogTitle, DialogTrigger,
+  DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 
 const AlertDialog = dynamic(() => import("@/components/ui/alert-dialog").then(mod => ({ default: mod.AlertDialog })), { ssr: false });
@@ -31,7 +31,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
-import { openDocument, validateDocumentFile } from "@/lib/documents";
+import { openDocument, uploadDocument } from "@/lib/documents";
+import DocumentUploadDialog from '@/components/document-upload-dialog';
 
 function DocumentsContent() {
   const { user, isAuthenticated } = useAuth();
@@ -58,7 +59,8 @@ function DocumentsContent() {
   const [selectedDocForGeneration, setSelectedDocForGeneration] = useState(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationForm, setGenerationForm] = useState({ num_short: 0, num_long: 0, num_mcq: 0, instructions: "" });
-  const [uploadStage, setUploadStage] = useState(0);
+  const [uploadError, setUploadError] = useState("");
+  const [uploadNotice, setUploadNotice] = useState("");
   const [isTestbank, setIsTestbank] = useState(false);
 
   const fetchModuleAndDocuments = useCallback(async () => {
@@ -101,8 +103,8 @@ function DocumentsContent() {
   }, [isAuthenticated, user?.id, user?.sub, moduleName, fetchModuleAndDocuments]);
 
   useEffect(() => {
-    if (!isUploadOpen) { setUploadForm({ title: "", file: null }); setIsTestbank(false); }
-  }, [isUploadOpen]);
+    if (!isUploadOpen && !isUploading) { setUploadForm({ title: "", file: null }); setIsTestbank(false); setUploadError(""); }
+  }, [isUploadOpen, isUploading]);
 
   useEffect(() => {
     if (!documents.some(doc => doc.processing_status === 'queued')) return;
@@ -201,44 +203,22 @@ function DocumentsContent() {
     return matchesSearch;
   });
 
-  const handleUpload = async (e) => {
-    e.preventDefault();
-    if (!uploadForm.file) { alert("Please select a file to upload"); return; }
-    if (!currentModule) { alert("Module not found. Please refresh the page and try again."); return; }
-    const userId = user?.id || user?.sub;
-    if (!userId) { alert("User session error. Please refresh the page and try again."); return; }
+  const handleUpload = async (event) => {
+    event.preventDefault();
+    if (isUploading) return;
+    setUploadError('');
+    setUploadNotice('');
+    setIsUploading(true);
     try {
-      validateDocumentFile(uploadForm.file, isTestbank);
-      setIsUploading(true);
-      const formData = new FormData();
-      formData.append("file", uploadForm.file);
-      formData.append("is_testbank", String(isTestbank));
-      formData.append("module_name", currentModule.name);
-      formData.append("teacher_id", userId);
-      formData.append("title", uploadForm.title || uploadForm.file.name);
-      const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${API_BASE_URL}/api/upload`, {
-        method: "POST",
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-      if (response.ok) {
-        const newDoc = await response.json();
-        setDocuments(docs => [newDoc, ...docs.filter(doc => doc.id !== newDoc.id)]);
-        if (newDoc.processing_status === "failed") alert(newDoc.parse_error || newDoc.processing_metadata?.error || "Processing failed. Use Retry.");
-        setUploadForm({ title: "", file: null });
-        setIsUploadOpen(false);
-      } else {
-        const err = await response.json().catch(() => ({}));
-        alert(err.detail || `Upload failed: ${response.statusText}`);
-      }
+      const doc = await uploadDocument({ ...uploadForm, module: currentModule, userId: user?.id || user?.sub, testbank: isTestbank });
+      setDocuments(docs => [doc, ...docs.filter(item => item.id !== doc.id)]);
+      if (doc.processing_status === 'failed') throw new Error(doc.parse_error || doc.processing_metadata?.error || 'Processing failed. Use Retry in the document list.');
+      setUploadNotice(doc.processing_status === 'queued' ? `${doc.title} uploaded. Processing will continue in the background.` : `${doc.title} is already in this module.`);
+      setIsUploadOpen(false);
     } catch (error) {
-      console.error("Upload error:", error);
-      alert("Upload failed. Please check your connection and try again.");
-    } finally {
-      setIsUploading(false);
-    }
+      setUploadError(error.message || 'Could not upload the file. Try again.');
+      setIsUploadOpen(true);
+    } finally { setIsUploading(false); }
   };
 
   const handleEdit = async (e) => {
@@ -359,10 +339,6 @@ function DocumentsContent() {
   const statusStats = getStatusStats();
   const testbankCount = documents.filter(d => d.is_testbank).length;
 
-  const uploadStageLabels = isTestbank
-    ? ['Uploading', 'Extracting', 'Parsing', 'Saving']
-    : ['Uploading', 'Extracting', 'Embedding'];
-
   return (
     <SidebarProvider>
       <AppSidebar variant="inset" />
@@ -379,105 +355,13 @@ function DocumentsContent() {
                   {currentModule?.name || moduleName} · {documents.length} document{documents.length !== 1 ? 's' : ''}
                 </p>
               </div>
-              <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm" className="self-start sm:self-auto gap-1.5">
-                    <Upload className="w-3.5 h-3.5" />
-                    Upload
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="max-w-md">
-                  {isUploading ? (
-                    <div className="py-10 flex flex-col items-center gap-6">
-                      <div className="relative w-16 h-16">
-                        <div className="w-16 h-16 border-4 border-muted rounded-full" />
-                        <div className={`w-16 h-16 border-4 border-t-transparent rounded-full animate-spin absolute top-0 ${isTestbank ? 'border-violet-500' : 'border-primary'}`} />
-                        {isTestbank
-                          ? <Sparkles className="w-6 h-6 text-violet-500 absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                          : <Upload className="w-6 h-6 text-primary absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
-                        }
-                      </div>
-                      <div className="text-center">
-                        <p className="font-medium">{uploadStageLabels[uploadStage]}</p>
-                        <p className="text-sm text-muted-foreground mt-0.5">
-                          Step {uploadStage + 1} of {uploadStageLabels.length}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        {uploadStageLabels.map((step, i) => (
-                          <div key={step} className="flex items-center gap-2">
-                            <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
-                              uploadStage > i ? 'bg-emerald-700 text-white' :
-                              uploadStage === i ? (isTestbank ? 'bg-violet-700 text-white' : 'bg-primary text-primary-foreground') :
-                              'bg-muted text-muted-foreground'
-                            }`}>
-                              {uploadStage > i ? '✓' : i + 1}
-                            </div>
-                            {i < uploadStageLabels.length - 1 && (
-                              <div className={`w-6 h-px ${uploadStage > i ? 'bg-emerald-500' : 'bg-muted'}`} />
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                      {uploadForm.file && (
-                        <div className="w-full p-3 bg-muted/50 rounded-lg border flex items-center gap-2 text-sm">
-                          <FileCheck className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-                          <span className="truncate font-medium">{uploadForm.file.name}</span>
-                          <span className="text-muted-foreground ml-auto text-xs flex-shrink-0">{formatFileSize(uploadForm.file.size)}</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <>
-                      <DialogHeader>
-                        <DialogTitle>Upload Document</DialogTitle>
-                        <DialogDescription>PDF, DOCX, PPTX or TXT, up to 20 MB. Processing continues after upload.</DialogDescription>
-                        <label className="flex gap-2 text-sm"><input type="checkbox" checked={isTestbank} onChange={e => setIsTestbank(e.target.checked)} />Extract testbank questions (PDF, DOCX or TXT)</label>
-                      </DialogHeader>
-                      <form onSubmit={handleUpload} className="space-y-4 mt-1">
-                        <div className="space-y-1.5">
-                          <Label htmlFor="file" className="text-sm">File</Label>
-                          <Input id="file" type="file" onChange={(e) => {
-                            const f = e.target.files[0];
-                            setUploadForm({ ...uploadForm, file: f });
-                            if (f) setIsTestbank(f.name.toLowerCase().includes('testbank'));
-                          }} required />
-                          {uploadForm.file && (
-                            <div className="p-2.5 bg-muted/50 rounded-lg border text-sm">
-                              <div className="flex items-center gap-2">
-                                <FileCheck className="w-3.5 h-3.5 text-emerald-500" />
-                                <span className="font-medium truncate">{uploadForm.file.name}</span>
-                                <span className="text-muted-foreground text-xs ml-auto">{formatFileSize(uploadForm.file.size)}</span>
-                              </div>
-                              {isTestbank && (
-                                <p className="mt-1.5 text-xs text-violet-600 dark:text-violet-400 flex items-center gap-1">
-                                  <Sparkles className="w-3 h-3" />
-                                  Testbank detected — questions will be auto-extracted
-                                </p>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor="title" className="text-sm">
-                            Title <span className="text-muted-foreground font-normal">(optional)</span>
-                          </Label>
-                          <Input id="title" value={uploadForm.title}
-                            onChange={(e) => setUploadForm({ ...uploadForm, title: e.target.value })}
-                            placeholder="Defaults to filename" />
-                        </div>
-                        <DialogFooter>
-                          <Button type="button" variant="outline" size="sm" onClick={() => setIsUploadOpen(false)}>Cancel</Button>
-                          <Button type="submit" size="sm" disabled={!uploadForm.file}>
-                            <Upload className="w-3.5 h-3.5 mr-1.5" />Upload
-                          </Button>
-                        </DialogFooter>
-                      </form>
-                    </>
-                  )}
-                </DialogContent>
-              </Dialog>
+              <DocumentUploadDialog open={isUploadOpen} onOpenChange={setIsUploadOpen}
+                trigger={<Button className="self-start gap-2"><Upload className="h-4 w-4" />{isUploading ? 'View upload' : 'Upload'}</Button>}
+                form={uploadForm} onFormChange={setUploadForm} testbank={isTestbank} onTestbankChange={setIsTestbank}
+                uploading={isUploading} error={uploadError} onErrorChange={setUploadError} onSubmit={handleUpload} />
             </div>
+            {uploadNotice && <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{uploadNotice}</p>}
+
 
             {/* Stats strip */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -605,14 +489,14 @@ function DocumentsContent() {
                       </div>
 
                       {/* Status */}
-                      <div className="hidden sm:block flex-shrink-0">
+                      <div className="flex-shrink-0">
                         {getStatusBadge(doc.processing_status)}
                         {doc.processing_status === 'failed' && <div className="text-xs text-red-600 max-w-64" role="alert">{doc.parse_error || doc.processing_metadata?.error || 'Processing failed'}<button className="underline ml-2" onClick={() => retryDocument(doc)}>Retry</button></div>}
                         {['uploaded', 'chunked', 'extracting', 'extracted', 'chunking', 'embedding'].includes(doc.processing_status) && <button className="text-xs underline ml-2" onClick={() => retryDocument(doc)}>Retry processing</button>}
                       </div>
 
                       {/* Actions */}
-                      <div className="flex items-center gap-0.5 flex-shrink-0 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-0.5 flex-shrink-0 ">
                         {isEmbedded && (
                           <button
                             onClick={() => { setSelectedDocForGeneration(doc); setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0, instructions: "" }); setIsGenerateOpen(true); }}

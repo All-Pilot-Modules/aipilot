@@ -107,19 +107,7 @@ export default function ProfilePage() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const token = typeof window !== 'undefined' ? sessionStorage.getItem('access_token') || localStorage.getItem('access_token') : null;
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/users/${user.id}/profile-image`, {
-        method: 'POST',
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        body: formData,
-      });
-
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error(data.detail || 'Failed to upload image');
-      }
-
-      const updated = await res.json();
+      const updated = await apiClient.upload(`/api/users/${user.id}/profile-image`, formData);
       if (updateUser) updateUser(updated);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);

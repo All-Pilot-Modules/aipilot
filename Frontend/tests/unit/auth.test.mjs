@@ -140,3 +140,39 @@ for (const [name, overrides, expected] of [
     assert.equal(auth.hasStudentSession('module-a', 'hero testing now'), expected);
   });
 }
+
+test('upload sends FormData with the cookie token and no JSON content type', async () => {
+  mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.ok(options.body instanceof FormData);
+    assert.equal(options.headers['Content-Type'], undefined);
+    assert.match(options.headers.Authorization, /^Bearer /);
+    return response(200, { id: 'doc-1' });
+  });
+  const form = new FormData();
+  form.append('file', new Blob(['x']), 'notes.txt');
+  assert.deepEqual(await apiClient.upload('/api/upload', form), { id: 'doc-1' });
+});
+
+test('upload 401 refreshes once and never logs out', async () => {
+  let calls = 0;
+  mock.method(globalThis, 'fetch', async () => (++calls === 1 ? response(401) : response(200, { id: 'doc-2' })));
+  const refresh = mock.method(auth, 'refreshAccessToken', async () => jwt());
+  const logout = mock.method(auth, 'logout', () => {});
+  assert.deepEqual(await apiClient.upload('/api/upload', new FormData()), { id: 'doc-2' });
+  assert.equal(refresh.mock.callCount(), 1);
+  assert.equal(logout.mock.callCount(), 0);
+});
+
+test('upload with a failed refresh keeps the session for retry', async () => {
+  mock.method(globalThis, 'fetch', async () => response(401));
+  mock.method(auth, 'refreshAccessToken', async () => null);
+  const logout = mock.method(auth, 'logout', () => {});
+  await assert.rejects(apiClient.upload('/api/upload', new FormData()), err => err.status === 401);
+  assert.equal(logout.mock.callCount(), 0);
+});
+
+test('blob returns binary exports', async () => {
+  mock.method(globalThis, 'fetch', async () => new Response(new Blob(['xlsx']), { status: 200 }));
+  const blob = await apiClient.blob('/api/modules/m1/export');
+  assert.equal(await blob.text(), 'xlsx');
+});

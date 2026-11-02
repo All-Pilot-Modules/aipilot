@@ -268,13 +268,11 @@ def test_image_upload_failure_preserves_old_image(client,mcq_question,db_session
 
 
 def test_private_bucket_must_not_be_public(monkeypatch):
-    client=document_storage.client
-    client.storage.list_buckets.return_value=[{'id':'documents-private','public':True}]
-    client.storage.get_bucket.return_value={'id':'documents-private','public':True}
+    storage=MagicMock()
+    storage.list_buckets.return_value=[{'id':'documents-private','public':True}]
+    monkeypatch.setattr(document_storage,'storage',storage)
     with pytest.raises(RuntimeError,match='private'):
         document_storage.ensure_private_bucket()
-    client.storage.list_buckets.reset_mock(return_value=True)
-    client.storage.get_bucket.reset_mock(return_value=True)
 
 
 def test_empty_ai_response_never_succeeds(monkeypatch):
@@ -298,7 +296,7 @@ def test_legacy_private_migration_repairs_flags_without_replacing_questions(uplo
     doc.storage_path=old;doc.is_testbank=False;doc.processing_status='uploaded'
     db_session.commit()
     ids={q.id for q in db_session.query(Question)}
-    monkeypatch.setattr(document_storage.client.storage,'from_',MagicMock(return_value=MagicMock(download=MagicMock(return_value=SOURCE.encode()))))
+    monkeypatch.setattr(document_storage,'storage',MagicMock(from_=MagicMock(return_value=MagicMock(download=MagicMock(return_value=SOURCE.encode())))))
     migrate(db_session,apply=True)
     db_session.refresh(doc)
     assert doc.storage_path.startswith('supabase://documents-private/')
