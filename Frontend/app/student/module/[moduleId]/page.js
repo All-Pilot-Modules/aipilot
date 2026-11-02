@@ -1,4 +1,5 @@
 'use client';
+import { openDocument } from '@/lib/documents';
 
 import { useState, useEffect, useCallback, useRef, Suspense, memo, useMemo } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -1095,27 +1096,8 @@ const StudentModuleContent = memo(function StudentModuleContent() {
     }
   };
 
-  const handleViewDocument = (doc) => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const url = `${API_BASE_URL}/api/documents/${doc.id}/download`;
-
-    // Simply open in new tab - works for PDFs and most file types
-    window.open(url, '_blank');
-  };
-
-  const handleDownloadDocument = (doc) => {
-    const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-    const url = `${API_BASE_URL}/api/documents/${doc.id}/download`;
-
-    // Create invisible link and trigger download
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = doc.file_name;
-    a.target = '_blank';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-  };
+  const handleViewDocument = openDocument;
+  const handleDownloadDocument = openDocument;
 
   // Don't render anything on server to prevent fetch errors during SSR
   if (!isClient) {

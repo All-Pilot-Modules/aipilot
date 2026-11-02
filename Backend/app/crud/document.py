@@ -4,8 +4,6 @@ from app.schemas.document import DocumentCreate, DocumentUpdate
 from datetime import datetime, timezone
 import uuid
 from typing import List, Optional
-import os
-from app.services.storage import storage_service
 
 def create_document(db: Session, doc_data: DocumentCreate) -> Document:
     new_doc = Document(
@@ -19,6 +17,11 @@ def create_document(db: Session, doc_data: DocumentCreate) -> Document:
         storage_path=doc_data.storage_path,
         index_path=doc_data.index_path,
         slide_count=doc_data.slide_count,
+        processing_status=doc_data.processing_status,
+        processing_metadata=dict(doc_data.processing_metadata or {}),
+        is_testbank=doc_data.is_testbank,
+        parse_status=doc_data.parse_status,
+        parse_error=doc_data.parse_error,
         uploaded_at=datetime.now(timezone.utc)
     )
     db.add(new_doc)
@@ -62,59 +65,44 @@ def update_document(db: Session, document_id: str, update_data: DocumentUpdate) 
 
 
 def delete_document(db: Session, document_id: str, delete_questions: bool = False) -> Optional[Document]:
-    doc = db.query(Document).filter(Document.id == document_id).first()
+    from app.models.module import Module
+    from app.models.question import Question
+    from app.models.question_queue import QuestionQueue
+    from app.models.student_answer import StudentAnswer
+    from app.services.document_cleanup import remove_references
+    from fastapi import HTTPException
+    doc = get_document_by_id(db, document_id)
     if not doc:
         return None
-
-    # Get module info to construct Supabase path
-    from app.models.module import Module
-    module = db.query(Module).filter(Module.id == doc.module_id).first()
-
-    if module:
-        # 🧹 Delete from Supabase Storage
-        try:
-            storage_filename = f"{os.path.splitext(doc.file_name)[0]}_{doc.file_hash[:8]}.{doc.file_type}"
-            supabase_file_path = f"{doc.teacher_id}/{module.name}/{storage_filename}"
-
-            success = storage_service.delete_file(supabase_file_path)
-            if success:
-                print(f"✅ Deleted file from Supabase: {supabase_file_path}")
-            else:
-                print(f"[WARNING] Failed to delete file from Supabase: {supabase_file_path}")
-        except Exception as e:
-            print(f"[WARNING] Error deleting file from Supabase: {e}")
-
-        # 🧹 Delete parsed_questions.json if this is a testbank and questions should be deleted
-        if doc.is_testbank and delete_questions:
-            try:
-                parsed_json_path = f"{doc.teacher_id}/{module.name}/parsed_questions.json"
-                success = storage_service.delete_file(parsed_json_path)
-                if success:
-                    print(f"✅ Deleted parsed questions JSON: {parsed_json_path}")
-                else:
-                    print(f"[INFO] No parsed_questions.json found to delete")
-            except Exception as e:
-                print(f"[WARNING] Error deleting parsed_questions.json: {e}")
-
-    # 🧹 Delete questions from database if this is a testbank and delete_questions is True
-    if doc.is_testbank and delete_questions:
-        try:
-            from app.models.question import Question
-            deleted_count = db.query(Question).filter(Question.document_id == document_id).delete()
-            db.commit()
-            print(f"✅ Deleted {deleted_count} questions from database")
-        except Exception as e:
-            print(f"[WARNING] Error deleting questions from database: {e}")
-            db.rollback()
-
-    # 🧹 Try to delete local file if it exists (legacy support)
-    try:
-        if doc.storage_path and os.path.exists(doc.storage_path):
-            os.remove(doc.storage_path)
-            print(f"✅ Deleted local file: {doc.storage_path}")
-    except Exception as e:
-        print(f"[WARNING] Failed to delete local file at {doc.storage_path}: {e}")
-
-    db.delete(doc)
+    module = db.query(Module).filter(Module.id == doc.module_id).with_for_update().first()
+    if not module or module.status == 'deleting':
+        raise HTTPException(409, 'Module deletion is in progress')
+    doc = db.query(Document).filter(Document.id == document_id).with_for_update().populate_existing().first()
+    if not doc:
+        return None
+    doc.processing_status = 'deleting'
     db.commit()
-    return doc
+    db.query(Module).filter(Module.id == doc.module_id).with_for_update().first()
+    doc = db.query(Document).filter(Document.id == document_id).with_for_update().first()
+    if not doc:
+        return None
+    try:
+        remove_references([doc.storage_path] + list((doc.processing_metadata or {}).get('pending_storage_cleanup', [])))
+        if delete_questions:
+            ids = db.query(Question.id).filter(Question.document_id == doc.id)
+            db.query(QuestionQueue).filter(QuestionQueue.question_id.in_(ids)).delete(synchronize_session=False)
+        else:
+            # Detach both edges so document CASCADE cannot erase answers/history.
+            db.query(Question).filter(Question.document_id == doc.id).update(
+                {Question.document_id: None}, synchronize_session=False)
+            db.query(StudentAnswer).filter(StudentAnswer.document_id == doc.id).update(
+                {StudentAnswer.document_id: None}, synchronize_session=False)
+        db.delete(doc)
+        db.commit()
+        return doc
+    except HTTPException:
+        db.rollback()
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(500, "Document deletion could not finish. Retry or contact support.")

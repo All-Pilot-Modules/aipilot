@@ -7,6 +7,9 @@ from datetime import datetime, timezone
 
 class ProcessingStatus:
     """Document processing status constants"""
+    QUEUED = "queued"
+    UPLOADING = "uploading"
+    DELETING = "deleting"
     UPLOADED = "uploaded"           # File uploaded to storage
     EXTRACTING = "extracting"       # Extracting text from file
     EXTRACTED = "extracted"         # Text extraction complete

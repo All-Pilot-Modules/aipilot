@@ -94,6 +94,11 @@ def get_current_user(
     token_data = verify_token(credentials.credentials)
     if token_data is None:
         raise credentials_exception
+    claims = jwt.decode(credentials.credentials, SECRET_KEY, algorithms=[ALGORITHM])
+    if claims.get("type") != "access":
+        raise credentials_exception
+    if claims.get("module_id"):
+        raise HTTPException(status_code=403, detail="A module-scoped student session cannot access account routes")
     
     user = db.query(User).filter(User.id == token_data.user_id).first()
     if user is None:

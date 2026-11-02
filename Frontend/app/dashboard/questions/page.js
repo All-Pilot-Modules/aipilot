@@ -59,6 +59,7 @@ import {
 import Link from "next/link";
 import { useState, useEffect, Suspense, useCallback, useMemo, memo } from "react";
 import { apiClient } from "@/lib/auth";
+import { validateDocumentFile } from "@/lib/documents";
 import {
   Drawer,
   DrawerClose,
@@ -92,7 +93,8 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
 
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isTestbank, setIsTestbank] = useState(false);
+  const [isTestbank, setIsTestbank] = useState(true);
+  const [importJob, setImportJob] = useState(null);
   const [uploadStage, setUploadStage] = useState(0);
   const [uploadForm, setUploadForm] = useState({ title: "", file: null });
 
@@ -141,7 +143,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, user?.id, user?.sub, moduleName, moduleIdFromParam]);
 
-  const fetchModuleAndQuestions = async () => {
+  const fetchModuleAndQuestions = useCallback(async () => {
     setLoadingQuestions(true);
     try {
       const userId = user?.id || user?.sub;
@@ -199,29 +201,30 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     } finally {
       setLoadingQuestions(false);
     }
-  };
+  }, [user?.id, user?.sub, moduleIdFromParam, moduleName]);
 
   // Reset import form when dialog closes
   useEffect(() => {
     if (!isImportOpen) {
       setUploadForm({ title: "", file: null });
-      setIsTestbank(false);
+      setIsTestbank(true);
     }
   }, [isImportOpen]);
 
   // Cycle through upload stages during import
   useEffect(() => {
-    if (isUploading) {
-      setUploadStage(0);
-      const stages = isTestbank ? [0, 1, 2, 3] : [0, 1, 2];
-      let currentStageIndex = 0;
-      const interval = setInterval(() => {
-        currentStageIndex = (currentStageIndex + 1) % stages.length;
-        setUploadStage(stages[currentStageIndex]);
-      }, isTestbank ? 2500 : 2000);
-      return () => clearInterval(interval);
-    }
-  }, [isUploading, isTestbank]);
+    if (!importJob || importJob.processing_status !== 'queued') return;
+    let active = true;
+    const timer = setInterval(async () => {
+      try {
+        const updated = await apiClient.get(`/api/documents/${importJob.id}`);
+        if (!active) return;
+        setImportJob(updated);
+        if (updated.processing_status === 'parsed') await fetchModuleAndQuestions();
+      } catch { /* Leave the job visible; the Documents tab can recover it. */ }
+    }, 3000);
+    return () => { active = false; clearInterval(timer); };
+  }, [importJob, fetchModuleAndQuestions]);
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '0 KB';
@@ -246,9 +249,11 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
       return;
     }
     try {
+      validateDocumentFile(uploadForm.file, true);
       setIsUploading(true);
       const formData = new FormData();
       formData.append("file", uploadForm.file);
+      formData.append("is_testbank", "true");
       formData.append("module_name", currentModule.name);
       formData.append("teacher_id", userId);
       formData.append("title", uploadForm.title || uploadForm.file.name);
@@ -260,6 +265,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
         body: formData,
       });
       if (response.ok) {
+        setImportJob(await response.json());
         setUploadForm({ title: "", file: null });
         setIsImportOpen(false);
         // Refresh questions list (relevant for testbank uploads)
@@ -1131,7 +1137,13 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
             </div>
 
             {/* Import Dialog */}
-            <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
+            {importJob && <div role="status" className="p-3 text-sm border rounded-lg">
+                {importJob.processing_status === 'queued' ? 'Testbank queued for extraction. You can keep working.' :
+                 importJob.processing_status === 'parsed' ? 'Questions extracted. Review any unreviewed questions before publishing.' :
+                 (importJob.parse_error || importJob.processing_metadata?.error || 'Processing needs attention.')}
+                <Link className="underline ml-2" href={`/dashboard/documents?module_id=${currentModule?.id}&module_name=${encodeURIComponent(currentModule?.name || '')}`}>View status or retry</Link>
+              </div>}
+              <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
               <DialogContent className="max-w-3xl">
                 {isUploading ? (
                   <div className="py-16">
@@ -1194,7 +1206,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         Import Testbank
                       </DialogTitle>
                       <DialogDescription>
-                        Upload a testbank file — the filename must contain &quot;testbank&quot;. Questions will be auto-extracted and added to your question bank. To upload regular course materials, use the Documents tab.
+                        Upload a PDF, DOCX or TXT testbank up to 20 MB. Questions are extracted in the background. AI-extracted questions require review.
                       </DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleImport} className="space-y-4">
@@ -1207,7 +1219,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                             const selectedFile = e.target.files[0];
                             setUploadForm({ ...uploadForm, file: selectedFile });
                             if (selectedFile) {
-                              const isTestbankFile = selectedFile.name.toLowerCase().includes('testbank');
+                              const isTestbankFile = true;
                               setIsTestbank(isTestbankFile);
                             }
                           }}

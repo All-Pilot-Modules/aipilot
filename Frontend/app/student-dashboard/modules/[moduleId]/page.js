@@ -40,10 +40,12 @@ function getPalette(name = '') {
 
 // ─── processing helpers ───────────────────────────────────────────────────────
 const DONE_STATUSES  = ['embedded', 'indexed'];
-const ERROR_STATUSES = ['error', 'failed'];
+const ERROR_STATUSES = ['error', 'failed', 'deleting', 'uploading'];
 
 function processingLabel(status) {
   const map = {
+    queued:     'Queued / processing',
+    uploading:  'Upload incomplete — upload the same file again',
     uploaded:   'Uploaded',
     extracting: 'Extracting text…',
     extracted:  'Text extracted',
@@ -321,12 +323,11 @@ export default function StudentModuleManage() {
     try {
       const form = new FormData();
       form.append('file', file);
+      form.append('is_testbank', 'false');
       form.append('module_name', module.name);
       form.append('teacher_id', user.id);
       const API_BASE = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000').replace(/\/$/, '');
-      const cookies = typeof document !== 'undefined' ? document.cookie : '';
-      const cookieToken = cookies.split(';').find(c => c.trim().startsWith('token='))?.split('=')[1];
-      const authToken = cookieToken || (typeof window !== 'undefined' ? localStorage.getItem('token') : null);
+      const authToken = (await import('@/lib/auth')).auth.getToken();
       const resp = await fetch(`${API_BASE}/api/upload`, {
         method: 'POST',
         headers: authToken ? { Authorization: `Bearer ${authToken}` } : {},
@@ -340,6 +341,14 @@ export default function StudentModuleManage() {
     } finally {
       setUploading(false);
     }
+  };
+
+  const retryDocument = async () => {
+    try {
+      const updated = await apiClient.post(`/api/documents/${document.id}/${document.is_testbank ? 'reparse' : 'reprocess'}`, {});
+      setDocument(updated);
+      setUploadError(null);
+    } catch (error) { setUploadError(error.message || 'Could not retry processing.'); }
   };
 
   // ── generate questions ────────────────────────────────────────────────────
@@ -539,10 +548,14 @@ export default function StudentModuleManage() {
                         : <Loader2 className="w-3 h-3 text-indigo-500 animate-spin" />}
                       <span className={`text-xs ${docError ? 'text-red-500' : docReady ? 'text-emerald-600 dark:text-emerald-400' : 'text-slate-500 dark:text-muted-foreground'}`}>
                         {processingLabel(document.processing_status)}
+                        {docError && `: ${document.processing_metadata?.error || document.parse_error || 'Please retry or upload again.'}`}
                         {polling && !docReady && !docError && ' — processing…'}
                       </span>
                     </div>
                   </div>
+                  {docError && document.processing_metadata?.upload_complete !== false && document.processing_status !== 'deleting' && (
+                    <Button variant="outline" size="sm" onClick={retryDocument}>Retry</Button>
+                  )}
                   {docError && (
                     <Button variant="outline" size="sm" className="h-7 text-xs flex-shrink-0"
                       onClick={() => setDocument(null)}>Replace</Button>
@@ -576,7 +589,7 @@ export default function StudentModuleManage() {
                       <AlertCircle className="w-3 h-3" />{uploadError}
                     </p>
                   )}
-                  <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx" className="hidden"
+                  <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt" className="hidden"
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
                 </div>
               )}

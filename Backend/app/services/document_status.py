@@ -35,7 +35,7 @@ def update_document_status(
 
     # Merge metadata
     if metadata:
-        current_metadata = doc.processing_metadata or {}
+        current_metadata = dict(doc.processing_metadata or {})
         current_metadata.update(metadata)
         current_metadata[f"{status}_at"] = datetime.now(timezone.utc).isoformat()
         doc.processing_metadata = current_metadata
@@ -97,7 +97,7 @@ def get_document_status(db: Session, document_id: str) -> Dict[str, Any]:
         "document_id": str(doc.id),
         "status": doc.processing_status,
         "metadata": doc.processing_metadata or {},
-        "is_ready": doc.processing_status == ProcessingStatus.INDEXED,
+        "is_ready": doc.processing_status in (ProcessingStatus.INDEXED, ProcessingStatus.EMBEDDED, ProcessingStatus.PARSED),
         "has_error": doc.processing_status == ProcessingStatus.FAILED,
         "uploaded_at": doc.uploaded_at.isoformat() if doc.uploaded_at else None
     }
@@ -118,4 +118,4 @@ def is_document_indexed(db: Session, document_id: str) -> bool:
     if not doc:
         return False
 
-    return doc.processing_status == ProcessingStatus.INDEXED
+    return doc.processing_status in (ProcessingStatus.INDEXED, ProcessingStatus.EMBEDDED, ProcessingStatus.PARSED)

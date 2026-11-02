@@ -8,7 +8,7 @@ from app.services.question_grading import QuestionGradingService
 
 
 def response(vectors):
-    return SimpleNamespace(data=[SimpleNamespace(embedding=v) for v in vectors],
+    return SimpleNamespace(data=[SimpleNamespace(embedding=v, index=i) for i, v in enumerate(vectors)],
                            usage=SimpleNamespace(total_tokens=12))
 
 

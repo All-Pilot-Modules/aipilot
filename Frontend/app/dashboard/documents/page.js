@@ -31,6 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
+import { openDocument, validateDocumentFile } from "@/lib/documents";
 
 function DocumentsContent() {
   const { user, isAuthenticated } = useAuth();
@@ -104,17 +105,17 @@ function DocumentsContent() {
   }, [isUploadOpen]);
 
   useEffect(() => {
-    if (isUploading) {
-      setUploadStage(0);
-      const stages = isTestbank ? [0, 1, 2, 3] : [0, 1, 2];
-      let idx = 0;
-      const interval = setInterval(() => {
-        idx = (idx + 1) % stages.length;
-        setUploadStage(stages[idx]);
-      }, isTestbank ? 2500 : 2000);
-      return () => clearInterval(interval);
-    }
-  }, [isUploading, isTestbank]);
+    if (!documents.some(doc => doc.processing_status === 'queued')) return;
+    const timer = setInterval(fetchModuleAndDocuments, 3000);
+    return () => clearInterval(timer);
+  }, [documents, fetchModuleAndDocuments]);
+
+  const retryDocument = async (doc) => {
+    try {
+      await apiClient.post(`/api/documents/${doc.id}/${doc.is_testbank ? 'reparse' : 'reprocess'}`, {});
+      await fetchModuleAndDocuments();
+    } catch (error) { alert(error.message || 'Could not retry processing.'); }
+  };
 
   const formatFileSize = (bytes) => {
     if (!bytes) return '—';
@@ -144,6 +145,10 @@ function DocumentsContent() {
   };
 
   const STATUS_CONFIG = {
+    uploading: { dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-200', label: 'Upload incomplete — upload again', spin: false },
+    queued: { dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-200', label: 'Queued / processing', spin: true },
+    parsed: { dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-200', label: 'Questions extracted', spin: false },
+    deleting: { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-200', label: 'Deletion pending — retry', spin: false },
     embedded: { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-200 dark:ring-emerald-800', label: 'Embedded', spin: false },
     indexed:  { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-200 dark:ring-emerald-800', label: 'Embedded', spin: false },
     chunked:  { dot: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30', ring: 'ring-blue-200 dark:ring-blue-800', label: 'Processed', spin: false },
@@ -203,9 +208,11 @@ function DocumentsContent() {
     const userId = user?.id || user?.sub;
     if (!userId) { alert("User session error. Please refresh the page and try again."); return; }
     try {
+      validateDocumentFile(uploadForm.file, isTestbank);
       setIsUploading(true);
       const formData = new FormData();
       formData.append("file", uploadForm.file);
+      formData.append("is_testbank", String(isTestbank));
       formData.append("module_name", currentModule.name);
       formData.append("teacher_id", userId);
       formData.append("title", uploadForm.title || uploadForm.file.name);
@@ -218,7 +225,8 @@ function DocumentsContent() {
       });
       if (response.ok) {
         const newDoc = await response.json();
-        setDocuments([newDoc, ...documents]);
+        setDocuments(docs => [newDoc, ...docs.filter(doc => doc.id !== newDoc.id)]);
+        if (newDoc.processing_status === "failed") alert(newDoc.parse_error || newDoc.processing_metadata?.error || "Processing failed. Use Retry.");
         setUploadForm({ title: "", file: null });
         setIsUploadOpen(false);
       } else {
@@ -347,7 +355,7 @@ function DocumentsContent() {
     </SidebarInset></SidebarProvider>
   );
 
-  const totalSize = documents.reduce((acc, doc) => acc + (doc.file_size || 0), 0);
+  const totalSize = documents.reduce((acc, doc) => acc + (doc.processing_metadata?.file_size || 0), 0);
   const statusStats = getStatusStats();
   const testbankCount = documents.filter(d => d.is_testbank).length;
 
@@ -423,7 +431,8 @@ function DocumentsContent() {
                     <>
                       <DialogHeader>
                         <DialogTitle>Upload Document</DialogTitle>
-                        <DialogDescription>Add course materials or a testbank to this module</DialogDescription>
+                        <DialogDescription>PDF, DOCX, PPTX or TXT, up to 20 MB. Processing continues after upload.</DialogDescription>
+                        <label className="flex gap-2 text-sm"><input type="checkbox" checked={isTestbank} onChange={e => setIsTestbank(e.target.checked)} />Extract testbank questions (PDF, DOCX or TXT)</label>
                       </DialogHeader>
                       <form onSubmit={handleUpload} className="space-y-4 mt-1">
                         <div className="space-y-1.5">
@@ -590,14 +599,16 @@ function DocumentsContent() {
                             <span className={`w-1.5 h-1.5 rounded-full ${cfg.dot}`} />
                             {cfg.label}
                           </span>
-                          {doc.file_size && <><span>·</span><span>{formatFileSize(doc.file_size)}</span></>}
-                          {doc.created_at && <><span>·</span><span className="hidden sm:inline">{formatDate(doc.created_at)}</span></>}
+                          {doc.processing_metadata?.file_size && <><span>·</span><span>{formatFileSize(doc.processing_metadata?.file_size)}</span></>}
+                          {doc.uploaded_at && <><span>·</span><span className="hidden sm:inline">{formatDate(doc.uploaded_at)}</span></>}
                         </div>
                       </div>
 
                       {/* Status */}
                       <div className="hidden sm:block flex-shrink-0">
                         {getStatusBadge(doc.processing_status)}
+                        {doc.processing_status === 'failed' && <div className="text-xs text-red-600 max-w-64" role="alert">{doc.parse_error || doc.processing_metadata?.error || 'Processing failed'}<button className="underline ml-2" onClick={() => retryDocument(doc)}>Retry</button></div>}
+                        {['uploaded', 'chunked', 'extracting', 'extracted', 'chunking', 'embedding'].includes(doc.processing_status) && <button className="text-xs underline ml-2" onClick={() => retryDocument(doc)}>Retry processing</button>}
                       </div>
 
                       {/* Actions */}
@@ -613,7 +624,7 @@ function DocumentsContent() {
                           </button>
                         )}
                         <button
-                          onClick={() => { const u = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"; window.open(`${u}/api/documents/${doc.id}/download`, '_blank'); }}
+                          onClick={() => openDocument(doc)}
                           title="Download"
                           className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                         >

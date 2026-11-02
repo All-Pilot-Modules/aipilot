@@ -41,31 +41,10 @@ class SupabaseStorageService:
             print(f"Attempting to upload file: {file_path} to bucket: {self.bucket_name}")
             print(f"File size: {len(file_bytes)} bytes")
 
-            # Try to upload file to Supabase storage
-            # If file exists, we'll remove it first and then upload
-            try:
-                response = self.client.storage.from_(self.bucket_name).upload(
-                    path=file_path,
-                    file=file_bytes,
-                    file_options={"content-type": "application/octet-stream"}
-                )
-            except Exception as upload_error:
-                # If upload fails due to duplicate, try to remove and re-upload
-                if "already exists" in str(upload_error) or "Duplicate" in str(upload_error):
-                    print(f"File exists, removing and re-uploading...")
-                    try:
-                        # Remove existing file
-                        self.client.storage.from_(self.bucket_name).remove([file_path])
-                        # Try upload again
-                        response = self.client.storage.from_(self.bucket_name).upload(
-                            path=file_path,
-                            file=file_bytes,
-                            file_options={"content-type": "application/octet-stream"}
-                        )
-                    except Exception as retry_error:
-                        raise Exception(f"Failed to replace existing file: {str(retry_error)}")
-                else:
-                    raise upload_error
+            response = self.client.storage.from_(self.bucket_name).upload(
+                path=file_path, file=file_bytes,
+                file_options={"content-type": "application/octet-stream"}
+            )
 
             print(f"Upload response: {response}")
             print(f"Response type: {type(response)}")
@@ -160,10 +139,9 @@ class SupabaseStorageService:
         try:
             response = self.client.storage.from_(self.bucket_name).list(folder_path)
 
-            if response.error:
-                raise Exception(f"List files failed: {response.error}")
-
-            return response.data or []
+            if not isinstance(response, list):
+                raise RuntimeError("Unexpected storage list response")
+            return response
 
         except Exception as e:
             raise Exception(f"Failed to list files: {str(e)}")

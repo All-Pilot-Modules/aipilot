@@ -30,7 +30,8 @@ def create_embedding(db: Session, embedding_data: DocumentEmbeddingCreate) -> Do
 
 def bulk_create_embeddings(
     db: Session,
-    embeddings_data: List[Dict[str, Any]]
+    embeddings_data: List[Dict[str, Any]],
+    commit: bool = True
 ) -> List[DocumentEmbedding]:
     """
     Bulk create embeddings for multiple chunks
@@ -63,7 +64,10 @@ def bulk_create_embeddings(
         embedding_objects.append(embedding)
         db.add(embedding)
 
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
     for embedding in embedding_objects:
         db.refresh(embedding)

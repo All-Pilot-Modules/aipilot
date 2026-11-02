@@ -95,7 +95,7 @@ def test_upload_runs_extraction_chunking_and_embedding(db_session, test_module, 
     path.write_text("The product rule. " * 100)
     monkeypatch.setattr(service.storage_service, "upload_file", MagicMock(return_value="https://test.invalid/lesson.txt"))
     monkeypatch.setattr(service.storage_service, "download_file_temporarily", MagicMock(return_value=str(path)))
-    embed = MagicMock(return_value=2)
+    embed = MagicMock(side_effect=lambda db, document_id, **kw: db.query(DocumentChunk).filter_by(document_id=__import__("uuid").UUID(document_id)).count())
     monkeypatch.setattr(service, "generate_embeddings_for_document", embed)
     result = service.handle_document_upload(db_session, path.read_bytes(), "lesson.txt", teacher_user.id,
                                             module_name=test_module.name)
@@ -105,12 +105,48 @@ def test_upload_runs_extraction_chunking_and_embedding(db_session, test_module, 
     assert not path.exists(), "temporary download must be cleaned up"
 
 
-def test_storage_failure_does_not_create_document(db_session, test_module, teacher_user, monkeypatch):
+def test_storage_failure_retains_recoverable_reservation(db_session, test_module, teacher_user, monkeypatch):
     from app.services import document as service
     from app.models.document import Document
     from fastapi import HTTPException
     monkeypatch.setattr(service.storage_service, "upload_file", MagicMock(side_effect=RuntimeError("storage unavailable")))
     with pytest.raises(HTTPException) as error:
         service.handle_document_upload(db_session, b"Lesson", "lesson.txt", teacher_user.id, module_name=test_module.name)
-    assert error.value.status_code == 500
-    assert db_session.query(Document).count() == 0
+    assert error.value.status_code == 503
+    reserved = db_session.query(Document).one()
+    assert reserved.processing_status == "failed"
+    assert reserved.processing_metadata["upload_complete"] is False
+
+
+def test_txt_testbank_upload_and_reparse(db_session, test_module, teacher_user, tmp_path, monkeypatch):
+    from app.services import document as service
+    from app.models.question import Question
+    from app.models.document_chunk import DocumentChunk
+
+    # Five questions exercise the real hybrid parser without an AI request.
+    source = "\n\n".join(
+        f"{i}. What is {i}+0?\nA. {i}\nB. 99\nAnswer: A"
+        for i in range(1, 6)
+    )
+    path = tmp_path / "testbank.txt"
+    path.write_text(source)
+    monkeypatch.setattr(service.storage_service, "upload_file", MagicMock(return_value="https://test.invalid/testbank.txt"))
+    monkeypatch.setattr(service.storage_service, "download_file_temporarily", MagicMock(return_value=str(path)))
+    result = service.handle_document_upload(
+        db_session, source.encode(), "testbank.txt", teacher_user.id, module_name=test_module.name
+    )
+    assert result.parse_status == "success", result.parse_error
+    assert result.is_testbank is True
+    assert db_session.query(Question).filter_by(document_id=result.id).count() == 5
+    assert db_session.query(DocumentChunk).filter_by(document_id=result.id).count() == 0
+    assert not path.exists()
+
+    # Recover an already uploaded TXT testbank through the same reparse path.
+    db_session.query(Question).filter_by(document_id=result.id).delete()
+    result.parse_status = "pending"
+    db_session.commit()
+    path.write_text(source)
+    service.reparse_testbank_document(db_session, result.id)
+    assert result.parse_status == "success", result.parse_error
+    assert db_session.query(Question).filter_by(document_id=result.id).count() == 5
+    assert not path.exists()

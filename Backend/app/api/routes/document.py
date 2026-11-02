@@ -1,13 +1,11 @@
 from fastapi import APIRouter, Form, UploadFile, File, HTTPException, Depends, Query, Body
-from fastapi.responses import FileResponse
 from uuid import UUID
 from sqlalchemy.orm import Session
 from urllib.parse import quote
 from app.schemas.document import DocumentOut, DocumentUpdate
 from app.schemas.question import QuestionGenerationRequest, QuestionGenerationResponse, QuestionCreate
-from app.services.document import handle_document_upload, reparse_testbank_document, reprocess_document
+from app.services.document import handle_document_upload
 from app.crud.document import (
-    create_document,
     get_document_by_id as fetch_document_by_id,
     get_documents_by_teacher,
     get_documents_by_module,
@@ -18,29 +16,35 @@ from app.crud.question import create_question
 from app.database import get_db
 from app.services.question_generation import question_generation_service
 from app.models.module import Module
-router = APIRouter()
+from app.services.document_access import authorize_document_request
+from app.core.auth import get_current_active_user
+from app.models.user import User
+router = APIRouter(dependencies=[Depends(authorize_document_request)])
 
-@router.post("/upload", response_model=DocumentOut)
-async def upload_document(
+@router.post("/upload", response_model=DocumentOut, status_code=202)
+def upload_document(
     file: UploadFile = File(...),
-    module_name: str = Form(..., description="Name of the module (used as subfolder)"),
-    teacher_id: str = Form(..., description="Teacher ID who owns this document"),
-    title: str = Form(None),  # ✅ Optional custom title override
+    module_name: str = Form(...),
+    teacher_id: str = Form(...),
+    title: str = Form(None),
+    is_testbank: bool | None = Form(None),
+    current_user: User = Depends(get_current_active_user),
     db: Session = Depends(get_db)
 ):
+    from app.services.document_validation import MAX_UPLOAD_BYTES
+    if teacher_id != current_user.id:
+        raise HTTPException(403, "Cannot upload for another user")
     try:
-        file_bytes = await file.read()
-        document = handle_document_upload(
-            db=db,
-            file_bytes=file_bytes,
-            filename=file.filename,
-            teacher_id=teacher_id,
-            title=title,
-            module_name=module_name
-        )
-        return document
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        file_bytes = file.file.read(MAX_UPLOAD_BYTES + 1)
+        return handle_document_upload(db, file_bytes, file.filename, current_user.id,
+                                      title, module_name, is_testbank=is_testbank, enqueue_only=True)
+    except HTTPException:
+        raise
+    except Exception:
+        db.rollback()
+        raise HTTPException(500, "Upload failed. Please retry.")
+    finally:
+        file.file.close()
 
 # 📄 List all documents for a teacher, optionally filtered by module
 @router.get("/documents", response_model=list[DocumentOut])
@@ -89,48 +93,25 @@ def update_document_by_id(
         raise HTTPException(status_code=404, detail="Document not found")
     return updated_doc
 
-# 📥 Download document by ID
+def signed_download(db, doc_id):
+    from app.services.document_storage import document_storage
+    doc = fetch_document_by_id(db, str(doc_id))
+    try:
+        return document_storage.signed_url(doc.storage_path)
+    except Exception:
+        raise HTTPException(503, "Download temporarily unavailable")
+
+
+@router.get("/documents/{doc_id}/download-url")
+def download_url(doc_id: UUID, db: Session = Depends(get_db)):
+    return {"url": signed_download(db, doc_id)}
+
+
 @router.get("/documents/{doc_id}/download")
-def download_document(
-    doc_id: str,
-    db: Session = Depends(get_db)
-):
+def download_document(doc_id: UUID, db: Session = Depends(get_db)):
     from fastapi.responses import RedirectResponse
-    from app.services.storage import storage_service
-    import re
+    return RedirectResponse(signed_download(db, doc_id))
 
-    doc = fetch_document_by_id(db, doc_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    # Check if storage_path is a URL (Supabase) or local path
-    if doc.storage_path.startswith('http://') or doc.storage_path.startswith('https://'):
-        # Extract the file path from the Supabase URL
-        # URL format: https://xxx.supabase.co/storage/v1/object/public/uploads/001/two/file.docx?
-        match = re.search(r'/storage/v1/object/public/[^/]+/(.+?)(\?|$)', doc.storage_path)
-
-        if match:
-            file_path = match.group(1)
-
-            # Get a signed URL from Supabase (valid for 1 hour)
-            try:
-                signed_url = storage_service.get_signed_url(file_path, expires_in=3600)
-                if signed_url:
-                    return RedirectResponse(url=signed_url)
-            except Exception as e:
-                print(f"Failed to get signed URL: {e}")
-
-        # Fallback: try the original URL (cleaned)
-        clean_url = doc.storage_path.rstrip('?')
-        return RedirectResponse(url=clean_url)
-    else:
-        # For local files, use FileResponse
-        return FileResponse(
-            path=doc.storage_path,
-            filename=doc.file_name,
-            media_type='application/octet-stream'
-        )
-    
 
 @router.post("/documents/{doc_id}/reparse")
 def reparse_document(
@@ -141,7 +122,8 @@ def reparse_document(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    return reparse_testbank_document(db, doc_id)
+    from app.services.document import queue_document
+    return queue_document(db, doc_id, testbank=True)
 
 
 @router.post("/documents/{doc_id}/reprocess")
@@ -156,7 +138,8 @@ def reprocess_document_endpoint(
     if doc.processing_status in ["embedded", "indexed"]:
         raise HTTPException(status_code=400, detail="Document is already fully processed")
 
-    return reprocess_document(db, doc_id)
+    from app.services.document import queue_document
+    return queue_document(db, doc_id, testbank=False)
 
 
 @router.post("/documents/{doc_id}/generate-questions", response_model=QuestionGenerationResponse)
@@ -262,6 +245,8 @@ def generate_questions_from_document(
                    f"Please review them before making them available to students."
         )
 
+    except HTTPException:
+        raise
     except ValueError as e:
         # Handle validation errors from service
         raise HTTPException(status_code=400, detail=str(e))
@@ -270,5 +255,5 @@ def generate_questions_from_document(
         print(f"Error generating questions: {str(e)}")
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to generate questions: {str(e)}"
+            detail="Question generation failed. Please retry."
         )

@@ -52,6 +52,8 @@ class ProxyHeadersMiddleware(BaseHTTPMiddleware):
 app = FastAPI()
 from app.core.latency import LatencyMiddleware
 app.add_middleware(LatencyMiddleware)
+from app.core.upload_limit import UploadBodyLimit
+app.add_middleware(UploadBodyLimit)
 
 # Global handler: catch unhandled exceptions and return JSON so CORS headers
 # are written correctly (BaseHTTPMiddleware swallows crashes otherwise).
@@ -121,6 +123,9 @@ def on_startup():
     from app.services.learning_memory import start_memory_worker
     start_memory_worker()
 
+    from app.services.document_worker import start_document_worker
+    start_document_worker()
+
     print("🎉 Application startup complete!")
 
 
@@ -132,6 +137,8 @@ def on_shutdown():
     that will never come again. stop_worker() was built for this but was
     never actually wired to a shutdown hook — this was dead code until now.
     """
+    from app.services.document_worker import stop_document_worker
+    stop_document_worker()
     from app.services.learning_memory import stop_memory_worker
     stop_memory_worker()
     print("🛑 App shutdown initiated...")

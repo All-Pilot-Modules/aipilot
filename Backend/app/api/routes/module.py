@@ -29,6 +29,7 @@ from app.services.rubric import (
 )
 from app.database import get_db
 
+from app.services.document_access import authorize_module_mutation
 router = APIRouter()
 
 def validate_assignment_config(config: Dict[str, Any]) -> List[str]:
@@ -151,7 +152,7 @@ def create_new_module(payload: ModuleCreate, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to create module: {str(e)}")
 
 # 🖊️ Update existing module
-@router.put("/modules/{module_id}", response_model=ModuleOut)
+@router.put("/modules/{module_id}", response_model=ModuleOut, dependencies=[Depends(authorize_module_mutation)])
 def update_existing_module(module_id: UUID, payload: ModuleCreate, db: Session = Depends(get_db)):
     try:
         # Validate assignment configuration
@@ -173,21 +174,23 @@ def update_existing_module(module_id: UUID, payload: ModuleCreate, db: Session =
         raise HTTPException(status_code=500, detail=f"Failed to update module: {str(e)}")
 
 # ❌ Delete module and all associated data
-@router.delete("/modules/{module_id}")
+@router.delete("/modules/{module_id}", dependencies=[Depends(authorize_module_mutation)])
 def remove_module(module_id: UUID, db: Session = Depends(get_db)):
     try:
         success = delete_module_with_documents(db, str(module_id))
         if not success:
             raise HTTPException(status_code=404, detail="Module not found")
         return {"detail": "Module and all associated data (documents, questions, student answers, enrollments) deleted successfully."}
+    except HTTPException:
+        raise
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         _logger.error(f"Error deleting module {module_id}: {e}")
-        raise HTTPException(status_code=500, detail=f"Failed to delete module: {str(e)}")
+        raise HTTPException(status_code=500, detail="Module deletion could not finish. Retry or contact support.")
 
 # 🔄 Regenerate access code for module
-@router.post("/modules/{module_id}/regenerate-code", response_model=ModuleOut)
+@router.post("/modules/{module_id}/regenerate-code", response_model=ModuleOut, dependencies=[Depends(authorize_module_mutation)])
 def regenerate_access_code(module_id: UUID, db: Session = Depends(get_db)):
     """
     Regenerate a new access code for the module
@@ -229,7 +232,7 @@ def get_rubric(module_id: UUID, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=f"Failed to get rubric: {str(e)}")
 
 # 🖊️ Update module rubric
-@router.put("/modules/{module_id}/rubric")
+@router.put("/modules/{module_id}/rubric", dependencies=[Depends(authorize_module_mutation)])
 def update_rubric(
     module_id: UUID,
     rubric_config: Dict[str, Any],
@@ -269,7 +272,7 @@ def list_rubric_templates():
         raise HTTPException(status_code=500, detail=f"Failed to list templates: {str(e)}")
 
 # 🔄 Apply rubric template to module
-@router.post("/modules/{module_id}/rubric/apply-template")
+@router.post("/modules/{module_id}/rubric/apply-template", dependencies=[Depends(authorize_module_mutation)])
 def apply_rubric_template(
     module_id: UUID,
     template_name: str = Query(..., description="Template name to apply"),
@@ -316,7 +319,7 @@ def validate_rubric_config(rubric_config: Dict[str, Any]):
         raise HTTPException(status_code=500, detail=f"Validation failed: {str(e)}")
 
 # 📝 Update module consent form
-@router.put("/modules/{module_id}/consent-form")
+@router.put("/modules/{module_id}/consent-form", dependencies=[Depends(authorize_module_mutation)])
 def update_consent_form(
     module_id: UUID,
     payload: ConsentFormUpdate,
@@ -383,7 +386,7 @@ def get_student_consent_status(
     }
 
 # ✍️ Submit student consent for a module
-@router.put("/modules/{module_id}/consent/{student_id}")
+@router.put("/modules/{module_id}/consent/{student_id}", dependencies=[Depends(authorize_module_mutation)])
 def submit_module_consent(
     module_id: UUID,
     student_id: str,
@@ -472,7 +475,7 @@ Guidelines:
     }
 
 # 🤖 Update chatbot instructions for a module
-@router.put("/modules/{module_id}/chatbot-instructions")
+@router.put("/modules/{module_id}/chatbot-instructions", dependencies=[Depends(authorize_module_mutation)])
 def update_chatbot_instructions(
     module_id: UUID,
     instructions_data: dict,
@@ -732,7 +735,7 @@ def get_dashboard_metrics(
 from app.models.module import Module
 
 
-@router.patch("/modules/{module_id}/status", response_model=ModuleOut)
+@router.patch("/modules/{module_id}/status", response_model=ModuleOut, dependencies=[Depends(authorize_module_mutation)])
 def update_module_status(
     module_id: UUID,
     payload: ModuleStatusUpdate,
@@ -754,7 +757,7 @@ def update_module_status(
     return module
 
 
-@router.patch("/modules/{module_id}/ai-config", response_model=ModuleOut)
+@router.patch("/modules/{module_id}/ai-config", response_model=ModuleOut, dependencies=[Depends(authorize_module_mutation)])
 def update_ai_config(
     module_id: UUID,
     payload: AIConfigUpdate,
@@ -825,7 +828,7 @@ def get_grading_settings(module_id: UUID, db: Session = Depends(get_db)):
     }
 
 
-@router.patch("/modules/{module_id}/grading-settings", response_model=ModuleOut)
+@router.patch("/modules/{module_id}/grading-settings", response_model=ModuleOut, dependencies=[Depends(authorize_module_mutation)])
 def update_grading_settings(
     module_id: UUID,
     payload: GradingSettingsUpdate,
@@ -887,7 +890,7 @@ def update_grading_settings(
     return module
 
 
-@router.patch("/modules/{module_id}/enrollment-config", response_model=ModuleOut)
+@router.patch("/modules/{module_id}/enrollment-config", response_model=ModuleOut, dependencies=[Depends(authorize_module_mutation)])
 def update_enrollment_config(
     module_id: UUID,
     payload: EnrollmentConfigUpdate,

@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Optional, Dict, Any
 from datetime import datetime
 from uuid import UUID
@@ -34,14 +34,6 @@ class DocumentOut(DocumentBase):
         orm_mode = True
 
 class DocumentUpdate(BaseModel):
-    title: Optional[str] = None
-    file_name: Optional[str] = None
-    file_hash: Optional[str] = None
-    file_type: Optional[str] = None
-    teacher_id: Optional[str] = None
-    module_id: Optional[UUID] = None  # ✅ Updated to UUID
-    storage_path: Optional[str] = None
-    index_path: Optional[str] = None
-    slide_count: Optional[int] = None
-    processing_status: Optional[str] = None
-    processing_metadata: Optional[Dict[str, Any]] = None
+    # Storage keys, ownership, hashes and processing state are server-managed.
+    model_config = {"extra": "forbid"}
+    title: str = Field(min_length=1, max_length=255)

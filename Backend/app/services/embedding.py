@@ -87,8 +87,11 @@ def generate_embeddings_batch(
             dimensions=EMBED_DIMENSIONS
         )
 
+        ordered = sorted(response.data, key=lambda item: item.index)
+        if [item.index for item in ordered] != list(range(len(texts))):
+            raise ValueError("Embedding provider returned missing or duplicate indices")
         results = []
-        for embedding_data in response.data:
+        for embedding_data in ordered:
             results.append({
                 'embedding': embedding_data.embedding,
                 'dimensions': len(embedding_data.embedding),
@@ -107,7 +110,8 @@ def generate_embeddings_for_document(
     db: Session,
     document_id: str,
     batch_size: int = 100,
-    model: str = None
+    model: str = None,
+    commit: bool = True
 ) -> int:
     """
     Generate and save embeddings for all chunks of a document
@@ -148,6 +152,9 @@ def generate_embeddings_for_document(
             # Generate embeddings for batch
             embeddings_data = generate_embeddings_batch(batch_texts, model=model)
 
+            if len(embeddings_data) != len(batch_chunks):
+                raise ValueError("Embedding provider returned incomplete results")
+
             # Prepare data for bulk insert
             embeddings_to_insert = []
             for chunk, embedding_info in zip(batch_chunks, embeddings_data):
@@ -162,15 +169,14 @@ def generate_embeddings_for_document(
                 })
 
             # Bulk insert to database
-            bulk_create_embeddings(db, embeddings_to_insert)
+            bulk_create_embeddings(db, embeddings_to_insert, commit=commit)
             total_embeddings += len(embeddings_to_insert)
 
             print(f"  ✅ Saved {len(embeddings_to_insert)} embeddings")
 
         except Exception as e:
             print(f"  ❌ Error processing batch: {str(e)}")
-            # Continue with next batch even if one fails
-            continue
+            raise
 
     print(f"✅ Total embeddings created: {total_embeddings}")
     return total_embeddings

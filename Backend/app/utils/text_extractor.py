@@ -62,14 +62,19 @@ def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
             }
         }
     """
+    from app.services.document_validation import MAX_PAGES
     doc = fitz.open(file_path)
+    if len(doc) > MAX_PAGES or doc.needs_pass:
+        doc.close()
+        raise ValueError("PDF exceeds 500 pages or requires a password")
     full_text = ""
     page_texts = []
 
     for page_num, page in enumerate(doc, start=1):
         page_text = page.get_text()
         page_texts.append(page_text)
-        full_text += f"\n--- Page {page_num} ---\n{page_text}"
+        if page_text.strip():
+            full_text += f"\n--- Page {page_num} ---\n{page_text}"
 
     doc.close()
 
@@ -77,7 +82,8 @@ def extract_text_from_pdf(file_path: str) -> Dict[str, Any]:
         'text': full_text.strip(),
         'metadata': {
             'pages': len(page_texts),
-            'page_texts': page_texts
+            'page_texts': page_texts,
+            'needs_ocr': any(not text.strip() for text in page_texts)
         }
     }
 
@@ -98,13 +104,23 @@ def extract_text_from_docx(file_path: str) -> Dict[str, Any]:
         }
     """
     doc = DocxDocument(file_path)
-    paragraphs = [para.text for para in doc.paragraphs if para.text.strip()]
+    paragraphs = []
+    # Preserve paragraph/table order, including questions and keys in table cells.
+    from docx.text.paragraph import Paragraph
+    from docx.table import Table
+    for child in doc.element.body:
+        if child.tag.endswith('}p'):
+            paragraphs.append(Paragraph(child, doc).text)
+        elif child.tag.endswith('}tbl'):
+            for row in Table(child, doc).rows:
+                paragraphs.append(' | '.join(cell.text for cell in row.cells))
     full_text = "\n\n".join(paragraphs)
 
     return {
         'text': full_text.strip(),
         'metadata': {
-            'paragraphs': len(paragraphs)
+            'paragraphs': len(paragraphs),
+            'needs_layout_parser': bool(doc.element.xpath('//*[local-name()="drawing" or local-name()="oMath"]'))
         }
     }
 
@@ -125,24 +141,38 @@ def extract_text_from_pptx(file_path: str) -> Dict[str, Any]:
             }
         }
     """
+    from app.services.document_validation import MAX_PAGES
     prs = Presentation(file_path)
+    if len(prs.slides) > MAX_PAGES:
+        raise ValueError("Presentation exceeds 500 slides")
     full_text = ""
     slide_texts = []
+    has_visual_content = False
 
     for slide_num, slide in enumerate(prs.slides, start=1):
         slide_text = ""
+        def shape_text(shape):
+            if getattr(shape, 'has_table', False):
+                return '\n'.join(' | '.join(cell.text for cell in row.cells) for row in shape.table.rows)
+            if hasattr(shape, 'shapes'):
+                return '\n'.join(shape_text(child) for child in shape.shapes)
+            return getattr(shape, 'text', '')
+        def visual_content(shape):
+            return shape.shape_type == 13 or (hasattr(shape, 'shapes') and any(visual_content(child) for child in shape.shapes))
         for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text:
-                slide_text += shape.text + "\n"
+            has_visual_content = has_visual_content or visual_content(shape)
+            slide_text += shape_text(shape) + "\n"
 
         slide_texts.append(slide_text.strip())
-        full_text += f"\n--- Slide {slide_num} ---\n{slide_text}"
+        if slide_text.strip():
+            full_text += f"\n--- Slide {slide_num} ---\n{slide_text}"
 
     return {
         'text': full_text.strip(),
         'metadata': {
             'slides': len(slide_texts),
-            'slide_texts': slide_texts
+            'slide_texts': slide_texts,
+            'needs_layout_parser': has_visual_content
         }
     }
 
@@ -162,8 +192,9 @@ def extract_text_from_txt(file_path: str) -> Dict[str, Any]:
             }
         }
     """
-    with open(file_path, 'r', encoding='utf-8') as f:
-        text = f.read()
+    from app.services.document_validation import decode_text
+    with open(file_path, 'rb') as f:
+        text = decode_text(f.read())
 
     return {
         'text': text.strip(),
@@ -206,7 +237,8 @@ def extract_text_with_llamaparse(file_path: str, file_type: str, result_type: st
         parser = LlamaParse(
             api_key=api_key,
             result_type=result_type,
-            verbose=False
+            verbose=False,
+            max_timeout=120
         )
 
         # Parse the document
@@ -256,7 +288,7 @@ def extract_text_from_file(file_path: str, file_type: str, is_testbank: bool = F
     if is_testbank and file_type in ['pdf', 'docx', 'doc']:
         try:
             print(f"Using LlamaParse for testbank extraction: {file_path}")
-            result = extract_text_with_llamaparse(file_path, file_type)
+            result = extract_text_with_llamaparse(file_path, file_type, result_type="markdown")
             used_llamaparse = True
         except Exception as e:
             print(f"LlamaParse failed, falling back to standard extractor: {str(e)}")
@@ -279,9 +311,9 @@ def extract_text_from_file(file_path: str, file_type: str, is_testbank: bool = F
     # control chars / replacement glyphs. Escalate to LlamaParse markdown
     # mode, which preserves formulas as LaTeX ($...$), matching the
     # frontend's LaTeX rendering (MathText/EquationField).
-    if not used_llamaparse and file_type in ['pdf', 'docx', 'doc']:
+    if not used_llamaparse and file_type in ['pdf', 'docx', 'doc', 'pptx']:
         ratio = _garbled_ratio(result.get('text', ''))
-        if ratio > GARBLED_RATIO_THRESHOLD:
+        if ratio > GARBLED_RATIO_THRESHOLD or result.get('metadata', {}).get('needs_ocr') or result.get('metadata', {}).get('needs_layout_parser'):
             try:
                 print(f"⚠️ Garbled text ratio {ratio:.4f} for {file_path}, escalating to LlamaParse markdown mode")
                 escalated = extract_text_with_llamaparse(file_path, file_type, result_type="markdown")
@@ -291,6 +323,13 @@ def extract_text_from_file(file_path: str, file_type: str, is_testbank: bool = F
             except Exception as e:
                 print(f"❌ LlamaParse escalation failed, keeping native extraction: {str(e)}")
                 result['metadata']['garbled_ratio'] = round(ratio, 5)
-                result['metadata']['escalation_failed'] = str(e)
+                raise ValueError('Document needs OCR or reliable math extraction; configure LlamaParse and retry.') from e
 
+    if result.get('metadata', {}).get('needs_ocr'):
+        raise ValueError('Some pages contain no readable text; OCR is required.')
+    if not result.get('text', '').strip():
+        raise ValueError('No readable text found in this document')
+    from app.services.document_validation import MAX_EXTRACTED_CHARS
+    if len(result['text']) > MAX_EXTRACTED_CHARS:
+        raise ValueError('Document text exceeds the extraction limit; split it into smaller files')
     return _sanitize(result)
