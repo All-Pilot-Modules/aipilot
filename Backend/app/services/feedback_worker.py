@@ -93,7 +93,7 @@ _ERROR_CATEGORY_MAP = {
 }
 
 
-from app.core.latency import timed
+from app.core.latency import timed, correlation, event
 
 def _categorize_error(error_type: str | None) -> str:
     if not error_type:
@@ -184,6 +184,8 @@ def create_feedback_job(
     if commit:
         db.commit()
         db.refresh(job)
+    event('feedback.job.enqueued', job_id=str(job.id), answer_id=str(answer_id),
+          module_id=str(module_id), attempt=attempt, priority=priority, committed=commit)
     logger.info(f"[worker] Created job {job.id} for answer {answer_id} (priority={priority})")
     return job
 
@@ -243,6 +245,9 @@ def create_feedback_jobs_batch(
         f"[worker] Created {len(jobs)} jobs in batch for student {student_id} attempt {attempt}"
         + (f" ({skipped} skipped as duplicates)" if skipped else "")
     )
+    for job in jobs:
+        event('feedback.job.enqueued', job_id=str(job.id), answer_id=str(job.answer_id),
+              module_id=str(module_id), attempt=attempt, priority=priority, committed=commit)
     return jobs
 
 
@@ -726,7 +731,28 @@ def _process_single_job(job_id: UUID):
             f"retry={job.retry_count}/{job.max_retries}"
         )
 
-        _generate_feedback_for_job(db, job)
+        with correlation(job_id=str(job.id), answer_id=str(job.answer_id),
+                         module_id=str(job.module_id), attempt=job.attempt):
+            started = time.perf_counter()
+            now = datetime.now(timezone.utc)
+            created = job.created_at
+            if created.tzinfo is None:
+                created = created.replace(tzinfo=timezone.utc)
+            event('feedback.job.started', priority=job.priority,
+                  retry_count=job.retry_count,
+                  age_at_start_ms=round((now - created).total_seconds() * 1000, 3),
+                  instance_id=INSTANCE_ID)
+            try:
+                _generate_feedback_for_job(db, job)
+            finally:
+                # Logging must not turn a failed DB transaction into another failure.
+                try:
+                    event('feedback.job.finished', status=job.status,
+                          retry_count=job.retry_count, error_category=job.error_category,
+                          attempt_duration_ms=round((time.perf_counter() - started) * 1000, 3),
+                          next_available_at=job.available_at.isoformat() if job.available_at else None)
+                except Exception:
+                    event('feedback.job.logging_unavailable', outcome='error')
 
     except Exception as e:
         logger.error(f"[worker] Error in _process_single_job({job_id}): {e}")

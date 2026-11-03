@@ -1,3 +1,4 @@
+from app.core.latency import event
 from app.services.feedback_visibility import (
     ai_feedback_allowed_for_attempt,
     content_policy,
@@ -1123,6 +1124,11 @@ async def submit_test(
     # Single commit: the submission record, the reused/bumped feedback
     # updates, and any new FeedbackJob rows all land together or not at all.
     db.commit()
+
+    event('feedback.submission', submission_id=str(submission.id),
+          module_id=str(module_id), attempt=attempt, answer_ids=answer_ids,
+          reused_count=reused_count, in_flight_count=bumped_count,
+          new_job_count=len(answers_needing_new_job))
 
     if not answers_needing_new_job:
         # Nothing left in flight for this attempt (fully reused) — the worker

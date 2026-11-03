@@ -47,3 +47,39 @@ def test_http_timings_use_route_template(client, monkeypatch, caplog):
     request = next(e for e in events(caplog) if e['stage'] == 'http.request')
     assert request['route'] == '/api/student/modules/{module_id}/survey'
     assert 'private' not in json.dumps(events(caplog))
+
+
+def test_cloud_formatter_outputs_searchable_json():
+    from app.core.latency import CloudLatencyFormatter
+    record = logging.LogRecord('app.latency', logging.INFO, '', 0,
+        'LATENCY %s', (json.dumps({'stage': 'feedback.job.started', 'job_id': 'job-1'}),), None)
+    payload = json.loads(CloudLatencyFormatter().format(record))
+    assert payload['component'] == 'feedback_latency'
+    assert payload['severity'] == 'INFO'
+    assert payload['job_id'] == 'job-1'
+
+
+def test_job_correlation_reaches_nested_model_spans_and_resets(monkeypatch, caplog):
+    from app.core.latency import correlation, event
+    monkeypatch.setenv('LATENCY_ENABLED', '1')
+    caplog.set_level(logging.INFO, logger='app.latency')
+    with pytest.raises(ValueError):
+        with correlation(job_id='job-1', answer_id='answer-1'):
+            with span('openai.chat.attempt'):
+                raise ValueError('private prompt')
+    event('outside')
+    nested, outside = events(caplog)
+    assert nested['job_id'] == 'job-1'
+    assert nested['answer_id'] == 'answer-1'
+    assert nested['outcome'] == 'error'
+    assert 'job_id' not in outside
+    assert 'private prompt' not in caplog.text
+
+
+def test_cloud_enables_timings_unless_explicitly_disabled(monkeypatch):
+    from app.core.latency import enabled
+    monkeypatch.delenv('LATENCY_ENABLED', raising=False)
+    monkeypatch.setenv('K_SERVICE', 'backend')
+    assert enabled()
+    monkeypatch.setenv('LATENCY_ENABLED', '0')
+    assert not enabled()

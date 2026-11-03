@@ -4,23 +4,56 @@ import functools
 import json
 import logging
 import os
+import sys
 import time
 import uuid
 from contextlib import contextmanager
 
 trace_id = contextvars.ContextVar('latency_trace', default=None)
 logger = logging.getLogger('app.latency')
+labels_context = contextvars.ContextVar('latency_labels', default={})
+
+
+class CloudLatencyFormatter(logging.Formatter):
+    def format(self, record):
+        # Keep the local LATENCY format compatible with latency_report.py.
+        message = record.getMessage()
+        payload = json.loads(message.removeprefix('LATENCY '))
+        payload.update(severity=record.levelname, component='feedback_latency')
+        return json.dumps(payload)
+
+
+if os.getenv('K_SERVICE'):
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setFormatter(CloudLatencyFormatter())
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+
+
+@contextmanager
+def correlation(**labels):
+    token = labels_context.set({**labels_context.get(), **labels})
+    try:
+        yield
+    finally:
+        labels_context.reset(token)
+
+
+def event(stage, **labels):
+    record(stage, time.perf_counter(), **labels)
+
 
 
 def enabled():
-    return os.getenv('LATENCY_ENABLED', '0') == '1'
+    return os.getenv('LATENCY_ENABLED', '1' if os.getenv('K_SERVICE') else '0') == '1'
 
 
 def record(stage, started, outcome='ok', **labels):
     if enabled():
         logger.info('LATENCY %s', json.dumps(dict(stage=stage,
             duration_ms=round((time.perf_counter() - started) * 1000, 3),
-            outcome=outcome, trace_id=trace_id.get(), **labels)))
+            outcome=outcome, trace_id=trace_id.get(), **{**labels_context.get(), **labels})))
 
 
 @contextmanager
