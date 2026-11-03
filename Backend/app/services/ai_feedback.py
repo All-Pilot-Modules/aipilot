@@ -377,6 +377,21 @@ class AIFeedbackService:
             else:
                 logger.info(f"⏭️  Skipping RAG (should_include_context=False)")
 
+            # Snapshot scalar inputs before releasing the read transaction. ORM
+            # objects expire on commit and would otherwise reacquire a connection
+            # during prompt construction or while handling the provider result.
+            from types import SimpleNamespace
+            from copy import deepcopy
+            question = SimpleNamespace(**{
+                col.key: deepcopy(getattr(question, col.key))
+                for col in Question.__table__.columns
+            })
+            student_answer = SimpleNamespace(**{
+                col.key: deepcopy(getattr(student_answer, col.key))
+                for col in StudentAnswer.__table__.columns
+            })
+            db.commit()
+
             # ========== STEP 5: Generate feedback based on question type ==========
             # Use GPT-4o-mini for MCQ types — binary grading doesn't need full GPT-4
             mcq_model = "gpt-4o-mini"

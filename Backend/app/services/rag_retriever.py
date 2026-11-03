@@ -128,6 +128,7 @@ def get_context_for_feedback(
     # Embed the query ONCE — the module-wide search below needs it just once
     # (previously, calling search_similar_chunks once per document re-embedded
     # the identical query text every time: N OpenAI API calls instead of 1).
+    db.commit()  # Release document-read connection before the network call.
     query_vector = generate_embedding(query, model=EMBED_MODEL)['embedding']
 
     # One query across every embedded chunk in the module, ordered by pgvector

@@ -1,3 +1,4 @@
+from app.core.auth import get_current_student_for_module
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from uuid import UUID
@@ -354,8 +355,16 @@ def update_consent_form(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to update consent form: {str(e)}")
 
+def authorize_student_consent(
+    student_id: str,
+    authenticated_student: str = Depends(get_current_student_for_module),
+):
+    if student_id != authenticated_student:
+        raise HTTPException(status_code=403, detail="Cannot access another student's consent")
+
+
 # 📋 Get consent status for a student in a module
-@router.get("/modules/{module_id}/consent/{student_id}")
+@router.get("/modules/{module_id}/consent/{student_id}", dependencies=[Depends(authorize_student_consent)])
 def get_student_consent_status(
     module_id: UUID,
     student_id: str,
@@ -386,7 +395,7 @@ def get_student_consent_status(
     }
 
 # ✍️ Submit student consent for a module
-@router.put("/modules/{module_id}/consent/{student_id}", dependencies=[Depends(authorize_module_mutation)])
+@router.put("/modules/{module_id}/consent/{student_id}", dependencies=[Depends(authorize_student_consent)])
 def submit_module_consent(
     module_id: UUID,
     student_id: str,

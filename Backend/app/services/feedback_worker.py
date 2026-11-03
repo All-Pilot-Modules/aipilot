@@ -1,7 +1,7 @@
 """
 Feedback Worker — concurrent background workers that drain the FeedbackJob queue.
 
-Uses ThreadPoolExecutor(max_workers=10) for concurrent OpenAI calls.
+Uses ThreadPoolExecutor(max_workers=4) for concurrent OpenAI calls.
 Detects fallback results and retries instead of silently marking them as done.
 Jobs survive server restarts because they live in the database.
 """
@@ -42,10 +42,10 @@ POLL_INTERVAL_EMPTY = 1.0
 # Sleep between processing consecutive batches
 POLL_INTERVAL_BUSY = 0.1
 
-# Concurrent worker threads — 10 parallel OpenAI calls.
+# Leave application-pool capacity for requests, scoring, and queue maintenance.
 # Leader election keeps only ONE instance running the worker, so total
 # concurrent OpenAI calls = MAX_WORKERS (not MAX_WORKERS × instance_count).
-MAX_WORKERS = 10
+MAX_WORKERS = 4
 
 # How often the leader refreshes its heartbeat (seconds)
 HEARTBEAT_INTERVAL = 30
@@ -262,6 +262,7 @@ def recover_stale_jobs():
     """
     db = SessionLocal()
     try:
+        _bound_coordination_query(db)
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=STALE_LOCK_SECONDS)
         stuck = (
             db.query(FeedbackJob)
@@ -290,6 +291,12 @@ def recover_stale_jobs():
         db.close()
 
 
+def _bound_coordination_query(db):
+    if db.bind.dialect.name == 'postgresql':
+        db.execute(text("SET LOCAL statement_timeout = '5s'"))
+        db.execute(text("SET LOCAL lock_timeout = '2s'"))
+
+
 def _try_claim_leadership(db) -> bool:
     """
     Atomically try to become the feedback worker leader.
@@ -297,6 +304,7 @@ def _try_claim_leadership(db) -> bool:
     Returns True if this instance is now the leader.
     """
     try:
+        _bound_coordination_query(db)
         stale_interval = f"{LEADER_TAKEOVER_SECONDS} seconds"
         db.execute(text(f"""
             INSERT INTO worker_lock (id, instance_id, heartbeat, acquired_at)
@@ -311,6 +319,7 @@ def _try_claim_leadership(db) -> bool:
         """), {"iid": INSTANCE_ID})
         db.commit()
 
+        _bound_coordination_query(db)
         row = db.execute(
             text("SELECT instance_id FROM worker_lock WHERE id = 1")
         ).fetchone()
@@ -328,8 +337,9 @@ def _release_leadership():
     leader has to wait out the full LEADER_TAKEOVER_SECONDS window even though
     the old leader is actually gone.
     """
-    db = SessionLocal()
+    db = new_lease_session()
     try:
+        _bound_coordination_query(db)
         result = db.execute(
             text("UPDATE worker_lock SET instance_id = NULL WHERE id = 1 AND instance_id = :iid"),
             {"iid": INSTANCE_ID}
@@ -351,21 +361,24 @@ def _update_heartbeat():
     to another instance (e.g. because this one WAS unhealthy for long enough
     that someone else took over) and signals the worker loop to stop.
     """
-    while not _stop_event.is_set():
-        _stop_event.wait(timeout=HEARTBEAT_INTERVAL)
-        if _stop_event.is_set():
+    while not _stop_event.is_set() and not _lost_leadership.is_set():
+        _lost_leadership.wait(timeout=HEARTBEAT_INTERVAL)
+        if _stop_event.is_set() or _lost_leadership.is_set():
             break
 
         loop_age = time.monotonic() - _last_loop_tick
         if loop_age > LOOP_HEALTH_TIMEOUT:
             logger.error(
                 f"[worker] Processing loop unhealthy (no tick for {loop_age:.0f}s) — "
-                f"withholding heartbeat renewal so another instance can take over"
+                f"releasing leadership so another instance can take over"
             )
-            continue
+            _lost_leadership.set()
+            _release_leadership()
+            return
 
-        db = SessionLocal()
+        db = new_lease_session()
         try:
+            _bound_coordination_query(db)
             result = db.execute(
                 text("UPDATE worker_lock SET heartbeat = NOW() WHERE id = 1 AND instance_id = :iid"),
                 {"iid": INSTANCE_ID}
@@ -412,10 +425,12 @@ def _stop_local_worker_threads():
     global _worker_thread, _heartbeat_thread
     if _worker_thread is not None:
         _worker_thread.join(timeout=15)
-        _worker_thread = None
+        if not _worker_thread.is_alive():
+            _worker_thread = None
     if _heartbeat_thread is not None:
         _heartbeat_thread.join(timeout=5)
-        _heartbeat_thread = None
+        if not _heartbeat_thread.is_alive():
+            _heartbeat_thread = None
 
 
 def _threads_alive() -> bool:
@@ -452,7 +467,7 @@ def _leadership_election_loop():
     there's only one process in the fleet.
     """
     while not _stop_event.is_set():
-        db = SessionLocal()
+        db = new_lease_session()
         try:
             i_am_leader = _try_claim_leadership(db)
         finally:
@@ -468,10 +483,11 @@ def _leadership_election_loop():
                 if not _threads_alive():
                     logger.error(
                         f"[worker] Instance {INSTANCE_ID[:8]} worker/heartbeat thread "
-                        f"died unexpectedly while still leader — restarting it"
+                        f"died unexpectedly while still leader — relinquishing leadership"
                     )
-                    _stop_local_worker_threads()
-                    _launch_worker_threads()
+                    _lost_leadership.set()
+                    _release_leadership()
+                    break
 
             if _stop_event.is_set():
                 return
@@ -481,6 +497,10 @@ def _leadership_election_loop():
                 f"stopping local worker and re-entering election"
             )
             _stop_local_worker_threads()
+            while ((_worker_thread is not None and _worker_thread.is_alive())
+                   or (_heartbeat_thread is not None and _heartbeat_thread.is_alive())):
+                if _stop_event.wait(timeout=WORKER_LIVENESS_CHECK_SECONDS):
+                    return
             _lost_leadership.clear()
             continue
 
@@ -678,6 +698,7 @@ def _claim_next_jobs(limit: int):
     db = SessionLocal()
     claimed_ids = []
     try:
+        _bound_coordination_query(db)
         now = datetime.now(timezone.utc)
         jobs = (
             db.query(FeedbackJob)
@@ -766,6 +787,7 @@ def _unlock_stale_jobs():
     """Reset jobs stuck in 'processing' for too long (worker died)."""
     db = SessionLocal()
     try:
+        _bound_coordination_query(db)
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=STALE_LOCK_SECONDS)
         stale = (
             db.query(FeedbackJob)
@@ -1066,7 +1088,9 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
                 )
 
         # Check if all jobs for this attempt are done and calculate score
-        calculate_test_score(job.student_id, str(job.module_id), job.attempt)
+        score_args = (job.student_id, str(job.module_id), job.attempt)
+        db.commit()  # Scoring opens another session; do not hold a slot waiting for it.
+        calculate_test_score(*score_args)
 
     except Exception as e:
         logger.error(f"[worker] Job {job.id} failed: {e}")
