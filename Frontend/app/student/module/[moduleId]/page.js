@@ -211,7 +211,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
 
       // If not in localStorage, check via API
       const response = await apiClient.get(
-        `/api/modules/${moduleId}/consent/${access.studentId}`
+        `/api/modules/${moduleId}/consent/${encodeURIComponent(access.studentId)}`
       );
 
       const { has_consented, is_enrolled, consent_status } = response;

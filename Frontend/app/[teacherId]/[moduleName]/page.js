@@ -112,7 +112,7 @@ export default function ModuleAccessPage() {
           // Check via API if student has consented
           try {
             const consentResponse = await apiClient.get(
-              `/api/modules/${moduleData.id}/consent/${studentId.trim()}`
+              `/api/modules/${moduleData.id}/consent/${encodeURIComponent(studentId.trim())}`
             );
 
             const { has_consented } = consentResponse;

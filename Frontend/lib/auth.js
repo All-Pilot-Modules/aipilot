@@ -195,6 +195,24 @@ export const auth = {
     sessionStorage.setItem('student_token:active', token);
   },
 
+  // Select the requested module's session even on public join pages, where
+  // getToken() intentionally still selects the teacher/account cookie.
+  getStudentToken(moduleId) {
+    if (typeof window === 'undefined') return null;
+    const candidates = [
+      sessionStorage.getItem(`student_token:${moduleId}`),
+      sessionStorage.getItem('student_token:active'),
+      document.cookie.split(';').find(c => c.trim().startsWith('token='))?.trim().slice(6),
+    ];
+    for (const token of candidates) {
+      try {
+        const claims = jwtDecode(token || '');
+        if (claims.role === 'student' && claims.module_id === moduleId) return token;
+      } catch {}
+    }
+    return null;
+  },
+
   // This is a client-side loading guard; the server still verifies the signature.
   hasStudentSession(moduleId, studentId) {
     try {
@@ -499,8 +517,9 @@ export const apiClient = {
     const { skipAuthLogout, responseType, ...fetchOptions } = options;
     const parse = (response) => responseType === 'blob' ? response.blob() : response.json();
     options = fetchOptions;
-    let token = auth.getToken();
-    let studentSession = typeof window !== 'undefined' && window.location?.pathname?.startsWith('/student/');
+    const consentModule = endpoint.match(/^\/api\/modules\/([^/]+)\/consent\/[^/?]+(?:\?.*)?$/)?.[1];
+    let token = consentModule ? auth.getStudentToken(consentModule) : auth.getToken();
+    let studentSession = Boolean(consentModule) || typeof window !== 'undefined' && window.location?.pathname?.startsWith('/student/');
     try { studentSession = studentSession || (token && Boolean(jwtDecode(token).module_id)); } catch {}
 
 

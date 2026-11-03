@@ -37,7 +37,7 @@ export default function ModuleConsentModal({
       // Use studentId prop or fallback to storage
       const sid = studentId || localStorage.getItem('student_id') || localStorage.getItem('user_id');
 
-      await apiClient.put(`/api/modules/${moduleId}/consent/${sid}`, {
+      await apiClient.put(`/api/modules/${moduleId}/consent/${encodeURIComponent(sid)}`, {
         waiver_status: selectedOption
       });
 

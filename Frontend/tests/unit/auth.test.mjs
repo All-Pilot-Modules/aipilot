@@ -176,3 +176,43 @@ test('blob returns binary exports', async () => {
   const blob = await apiClient.blob('/api/modules/m1/export');
   assert.equal(await blob.text(), 'xlsx');
 });
+
+for (const pathname of ['/teacher-name/module-name', '/join', '/student/module/module-a']) {
+  test(`consent uses module student token on ${pathname}, preserving teacher login`, async () => {
+    window.location = { pathname };
+    const studentToken = ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({
+      sub: 'the test two', role: 'student', module_id: 'module-a', exp: Math.floor(Date.now()/1000)+3600,
+    })).toString('base64url'), 'test'].join('.');
+    const storage = new Map();
+    sessionStorage.setItem = (key, value) => storage.set(key, value);
+    sessionStorage.getItem = key => storage.get(key) ?? null;
+    document.cookie = `token=${jwt()}`;
+    auth.setStudentToken(studentToken);
+    const refresh = mock.method(auth, 'refreshAccessToken', async () => { throw new Error('Must not refresh teacher'); });
+    mock.method(globalThis, 'fetch', async (url, options) => {
+      assert.equal(options.headers.Authorization, `Bearer ${studentToken}`);
+      return response(200, { has_consented: true });
+    });
+    await apiClient.get('/api/modules/module-a/consent/the%20test%20two');
+    await apiClient.put('/api/modules/module-a/consent/the%20test%20two', { waiver_status: 1 });
+    assert.equal(refresh.mock.callCount(), 0);
+  });
+}
+
+test('missing or wrong-module consent session never falls back to teacher refresh', async () => {
+  window.location = { pathname: '/join' };
+  document.cookie = `token=${jwt()}`;
+  const wrongToken = ['eyJhbGciOiJIUzI1NiJ9', Buffer.from(JSON.stringify({
+    sub: 'student', role: 'student', module_id: 'other-module',
+  })).toString('base64url'), 'test'].join('.');
+  sessionStorage.getItem = () => wrongToken;
+  const refresh = mock.method(auth, 'refreshAccessToken', async () => 'teacher-token');
+  const logout = mock.method(auth, 'logout', () => {});
+  mock.method(globalThis, 'fetch', async (url, options) => {
+    assert.equal(options.headers.Authorization, undefined);
+    return response(401, { detail: 'Invalid student session' });
+  });
+  await assert.rejects(apiClient.get('/api/modules/module-a/consent/student'), /Rejoin this module/);
+  assert.equal(refresh.mock.callCount(), 0);
+  assert.equal(logout.mock.callCount(), 0);
+});

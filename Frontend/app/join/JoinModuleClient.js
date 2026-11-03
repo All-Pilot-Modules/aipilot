@@ -111,7 +111,7 @@ export default function JoinModule() {
           // Check via API if student has consented
           try {
             const consentResponse = await apiClient.get(
-              `/api/modules/${module.id}/consent/${formData.bannerId.trim()}`
+              `/api/modules/${module.id}/consent/${encodeURIComponent(formData.bannerId.trim())}`
             );
 
             const { has_consented } = consentResponse;
