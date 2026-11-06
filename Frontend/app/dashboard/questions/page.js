@@ -1,6 +1,6 @@
 'use client';
 
-import { buildQuestionsRTF } from "@/lib/testbankExport.mjs";
+import { buildQuestionsRTF, buildQuestionsPdfDefinition } from "@/lib/testbankExport.mjs";
 
 import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
@@ -236,82 +236,20 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
     } finally { setIsUploading(false); }
   };
 
-  // Build question rows shared by PDF and Word exports
-  const buildQuestionRows = () => {
-    const toLetter = (key) => (key || '').toLowerCase();
-    return questions.map((q, i) => {
-      let optionsHTML = '';
-      let answerHTML = '';
-
-      if ((q.type === 'mcq' || q.type === 'mcq_multiple') && q.options && typeof q.options === 'object') {
-        const correctIds = q.type === 'mcq_multiple'
-          ? (q.extended_config?.correct_option_ids || [])
-          : [q.correct_option_id || q.correct_answer];
-        optionsHTML = Object.entries(q.options).map(([key, text]) =>
-          `<p style="margin:4px 0 4px 0">${toLetter(key)}. ${text}</p>`
-        ).join('');
-        const answerLabels = correctIds.filter(Boolean).map(toLetter).join(', ');
-        if (answerLabels) answerHTML = `<p style="margin:8px 0 0 0"><strong>Answer: ${answerLabels}</strong></p>`;
-      } else if (q.type === 'fill_blank' && q.extended_config?.blanks?.length) {
-        optionsHTML = q.extended_config.blanks.map((_, bi) =>
-          `<p style="margin:4px 0">Blank ${bi + 1}: ___</p>`
-        ).join('');
-        answerHTML = q.extended_config.blanks.map((blank, bi) => {
-          const ans = (blank.correct_answers || []).join(' / ');
-          return `<p style="margin:${bi === 0 ? '8' : '2'}px 0 0 0">${bi === 0 ? '<strong>Answer — ' : 'Blank ' + (bi + 1) + ': '}${bi === 0 ? 'Blank 1: ' : ''}${ans}${bi === 0 ? '</strong>' : ''}</p>`;
-        }).join('');
-      } else if (q.type === 'multi_part' && q.extended_config?.sub_questions?.length) {
-        optionsHTML = q.extended_config.sub_questions.map(sq => {
-          let sqOpts = '';
-          let sqAns = '';
-          if (sq.type === 'mcq' && sq.options && typeof sq.options === 'object') {
-            sqOpts = Object.entries(sq.options).map(([key, text]) =>
-              `<p style="margin:2px 0 2px 20px">${toLetter(key)}. ${text}</p>`
-            ).join('');
-            if (sq.correct_option_id) sqAns = `<p style="margin:4px 0 4px 20px"><strong>Answer: ${toLetter(sq.correct_option_id)}</strong></p>`;
-          } else if (sq.correct_answer) {
-            sqAns = `<p style="margin:4px 0 4px 20px"><strong>Answer: ${sq.correct_answer}</strong></p>`;
-          }
-          return `<p style="margin:10px 0 4px 0;font-weight:600">${sq.id}. ${sq.text}</p>${sqOpts}${sqAns}`;
-        }).join('');
-      } else if (q.correct_answer) {
-        answerHTML = `<p style="margin:8px 0 0 0"><strong>Answer: ${q.correct_answer}</strong></p>`;
-      }
-
-      return { questionHTML: `<p style="margin:0 0 6px 0;font-weight:600">${i + 1}. ${q.text}</p>`, optionsHTML, answerHTML };
-    });
-  };
-
-  const buildPrintHTML = () => {
-    const rows = buildQuestionRows().map(({ questionHTML, optionsHTML, answerHTML }) => `
-      <div style="margin-bottom:28px;padding-bottom:20px;border-bottom:1px solid #ccc;page-break-inside:avoid">
-        ${questionHTML}
-        ${optionsHTML}
-        ${answerHTML}
-      </div>`).join('');
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8">
-      <title>${moduleName} – Questions</title>
-      <style>
-        body{font-family:Arial,sans-serif;font-size:13px;color:#000;margin:40px;line-height:1.7}
-        h1{font-size:18px;margin:0 0 4px 0}
-        .meta{color:#555;font-size:12px;margin-bottom:28px}
-        @media print{body{margin:20px}}
-      </style>
-    </head><body>
-      <h1>${moduleName} – Questions</h1>
-      <p class="meta">${questions.length} question${questions.length !== 1 ? 's' : ''} · exported ${new Date().toLocaleDateString()}</p>
-      ${rows}
-    </body></html>`;
-  };
-
-
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     if (questions.length === 0) { alert("No questions to export."); return; }
-    const win = window.open('', '_blank');
-    win.document.write(buildPrintHTML());
-    win.document.close();
-    win.focus();
-    win.print();
+    try {
+      // Loaded on demand: pdfmake and its fonts are only needed when exporting.
+      const [{ default: pdfMake }, fonts] = await Promise.all([
+        import('pdfmake/build/pdfmake'),
+        import('pdfmake/build/vfs_fonts'),
+      ]);
+      pdfMake.vfs = fonts.default?.pdfMake?.vfs || fonts.pdfMake?.vfs || fonts.default || fonts;
+      pdfMake.createPdf(buildQuestionsPdfDefinition(questions, moduleName)).download(`${moduleName}-questions.pdf`);
+    } catch (error) {
+      console.error('PDF export failed', error);
+      alert('Could not create the PDF. Try again, or use Export as RTF.');
+    }
   };
 
   const handleExportWord = () => {

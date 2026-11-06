@@ -128,9 +128,23 @@ def validate_questions(questions):
             keys = (q.extended_config or {}).get('correct_option_ids', [])
             if not q.options or len(q.options) < 2 or not keys or any(key not in q.options for key in keys):
                 raise ValueError('Every multiple-answer question needs matching answer keys')
+        elif q.type == 'fill_blank':
+            blanks = (q.extended_config or {}).get('blanks', [])
+            if not blanks or any(not [a for a in b.get('correct_answers', []) if str(a).strip()] for b in blanks):
+                raise ValueError('Every fill-in-the-blank question needs an answer for each blank')
+        elif q.type == 'multi_part':
+            parts = (q.extended_config or {}).get('sub_questions', [])
+            if not parts or any(not _part_has_key(part) for part in parts):
+                raise ValueError('Every part of a multi-part question needs an answer key')
         elif not q.correct_answer or not q.correct_answer.strip():
             raise ValueError('Every short-answer question needs an answer key')
     return validated
+
+
+def _part_has_key(part):
+    if part.get('options'):
+        return part.get('correct_option_id') in part['options']
+    return bool(str(part.get('correct_answer') or '').strip())
 
 
 def ensure_reparse_safe(db, doc):

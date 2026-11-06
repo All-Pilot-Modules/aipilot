@@ -261,6 +261,18 @@ def extract_text_with_llamaparse(file_path: str, file_type: str, result_type: st
         raise
 
 
+# Must match EXPORT_PDF_CREATOR in Frontend/lib/testbankExport.mjs.
+PLATFORM_EXPORT_CREATOR = 'AI Pilot testbank export v1'
+
+
+def _is_platform_export(file_path: str) -> bool:
+    try:
+        with fitz.open(file_path) as doc:
+            return (doc.metadata or {}).get('creator') == PLATFORM_EXPORT_CREATOR
+    except Exception:
+        return False
+
+
 @timed("extract_text_from_file")
 def extract_text_from_file(file_path: str, file_type: str, is_testbank: bool = False) -> Dict[str, Any]:
     """
@@ -284,8 +296,10 @@ def extract_text_from_file(file_path: str, file_type: str, is_testbank: bool = F
     result = None
     used_llamaparse = False
 
-    # Use LlamaParse for testbank PDFs and DOCX files
-    if is_testbank and file_type in ['pdf', 'docx', 'doc']:
+    # Use LlamaParse for testbank PDFs and DOCX files — except PDFs this platform
+    # exported itself: their text is exact, and LlamaParse's Markdown rewrite
+    # (renumbered lists, **bold**) would break the answer-key round trip.
+    if is_testbank and file_type in ['pdf', 'docx', 'doc'] and not (file_type == 'pdf' and _is_platform_export(file_path)):
         try:
             print(f"Using LlamaParse for testbank extraction: {file_path}")
             result = extract_text_with_llamaparse(file_path, file_type, result_type="markdown")

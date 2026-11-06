@@ -7,6 +7,10 @@ from uuid import UUID
 QUESTION = re.compile(r'^\s*(\d+)[.)]\s+(.+)', re.MULTILINE)
 OPTION = re.compile(r'^([A-Za-z])[.)]\s+(.+)')
 ANSWER = re.compile(r'^(?:answer|ans|correct answer)\s*:\s*(.*)', re.I)
+# Formats written by Frontend/lib/testbankExport.mjs for the richer types.
+BLANK_SLOT = re.compile(r'^Blank\s+(\d+)\s*:\s*_+\s*$', re.I)
+BLANK_KEY = re.compile(r'Blank\s+(\d+)\s*:\s*(.*?)(?=\s*Blank\s+\d+\s*:|$)', re.I | re.S)
+PART = re.compile(r'^Part\s+([A-Za-z0-9]+)\s*[:.]\s+(.+)', re.I)
 
 
 def _answer_fields(options, answer):
@@ -42,9 +46,26 @@ def _answer_fields(options, answer):
             **({'extended_config': {'correct_option_ids': keys}} if len(keys) > 1 and valid else {})}
 
 
+def _part_valid(part):
+    if part.get('options'):
+        return len(part['options']) >= 2 and part.get('correct_option_id') in part['options']
+    return bool(str(part.get('correct_answer') or '').strip())
+
+
 def _invalid_numbers(questions):
     invalid = []
     for index, q in enumerate(questions, 1):
+        config = q.get('extended_config') or {}
+        if q.get('type') == 'fill_blank':
+            blanks = config.get('blanks') or []
+            if not (q.get('text') or '').strip() or not blanks or any(not b.get('correct_answers') for b in blanks):
+                invalid.append(str(index))
+            continue
+        if q.get('type') == 'multi_part':
+            parts = config.get('sub_questions') or []
+            if not (q.get('text') or '').strip() or not parts or not all(_part_valid(p) for p in parts):
+                invalid.append(str(index))
+            continue
         options = q.get('options')
         keys = (q.get('extended_config') or {}).get('correct_option_ids', []) if q.get('type') == 'mcq_multiple' else [q.get('correct_option_id')]
         valid = isinstance(q.get('text'), str) and bool(q['text'].strip())
@@ -70,13 +91,33 @@ def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id
         end = starts[index + 1].start() if index + 1 < len(starts) else len(raw_text)
         lines = (match.group(2) + raw_text[match.end():end]).splitlines()
         text, options, answer = [], {}, []
+        blank_slots, parts = 0, []
         current, metadata = 'text', {}
         for line in lines:
             line = line.strip()
             if not line or re.match(r'^--- (Page|Slide) \d+ ---$', line):
                 continue
-            a, o = ANSWER.match(line), OPTION.match(line)
-            if a:
+            a, o, part = ANSWER.match(line), OPTION.match(line), PART.match(line)
+            if BLANK_SLOT.match(line):
+                blank_slots += 1
+                current = 'blanks'
+            elif part:
+                parts.append({'id': part.group(1), 'text': [part.group(2)], 'options': {}, 'answer': []})
+                current = 'part'
+            elif parts and a:
+                parts[-1]['answer'] = [a.group(1)]
+                current = 'part_answer'
+            elif parts and o:
+                current = o.group(1).upper()
+                parts[-1]['options'][current] = o.group(2)
+            elif parts:
+                target = (parts[-1]['text'] if current == 'part' else parts[-1]['answer'] if current == 'part_answer'
+                          else None)
+                if target is not None:
+                    target.append(line)
+                elif current in parts[-1]['options']:
+                    parts[-1]['options'][current] += ' ' + line
+            elif a:
                 answer = [a.group(1)]
                 current = 'answer'
             elif o:
@@ -93,13 +134,32 @@ def parse_testbank_text_to_questions(raw_text: str, module_id: UUID, document_id
             elif current in options:
                 options[current] += ' ' + line
         answer_text = ' '.join(answer).strip()
-        questions.append({
-            'module_id': str(module_id), 'document_id': str(document_id) if document_id else None,
-            'type': 'mcq' if options else 'short', 'text': ' '.join(text),
-            'question_order': index + 1, 'options': options or None,
-            **_answer_fields(options, answer_text),
-            'has_text_input': not bool(options), **metadata,
-        })
+        base = {'module_id': str(module_id), 'document_id': str(document_id) if document_id else None,
+                'text': ' '.join(text), 'question_order': index + 1, **metadata}
+        if parts:
+            sub_questions = []
+            for part in parts:
+                part_text, part_answer = ' '.join(part['text']).strip(), ' '.join(part['answer']).strip()
+                if part['options']:
+                    fields = _answer_fields(part['options'], part_answer)
+                    sub_questions.append({'id': part['id'], 'type': 'mcq', 'text': part_text,
+                                          'options': fields['options'], 'correct_option_id': fields['correct_option_id']})
+                else:
+                    sub_questions.append({'id': part['id'], 'type': 'short', 'text': part_text,
+                                          'correct_answer': part_answer or None})
+            questions.append({**base, 'type': 'multi_part', 'options': None, 'correct_option_id': None,
+                              'correct_answer': None, 'has_text_input': True,
+                              'extended_config': {'sub_questions': sub_questions}})
+        elif blank_slots:
+            keys = {int(n): value for n, value in BLANK_KEY.findall(answer_text)}
+            blanks = [{'position': i, 'correct_answers': [a.strip() for a in keys.get(i + 1, '').split(' / ') if a.strip()]}
+                      for i in range(blank_slots)]
+            questions.append({**base, 'type': 'fill_blank', 'options': None, 'correct_option_id': None,
+                              'correct_answer': None, 'has_text_input': True,
+                              'extended_config': {'blanks': blanks}})
+        else:
+            questions.append({**base, 'type': 'mcq' if options else 'short', 'options': options or None,
+                              **_answer_fields(options, answer_text), 'has_text_input': not bool(options)})
     return questions
 
 
