@@ -42,3 +42,51 @@ test('math editor keeps prose unchanged after blur and renders equations', async
   await field.press('Tab');
   await expect(dialog.locator('.katex:visible').first()).toBeVisible();
 });
+
+
+test('equation workspace supports labeled answers, contextual equation tools, and narrow screens', async ({ page }) => {
+  await page.goto('/dev-math-test');
+  await page.getByRole('button', { name: 'Open: Short', exact: true }).click();
+  const dialog = page.getByRole('dialog');
+  const answer = dialog.getByLabel('Expected answer', { exact: true });
+  await answer.fill('The answer is $x = 4$.');
+  await answer.press('Tab');
+  await expect(answer).toHaveValue('The answer is $x = 4$.');
+  await expect(dialog.getByRole('button', { name: 'Add equation', exact: true })).toHaveCount(1);
+  await expect(dialog.getByRole('button', { name: 'Add equation', exact: true })).toBeFocused();
+  await expect(dialog.getByLabel('Add math to')).toHaveCount(0);
+  await dialog.getByLabel('Question text', { exact: true }).focus();
+  await page.screenshot({ path: '/tmp/math-workspace-desktop.png' });
+  await page.setViewportSize({ width: 320, height: 812 });
+  await expect(dialog).toBeVisible();
+  expect(await dialog.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await page.evaluate(() => {
+    document.documentElement.classList.add('dark');
+    document.querySelectorAll('*').forEach(el => { el.style.transition = 'none'; });
+  });
+  await expect(dialog).toHaveCSS('width', '320px');
+  await page.screenshot({ path: '/tmp/math-workspace-mobile.png' });
+});
+
+test('matrix insertion rejects empty template cells and renders a completed matrix', async ({ page }) => {
+  await page.goto('/dev-math-test');
+  await page.getByRole('button', { name: 'Open: Short', exact: true }).click();
+  const dialog = page.getByRole('dialog', { includeHidden: true });
+  const question = dialog.getByLabel('Question text', { exact: true });
+  await question.fill('Find the determinant: ');
+  await question.press('End');
+  await dialog.getByRole('button', { name: 'Add equation', exact: true }).first().click();
+  const scratch = page.locator('math-field:visible');
+  await expect(scratch).toBeVisible();
+  await scratch.evaluate(el => { el.value = String.raw`\begin{pmatrix}\placeholder{} & 2 \\ 3 & 4\end{pmatrix}`; });
+  await page.getByRole('button', { name: 'Insert', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Fill in every empty box');
+  await expect(question).toHaveValue('Find the determinant: ');
+  await scratch.evaluate(el => { el.value = String.raw`\begin{pmatrix}1 & 2 \\ 3 & 4\end{pmatrix}`; });
+  await page.getByRole('button', { name: 'Insert', exact: true }).click();
+  await expect(scratch).toHaveCount(0);
+  await expect(question).toHaveValue(/Find the determinant: \$.*pmatrix/);
+  await expect(dialog.locator('.katex:visible').first()).toBeVisible();
+  await expect(dialog.locator('.katex-error')).toHaveCount(0);
+  await expect(dialog.locator('.katex:visible').first()).toHaveCSS('white-space', 'nowrap');
+});

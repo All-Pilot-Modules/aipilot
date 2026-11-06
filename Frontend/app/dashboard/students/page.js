@@ -4,16 +4,17 @@ import { useAuth } from "@/context/AuthContext";
 import { useSearchParams } from "next/navigation";
 import dynamic from 'next/dynamic';
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Plus, Search, Users, AlertCircle, X, Calendar, Clock, Award, BookOpen, TrendingUp, TrendingDown, Minus, User, Edit, Trash2, MoreHorizontal, UserPlus, Save, CheckCircle, XCircle, HelpCircle, List, ExternalLink, Filter, SortAsc, SortDesc, Download, FileText, FileJson, GraduationCap, Target, BarChart3, Activity, Zap, Shield } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Search, Users, AlertCircle, BookOpen, TrendingUp, TrendingDown, Trash2, SortAsc, SortDesc, Download } from "lucide-react";
 import Link from "next/link";
-import { useState, useEffect, useCallback, useRef, Suspense, useMemo, memo } from "react";
+import { useState, useEffect, useCallback, Suspense, useMemo, memo } from "react";
 import { apiClient } from "@/lib/auth";
 import { useAPI } from "@/lib/useSWR";
 import { useRouter } from "next/navigation";
@@ -44,8 +45,6 @@ const StudentsPageContent = memo(function StudentsPageContent() {
   const [loadingStudents, setLoadingStudents] = useState(true);
   const [error, setError] = useState('');
   const [moduleData, setModuleData] = useState(null);
-  const [showExportMenu, setShowExportMenu] = useState(false);
-  const exportButtonRef = useRef(null);
   const [deletingStudent, setDeletingStudent] = useState(null);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
@@ -375,51 +374,31 @@ const StudentsPageContent = memo(function StudentsPageContent() {
     }
   };
 
-  const getProgressBadgeColor = (progress) => {
-    if (progress === 0) return 'bg-muted text-foreground';
-    if (progress < thresholds.progressWarning) return 'bg-red-100 dark:bg-red-950/40 text-red-800 dark:text-red-300';
-    if (progress < thresholds.progressGood) return 'bg-yellow-100 dark:bg-yellow-950/40 text-yellow-800 dark:text-yellow-300';
-    return 'bg-green-100 dark:bg-green-950/40 text-green-800 dark:text-green-300';
-  };
-
   const getSortIcon = (field) => {
     if (sortField !== field) return <SortAsc className="w-4 h-4 opacity-50" />;
     return sortDirection === 'asc' ? <SortAsc className="w-4 h-4" /> : <SortDesc className="w-4 h-4" />;
   };
 
+  const GRADE_STATUS = {
+    all_graded: { label: 'Graded', variant: 'secondary' },
+    partially_graded: { label: 'Partially graded', variant: 'outline' },
+    ai_graded: { label: 'AI graded', variant: 'outline' },
+  };
   const getGradeStatusBadge = (status) => {
-    switch (status) {
-      case 'all_graded':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-100 dark:bg-green-900/40 text-green-800 dark:text-green-300 border border-green-200 dark:border-green-700"><CheckCircle className="w-3 h-3" />All Graded</span>;
-      case 'partially_graded':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-yellow-100 dark:bg-yellow-900/40 text-yellow-800 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-700"><HelpCircle className="w-3 h-3" />Partial</span>;
-      case 'ai_graded':
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted dark:bg-card/40 text-gray-700 dark:text-muted-foreground border border-border "><Shield className="w-3 h-3" />AI Graded</span>;
-      default:
-        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-muted text-gray-600 dark:text-muted-foreground border border-border "><Clock className="w-3 h-3" />Pending</span>;
-    }
+    const { label, variant } = GRADE_STATUS[status] || { label: 'Pending', variant: 'outline' };
+    return <Badge variant={variant} className={variant === 'outline' ? 'text-muted-foreground font-normal' : 'font-normal'}>{label}</Badge>;
   };
 
   const getTrendIcon = (trend) => {
-    if (trend === 'up') return <TrendingUp className="w-4 h-4 text-green-500" />;
-    if (trend === 'down') return <TrendingDown className="w-4 h-4 text-red-500" />;
-    if (trend === 'same') return <Minus className="w-4 h-4 text-gray-400" />;
+    if (trend === 'up') return <TrendingUp aria-label="Improving" className="w-3.5 h-3.5 text-muted-foreground" />;
+    if (trend === 'down') return <TrendingDown aria-label="Declining" className="w-3.5 h-3.5 text-destructive" />;
     return null;
   };
 
-  const getAtRiskStyle = (student) => {
-    const score = student.avg_score || 0;
-    const progress = student.progress || 0;
-    // Red: below passing AND low progress
-    if (score < thresholds.passingScore && progress < thresholds.progressWarning) {
-      return 'border-l-4 border-l-red-500 bg-red-50/50 dark:bg-red-950/20';
-    }
-    // Yellow: declining scores
-    if (student.score_trend === 'down') {
-      return 'border-l-4 border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-950/10';
-    }
-    return '';
-  };
+  // A student needs attention when they are failing with little progress, or declining.
+  const isAtRisk = (student) =>
+    ((student.avg_score || 0) < thresholds.passingScore && (student.progress || 0) < thresholds.progressWarning)
+    || student.score_trend === 'down';
 
   // Export comprehensive module data as Excel (using backend endpoint)
   const exportStudentsComprehensive = async () => {
@@ -547,7 +526,7 @@ const StudentsPageContent = memo(function StudentsPageContent() {
         <SidebarInset>
           <SiteHeader />
           <div className="flex flex-1 flex-col items-center justify-center p-8">
-            <AlertCircle className="w-12 h-12 text-red-500 mb-4" />
+            <AlertCircle aria-hidden="true" className="w-8 h-8 text-destructive mb-3" />
             <h1 className="text-xl font-semibold mb-2">Error</h1>
             <p className="text-muted-foreground mb-4">{error}</p>
             <div className="flex gap-2">
@@ -562,6 +541,21 @@ const StudentsPageContent = memo(function StudentsPageContent() {
     );
   }
 
+  const activeCount = students.filter(s => s.last_access &&
+    (Date.now() - new Date(s.last_access).getTime()) / 86400000 <= thresholds.activeDays).length;
+  const completedCount = students.filter(s => s.progress === 100).length;
+  const inProgressCount = students.filter(s => s.progress > 0 && s.progress < 100).length;
+  const avgScore = students.length ? Math.round(students.reduce((acc, s) => acc + (s.avg_score || 0), 0) / students.length) : null;
+  const atRiskCount = students.filter(isAtRisk).length;
+  const columns = [
+    { field: 'student_id', label: 'Student' },
+    { field: 'progress', label: 'Progress' },
+    { field: 'avg_score', label: 'Avg score' },
+    { field: 'attempt_count', label: 'Attempts' },
+    { field: 'grade_status', label: 'Grading' },
+    { field: 'last_access', label: 'Last active' },
+  ];
+
   return (
     <SidebarProvider
       style={{
@@ -573,577 +567,207 @@ const StudentsPageContent = memo(function StudentsPageContent() {
       <SidebarInset>
         <SiteHeader />
         <div className="min-h-screen bg-background">
-          <div className="max-w-7xl mx-auto px-6 py-8">
-            {/* Header with Gradient Background */}
-            <div className="mb-8 relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-gray-800/10 via-gray-800/10 to-pink-500/10 dark:from-muted/5 dark:via-muted/5 dark:to-pink-500/5 rounded-2xl"></div>
-              <div className="relative p-8 rounded-2xl border border-border/50 backdrop-blur-sm">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg text-primary-foreground">
-                      <GraduationCap className="w-8 h-8 text-primary-foreground" />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-3 mb-1">
-                        <h1 className="text-3xl font-bold text-foreground">Student Performance</h1>
-                        <div className="px-3 py-1 bg-primary/10 text-primary rounded-full text-sm font-medium">
-                          {moduleData?.name || moduleName}
-                        </div>
-                      </div>
-                      <p className="text-muted-foreground flex items-center gap-2">
-                        <BarChart3 className="w-4 h-4" />
-                        Track and analyze student progress, performance, and engagement
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 relative">
-                    <Button
-                      variant="outline"
-                      size="default"
-                      onClick={() => setShowExportMenu(!showExportMenu)}
-                      disabled={!students.length}
-                      className="shadow-sm hover:shadow-md transition-shadow"
-                    >
-                      <Download className="mr-2 w-4 h-4" />
-                      Export Data
-                    </Button>
-                    {showExportMenu && students.length > 0 && (
-                      <>
-                        {/* Backdrop overlay to close menu on outside click */}
-                        <div
-                          className="fixed inset-0 z-40"
-                          onClick={() => setShowExportMenu(false)}
-                        />
-                        {/* Dropdown menu - appears ABOVE the button */}
-                        <div className="absolute right-0 bottom-full mb-2 w-64 bg-card dark:bg-muted border border-border rounded-xl shadow-2xl z-50 overflow-hidden">
-                          <div className="p-2">
-                            <div className="px-3 py-2 text-xs font-semibold text-gray-500 dark:text-muted-foreground uppercase">Export Format</div>
-                            <button
-                              onClick={() => {
-                                exportStudentsComprehensive();
-                                setShowExportMenu(false);
-                              }}
-                              className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted rounded-lg flex items-center gap-3 transition-colors"
-                            >
-                              <div className="w-8 h-8 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center">
-                                <FileText className="w-4 h-4 text-green-600 dark:text-green-400" />
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900 dark:text-foreground">Comprehensive Export</div>
-                                <div className="text-xs text-gray-500 dark:text-muted-foreground">Complete data with 8 sheets</div>
-                              </div>
-                            </button>
-                            <button
-                              onClick={() => {
-                                exportFeedbackSpecific();
-                                setShowExportMenu(false);
-                              }}
-                              className="w-full text-left px-3 py-2.5 text-sm hover:bg-muted rounded-lg flex items-center gap-3 transition-colors"
-                            >
-                              <div className="w-8 h-8 bg-muted dark:bg-muted/20 rounded-lg flex items-center justify-center">
-                                <BarChart3 className="w-4 h-4 text-gray-700 dark:text-muted-foreground" />
-                              </div>
-                              <div>
-                                <div className="font-medium text-gray-900 dark:text-foreground">Feedback Report</div>
-                                <div className="text-xs text-gray-500 dark:text-muted-foreground">All attempts & feedback per student</div>
-                              </div>
-                            </button>
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 space-y-5">
+
+            {/* Header */}
+            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+              <div>
+                <h1 className="text-xl font-semibold tracking-tight">Students</h1>
+                <p className="text-sm text-muted-foreground mt-0.5">
+                  {moduleData?.name || moduleName} · {students.length} student{students.length !== 1 ? 's' : ''}
+                </p>
               </div>
-            </div>
-
-            {/* Search and Filters */}
-            <Card className="mb-6 border-border bg-card/50 backdrop-blur-sm">
-              <CardHeader>
-                <CardTitle className="text-lg">Search & Filter</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-col md:flex-row gap-4">
-                  <div className="flex-1">
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search by student ID..."
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                        className="pl-10"
-                      />
-                    </div>
-                  </div>
-                  <select
-                    value={progressFilter}
-                    onChange={(e) => setProgressFilter(e.target.value)}
-                    className="px-3 py-2 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
-                  >
-                    <option value="all">All Progress</option>
-                    <option value="not-started">Not Started (0%)</option>
-                    <option value="in-progress">In Progress (1-99%)</option>
-                    <option value="completed">Completed (100%)</option>
-                  </select>
-                  <div className="flex items-center text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-                    {filteredStudents.length} of {students.length} students
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Enhanced Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-              <Card className="border-border bg-gradient-to-br from-blue-50 to-blue-100 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all dark:bg-none dark:bg-card">
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <CardContent className="p-6 relative">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-blue-500 rounded-xl flex items-center justify-center shadow-lg">
-                      <Users className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="px-2 py-1 bg-blue-200/50 dark:bg-blue-800/50 rounded-full">
-                      <TrendingUp className="w-3 h-3 text-blue-700 dark:text-blue-300" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-700 dark:text-blue-300 mb-1">Total Students</p>
-                    {loadingStudents ? (
-                      <Skeleton className="h-9 w-16 mb-1" />
-                    ) : (
-                      <p className="text-3xl font-bold text-blue-900 dark:text-blue-100">
-                        {students.length}
-                      </p>
-                    )}
-                    <p className="text-xs text-blue-600/70 dark:text-blue-300 mt-1">Enrolled in module</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-gradient-to-br from-green-50 to-green-100 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all dark:bg-none dark:bg-card">
-                <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <CardContent className="p-6 relative">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-green-500 rounded-xl flex items-center justify-center shadow-lg">
-                      <Activity className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="px-2 py-1 bg-green-200/50 dark:bg-green-800/50 rounded-full">
-                      <Zap className="w-3 h-3 text-green-700 dark:text-green-300" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-green-700 dark:text-green-300 mb-1">Active Students</p>
-                    {loadingStudents ? (
-                      <Skeleton className="h-9 w-16 mb-1" />
-                    ) : (
-                      <p className="text-3xl font-bold text-green-900 dark:text-green-100">
-                        {students.filter(s => {
-                          const lastAccess = new Date(s.last_access);
-                          const daysSinceAccess = (Date.now() - lastAccess.getTime()) / (1000 * 60 * 60 * 24);
-                          return daysSinceAccess <= thresholds.activeDays;
-                        }).length}
-                      </p>
-                    )}
-                    <p className="text-xs text-green-600/70 dark:text-green-300 mt-1">Last {thresholds.activeDays} days</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-gradient-to-br from-violet-50 to-violet-100 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all dark:bg-none dark:bg-card">
-                <div className="absolute inset-0 bg-gradient-to-br from-violet-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <CardContent className="p-6 relative">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-violet-500 rounded-xl flex items-center justify-center shadow-lg">
-                      <Target className="w-6 h-6 text-white" />
-                    </div>
-                    <div className={`px-2 py-1 rounded-full ${
-                      !loadingStudents && students.length > 0 &&
-                      Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= thresholds.goodScore
-                        ? 'bg-green-200/50 dark:bg-green-800/50'
-                        : 'bg-violet-200/50 dark:bg-violet-800/50'
-                    }`}>
-                      <CheckCircle className={`w-3 h-3 ${
-                        !loadingStudents && students.length > 0 &&
-                        Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) >= thresholds.goodScore
-                          ? 'text-green-700 dark:text-green-300'
-                          : 'text-violet-700 dark:text-violet-300'
-                      }`} />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-violet-700 dark:text-violet-300 mb-1">Avg Score</p>
-                    {loadingStudents ? (
-                      <Skeleton className="h-9 w-20 mb-1" />
-                    ) : (
-                      <p className="text-3xl font-bold text-violet-900 dark:text-violet-100">
-                        {students.length > 0 ?
-                          Math.round(students.reduce((acc, s) => acc + s.avg_score, 0) / students.length) + '%' :
-                          '-'
-                        }
-                      </p>
-                    )}
-                    <p className="text-xs text-violet-600/70 dark:text-violet-300 mt-1">Overall performance</p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <Card className="border-border bg-gradient-to-br from-orange-50 to-orange-100 backdrop-blur-sm overflow-hidden relative group hover:shadow-lg transition-all dark:bg-none dark:bg-card">
-                <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
-                <CardContent className="p-6 relative">
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="w-12 h-12 bg-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-                      <Award className="w-6 h-6 text-white" />
-                    </div>
-                    <div className="px-2 py-1 bg-orange-200/50 dark:bg-orange-800/50 rounded-full">
-                      <TrendingUp className="w-3 h-3 text-orange-700 dark:text-orange-300" />
-                    </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-orange-700 dark:text-orange-300 mb-1">Completion Rate</p>
-                    {loadingStudents ? (
-                      <Skeleton className="h-9 w-20 mb-1" />
-                    ) : (
-                      <p className="text-3xl font-bold text-orange-900 dark:text-orange-100">
-                        {students.length > 0 ?
-                          Math.round(students.filter(s => s.progress === 100).length / students.length * 100) + '%' :
-                          '-'
-                        }
-                      </p>
-                    )}
-                    <p className="text-xs text-orange-600/70 dark:text-orange-300 mt-1">
-                      {!loadingStudents && students.length > 0 && `${students.filter(s => s.progress === 100).length} completed`}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-
-            {/* Students Table */}
-            {loadingStudents ? (
-              <Card className="border-border bg-card/50 backdrop-blur-sm">
-                <CardHeader className="border-b pb-4">
-                  <div className="flex items-center justify-between">
-                    <Skeleton className="h-6 w-48" />
-                    <Skeleton className="h-10 w-32" />
-                  </div>
-                </CardHeader>
-                <CardContent className="p-6">
-                  <div className="space-y-4">
-                    {Array.from({ length: 5 }).map((_, i) => (
-                      <div key={i} className="flex items-center gap-4 p-4 border border-border rounded-lg">
-                        <Skeleton className="w-12 h-12 rounded-full flex-shrink-0" />
-                        <div className="flex-1 space-y-2">
-                          <Skeleton className="h-5 w-32" />
-                          <Skeleton className="h-4 w-48" />
-                        </div>
-                        <Skeleton className="h-6 w-16 rounded" />
-                        <Skeleton className="h-6 w-20 rounded" />
-                        <Skeleton className="h-8 w-24" />
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            ) : students.length === 0 ? (
-              <Card className="border-border bg-card/50 backdrop-blur-sm">
-                <CardContent className="py-16 text-center">
-                  <div className="text-6xl mb-4">👥</div>
-                  <h3 className="text-lg font-semibold mb-2">No students enrolled</h3>
-                  <p className="text-muted-foreground mb-4">
-                    This module does not have any students yet. Students will appear here automatically when they start taking tests.
-                  </p>
-                </CardContent>
-              </Card>
-            ) : filteredStudents.length === 0 ? (
-              <Card className="border-border bg-card/50 backdrop-blur-sm">
-                <CardContent className="py-16 text-center">
-                  <div className="text-6xl mb-4">🔍</div>
-                  <h3 className="text-lg font-semibold mb-2">No students found</h3>
-                  <p className="text-muted-foreground mb-4">
-                    No students match your search term &quot;{searchTerm}&quot;. Try adjusting your search.
-                  </p>
-                  <Button variant="outline" onClick={() => setSearchTerm('')}>
-                    Clear Search
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" className="self-start gap-2" disabled={!students.length}>
+                    <Download className="w-4 h-4" />
+                    Export
                   </Button>
-                </CardContent>
-              </Card>
-            ) : (
-              <Card className="border-border bg-card/50 backdrop-blur-sm shadow-lg">
-                <CardHeader className="border-b bg-muted/20">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-lg flex items-center gap-2">
-                      <List className="w-5 h-5" />
-                      Student Performance Table
-                    </CardTitle>
-                    <div className="text-sm text-muted-foreground">
-                      {filteredStudents.length} students
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-64">
+                  <DropdownMenuItem onSelect={exportStudentsComprehensive} className="flex-col items-start gap-0.5">
+                    <span className="font-medium">Full module export</span>
+                    <span className="text-xs text-muted-foreground">Excel workbook with all sheets</span>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={exportFeedbackSpecific} className="flex-col items-start gap-0.5">
+                    <span className="font-medium">Feedback report</span>
+                    <span className="text-xs text-muted-foreground">Every attempt and its feedback</span>
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+
+            {/* Stats strip */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {[
+                { label: 'Students', value: students.length, sub: atRiskCount ? `${atRiskCount} need${atRiskCount === 1 ? "s" : ""} attention` : 'Enrolled in module', alert: atRiskCount > 0 },
+                { label: 'Active', value: activeCount, sub: `Last ${thresholds.activeDays} days` },
+                { label: 'Average score', value: avgScore === null ? '—' : `${avgScore}%`, sub: `Passing is ${thresholds.passingScore}%` },
+                { label: 'Completed', value: completedCount, sub: students.length ? `${Math.round(completedCount / students.length * 100)}% of students` : 'No students yet' },
+              ].map(({ label, value, sub, alert }) => (
+                <div key={label} className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground font-medium">{label}</span>
+                  {loadingStudents ? <Skeleton className="h-8 w-14" /> : <span className="text-2xl font-bold tracking-tight tabular-nums">{value}</span>}
+                  <span className={`text-[11px] ${alert ? 'text-destructive' : 'text-muted-foreground'}`}>{sub}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* Students table */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="flex flex-col sm:flex-row gap-2 p-3 border-b border-border">
+                <div className="relative flex-1">
+                  <Search aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input
+                    aria-label="Search by student ID"
+                    placeholder="Search by student ID"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-9"
+                  />
+                </div>
+                <select
+                  aria-label="Filter by progress"
+                  value={progressFilter}
+                  onChange={(e) => setProgressFilter(e.target.value)}
+                  className="h-9 px-3 border border-input bg-background rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                >
+                  <option value="all">All progress</option>
+                  <option value="not-started">Not started</option>
+                  <option value="in-progress">In progress</option>
+                  <option value="completed">Completed</option>
+                </select>
+              </div>
+
+              {loadingStudents ? (
+                <div className="divide-y divide-border">
+                  {Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="flex items-center gap-6 px-4 py-3">
+                      <Skeleton className="h-4 w-28" />
+                      <Skeleton className="h-2 w-32" />
+                      <Skeleton className="h-4 w-12" />
+                      <Skeleton className="h-4 w-20 ml-auto" />
                     </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="p-0">
+                  ))}
+                </div>
+              ) : students.length === 0 ? (
+                <div className="py-16 px-4 text-center">
+                  <Users aria-hidden="true" className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="font-medium mb-1">No students yet</h3>
+                  <p className="text-sm text-muted-foreground">Students appear here once they start answering questions in this module.</p>
+                </div>
+              ) : filteredStudents.length === 0 ? (
+                <div className="py-16 px-4 text-center">
+                  <Search aria-hidden="true" className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+                  <h3 className="font-medium mb-1">No matching students</h3>
+                  <p className="text-sm text-muted-foreground mb-4">Nothing matches your search or filter.</p>
+                  <Button variant="outline" size="sm" onClick={() => { setSearchTerm(''); setProgressFilter('all'); }}>Clear filters</Button>
+                </div>
+              ) : (
+                <>
                   <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead className="border-b bg-gradient-to-r from-muted/40 to-muted/20">
+                    <table className="w-full text-sm">
+                      <thead className="border-b border-border text-xs text-muted-foreground">
                         <tr>
-                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
-                            <button
-                              onClick={() => handleSort('student_id')}
-                              className="flex items-center gap-2 hover:text-primary transition-colors group"
-                            >
-                              <User className="w-4 h-4 opacity-50 group-hover:opacity-100" />
-                              Student ID
-                              {getSortIcon('student_id')}
-                            </button>
-                          </th>
-                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
-                            <button
-                              onClick={() => handleSort('progress')}
-                              className="flex items-center gap-2 hover:text-primary transition-colors group"
-                            >
-                              <BarChart3 className="w-4 h-4 opacity-50 group-hover:opacity-100" />
-                              Progress
-                              {getSortIcon('progress')}
-                            </button>
-                          </th>
-                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
-                            <button
-                              onClick={() => handleSort('avg_score')}
-                              className="flex items-center gap-2 hover:text-primary transition-colors group"
-                            >
-                              <Target className="w-4 h-4 opacity-50 group-hover:opacity-100" />
-                              Avg Score
-                              {getSortIcon('avg_score')}
-                            </button>
-                          </th>
-                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
-                            <button
-                              onClick={() => handleSort('attempt_count')}
-                              className="flex items-center gap-2 hover:text-primary transition-colors group"
-                            >
-                              <Activity className="w-4 h-4 opacity-50 group-hover:opacity-100" />
-                              Attempts
-                              {getSortIcon('attempt_count')}
-                            </button>
-                          </th>
-                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
-                            <button
-                              onClick={() => handleSort('grade_status')}
-                              className="flex items-center gap-2 hover:text-primary transition-colors group"
-                            >
-                              <Shield className="w-4 h-4 opacity-50 group-hover:opacity-100" />
-                              Grade Status
-                              {getSortIcon('grade_status')}
-                            </button>
-                          </th>
-                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
-                            <button
-                              onClick={() => handleSort('last_access')}
-                              className="flex items-center gap-2 hover:text-primary transition-colors group"
-                            >
-                              <Clock className="w-4 h-4 opacity-50 group-hover:opacity-100" />
-                              Last Access
-                              {getSortIcon('last_access')}
-                            </button>
-                          </th>
-                          <th className="text-left p-4 font-semibold text-sm uppercase tracking-wide">
-                            <div className="flex items-center gap-2">
-                              <ExternalLink className="w-4 h-4 opacity-50" />
-                              Actions
-                            </div>
-                          </th>
+                          {columns.map(({ field, label }) => (
+                            <th key={field} scope="col" className="text-left font-medium px-4 py-2.5 whitespace-nowrap"
+                              aria-sort={sortField === field ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
+                              <button onClick={() => handleSort(field)} className="inline-flex items-center gap-1 hover:text-foreground transition-colors">
+                                {label}
+                                {getSortIcon(field)}
+                              </button>
+                            </th>
+                          ))}
+                          <th scope="col" className="px-4 py-2.5"><span className="sr-only">Actions</span></th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-border/50">
-                        {filteredStudents.map((student, index) => (
-                          <tr
-                            key={student.id}
-                            className={`hover:bg-muted/40 transition-all cursor-pointer group relative ${getAtRiskStyle(student)}`}
-                            onClick={() => handleStudentClick(student)}
-                          >
-                            <td className="p-4">
-                              <div className="flex items-center gap-3">
-                                <div className="relative">
-                                  <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-primary-foreground font-bold text-sm shadow-md group-hover:shadow-lg transition-shadow">
-                                    {student.student_id?.charAt(0)?.toUpperCase() || 'S'}
-                                  </div>
-                                  <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white dark:border-border"></div>
-                                </div>
-                                <div>
-                                  <div className="font-mono text-sm font-bold      transition-all  text-foreground">
-                                    {student.student_id}
-                                  </div>
-                                  <div className="text-xs text-muted-foreground">
-                                    {student.completed_questions || 0}/{student.total_questions || 0} questions
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="space-y-2">
-                                <div className="flex items-center justify-between text-xs">
-                                  <span className="font-semibold">{student.progress || 0}%</span>
-                                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${getProgressBadgeColor(student.progress || 0)}`}>
-                                    {(student.progress || 0) === 0 ? 'NOT STARTED' :
-                                     (student.progress || 0) === 100 ? 'COMPLETE' : 'IN PROGRESS'}
-                                  </span>
-                                </div>
-                                <div className="w-full bg-muted rounded-full h-2.5 overflow-hidden shadow-inner">
-                                  <div
-                                    className={`h-full rounded-full transition-all duration-500 shadow-sm ${
-                                      (student.progress || 0) === 0 ? 'bg-gray-400' :
-                                      (student.progress || 0) < thresholds.progressWarning ? 'bg-gradient-to-r from-red-400 to-red-500' :
-                                      (student.progress || 0) < thresholds.progressGood ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-                                      'bg-gradient-to-r from-green-400 to-green-500'
-                                    }`}
-                                    style={{width: `${student.progress || 0}%`}}
-                                  ></div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex items-center gap-3">
-                                <div className="relative">
-                                  <div className={`w-12 h-12 rounded-xl flex items-center justify-center font-bold text-lg shadow-md ${
-                                    (student.avg_score || 0) >= thresholds.excellentScore ? 'bg-gradient-to-br from-green-400 to-green-600 text-white' :
-                                    (student.avg_score || 0) >= thresholds.passingScore ? 'bg-gradient-to-br from-yellow-400 to-yellow-600 text-white' :
-                                    'bg-gradient-to-br from-red-400 to-red-600 text-white'
-                                  }`}>
-                                    {student.avg_score || 0}
-                                  </div>
-                                  {(student.avg_score || 0) >= thresholds.excellentScore && (
-                                    <div className="absolute -top-1 -right-1">
-                                      <Award className="w-4 h-4 text-yellow-500 fill-yellow-400" />
-                                    </div>
-                                  )}
-                                </div>
-                                <div className="text-xs space-y-1">
-                                  <div className="flex items-center gap-1">
-                                    <span className={`font-semibold ${
-                                      (student.avg_score || 0) >= thresholds.excellentScore ? 'text-green-600 dark:text-green-400' :
-                                      (student.avg_score || 0) >= thresholds.passingScore ? 'text-yellow-600 dark:text-yellow-400' :
-                                      'text-red-600 dark:text-red-400'
-                                    }`}>
-                                      {(student.avg_score || 0) >= thresholds.excellentScore ? 'Excellent' :
-                                       (student.avg_score || 0) >= thresholds.passingScore ? 'Good' : 'Needs Work'}
+                      <tbody className="divide-y divide-border">
+                        {filteredStudents.map((student) => {
+                          const progress = student.progress || 0;
+                          const score = student.avg_score || 0;
+                          const attempts = student.attempt_count || 1;
+                          return (
+                            <tr
+                              key={student.id}
+                              className="hover:bg-muted/50 transition-colors cursor-pointer"
+                              onClick={() => handleStudentClick(student)}
+                            >
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono font-medium">{student.student_id}</span>
+                                  {isAtRisk(student) && (
+                                    <span className="inline-flex items-center gap-1 text-xs text-destructive">
+                                      <AlertCircle aria-hidden="true" className="w-3.5 h-3.5" />
+                                      Needs attention
                                     </span>
-                                    {getTrendIcon(student.score_trend)}
-                                  </div>
-                                  <div className="text-muted-foreground">
-                                    {student.correct_answers || 0}/{student.completed_questions || 0} correct
-                                  </div>
-                                </div>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold">
-                                  {student.attempt_count || 1}
-                                </span>
-                                {moduleData?.max_attempts && (
-                                  <span className="text-xs text-muted-foreground">
-                                    / {moduleData.max_attempts}
-                                  </span>
-                                )}
-                              </div>
-                              {moduleData?.max_attempts && (
-                                <div className="w-16 bg-muted rounded-full h-1.5 mt-1.5 overflow-hidden">
-                                  <div
-                                    className={`h-full rounded-full ${
-                                      (student.attempt_count || 1) >= moduleData.max_attempts
-                                        ? 'bg-red-500' : 'bg-primary text-primary-foreground'
-                                    }`}
-                                    style={{width: `${Math.min(100, ((student.attempt_count || 1) / moduleData.max_attempts) * 100)}%`}}
-                                  ></div>
-                                </div>
-                              )}
-                            </td>
-                            <td className="p-4">
-                              {getGradeStatusBadge(student.grade_status)}
-                            </td>
-                            <td className="p-4">
-                              <div className="flex items-center gap-2">
-                                <Clock className="w-4 h-4 text-muted-foreground" />
-                                <div className="text-sm">
-                                  <div className="font-medium">
-                                    {student.last_access ? new Date(student.last_access).toLocaleDateString('en-US', {
-                                      month: 'short',
-                                      day: 'numeric',
-                                      year: 'numeric'
-                                    }) : 'Never'}
-                                  </div>
-                                  {student.last_access && (
-                                    <div className="text-xs text-muted-foreground">
-                                      {new Date(student.last_access).toLocaleTimeString('en-US', {
-                                        hour: '2-digit',
-                                        minute: '2-digit',
-                                        hour12: true
-                                      })}
-                                    </div>
                                   )}
                                 </div>
-                              </div>
-                            </td>
-                            <td className="p-4">
-                              <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="gap-2"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleStudentClick(student);
-                                  }}
-                                >
-                                  View
-                                  <ExternalLink className="w-3 h-3" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  className="gap-2 text-red-600 dark:text-red-300 hover:text-red-700 dark:hover:text-red-300 hover:bg-red-50 dark:hover:bg-red-950"
-                                  onClick={(e) => confirmDeleteStudent(student, e)}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                                <div className="text-xs text-muted-foreground">
+                                  {student.completed_questions || 0} of {student.total_questions || 0} questions
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-24 bg-muted rounded-full h-1.5 overflow-hidden" role="progressbar"
+                                    aria-valuenow={progress} aria-valuemin={0} aria-valuemax={100} aria-label={`${student.student_id} progress`}>
+                                    <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                                  </div>
+                                  <span className="tabular-nums text-xs text-muted-foreground w-9">{progress}%</span>
+                                </div>
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center gap-1.5">
+                                  <span className={`font-medium tabular-nums ${score < thresholds.passingScore ? 'text-destructive' : ''}`}>{score}%</span>
+                                  {getTrendIcon(student.score_trend)}
+                                </div>
+                                <div className="text-xs text-muted-foreground">
+                                  {student.correct_answers || 0} of {student.completed_questions || 0} correct
+                                </div>
+                              </td>
+                              <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                                <span className={moduleData?.max_attempts && attempts >= moduleData.max_attempts ? 'text-destructive' : ''}>{attempts}</span>
+                                {moduleData?.max_attempts && <span className="text-muted-foreground"> / {moduleData.max_attempts}</span>}
+                              </td>
+                              <td className="px-4 py-3">{getGradeStatusBadge(student.grade_status)}</td>
+                              <td className="px-4 py-3 whitespace-nowrap">
+                                {student.last_access ? (
+                                  <>
+                                    <div>{new Date(student.last_access).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {new Date(student.last_access).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                                    </div>
+                                  </>
+                                ) : <span className="text-muted-foreground">Never</span>}
+                              </td>
+                              <td className="px-4 py-3">
+                                <div className="flex items-center justify-end gap-1">
+                                  <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); handleStudentClick(student); }}>
+                                    View
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    aria-label={`Delete data for ${student.student_id}`}
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    onClick={(e) => confirmDeleteStudent(student, e)}
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
-
-                  {/* Enhanced Table Footer */}
-                  <div className="border-t bg-gradient-to-r from-muted/20 to-muted/10 px-6 py-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-6 text-sm">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                          <span className="text-muted-foreground">
-                            <span className="font-semibold text-foreground">{students.filter(s => s.progress === 100).length}</span> Completed
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-yellow-500"></div>
-                          <span className="text-muted-foreground">
-                            <span className="font-semibold text-foreground">{students.filter(s => s.progress > 0 && s.progress < 100).length}</span> In Progress
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-gray-400"></div>
-                          <span className="text-muted-foreground">
-                            <span className="font-semibold text-foreground">{students.filter(s => s.progress === 0).length}</span> Not Started
-                          </span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/40 px-3 py-1.5 rounded-full">
-                        <CheckCircle className="w-3 h-3" />
-                        <span>Click any row to view detailed analytics</span>
-                      </div>
-                    </div>
+                  <div className="border-t border-border px-4 py-2.5 text-xs text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                    <span>Showing {filteredStudents.length} of {students.length}</span>
+                    <span>{completedCount} completed · {inProgressCount} in progress · {students.length - completedCount - inProgressCount} not started</span>
                   </div>
-                </CardContent>
-              </Card>
-            )}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </SidebarInset>
@@ -1152,48 +776,35 @@ const StudentsPageContent = memo(function StudentsPageContent() {
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-red-600 dark:text-red-300">
-              <Trash2 className="w-5 h-5" />
-              Delete Student Data
-            </AlertDialogTitle>
+            <AlertDialogTitle>Delete data for {deletingStudent?.student_id}?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to delete all data for student {deletingStudent?.student_id} from this module?
+              This permanently removes the student from this module. It cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          <div className="space-y-3 py-2">
-            <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
-              <p className="text-sm text-red-800 dark:text-red-200 font-semibold mb-2">
-                This will permanently delete:
-              </p>
-              <ul className="text-sm text-red-700 dark:text-red-300 space-y-1 list-disc list-inside">
-                <li>All student answers and AI feedback</li>
-                <li>Student enrollment and consent status</li>
-                <li>Survey responses</li>
-                <li>Test submissions</li>
-                <li>Chat conversations</li>
-              </ul>
-            </div>
-            <p className="text-sm font-semibold text-red-600 dark:text-red-400">
-              This action cannot be undone.
-            </p>
+          <div className="py-1">
+            <p className="text-sm font-medium mb-1.5">This deletes:</p>
+            <ul className="text-sm text-muted-foreground space-y-1 list-disc list-inside">
+              <li>All student answers and AI feedback</li>
+              <li>Student enrollment and consent status</li>
+              <li>Survey responses</li>
+              <li>Test submissions</li>
+              <li>Chat conversations</li>
+            </ul>
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleteLoading}>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={handleDeleteStudent}
               disabled={deleteLoading}
-              className="bg-red-600 hover:bg-red-700 focus:ring-red-600 text-white"
+              className="bg-destructive hover:bg-destructive/90 focus-visible:ring-destructive text-white"
             >
               {deleteLoading ? (
                 <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></div>
-                  Deleting...
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin motion-reduce:animate-none mr-2"></div>
+                  Deleting…
                 </>
               ) : (
-                <>
-                  <Trash2 className="w-4 h-4 mr-2" />
-                  Delete Student Data
-                </>
+                'Delete student data'
               )}
             </AlertDialogAction>
           </AlertDialogFooter>

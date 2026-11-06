@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -44,8 +46,8 @@ function LivePreview({ questionForm, isMcq, showOptions, showCorrectAnswer }) {
     <div className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-4 py-3">
         <Eye className="h-4 w-4 text-muted-foreground" />
-        <h3 className="text-sm font-semibold text-foreground">Student Preview</h3>
-        <span className="text-xs text-muted-foreground">(with answer key)</span>
+        <h3 className="text-sm font-semibold text-foreground">Teacher preview</h3>
+        <span className="text-xs text-muted-foreground">Includes answer key</span>
       </div>
 
       <div className="space-y-4 p-5">
@@ -175,38 +177,32 @@ export function MathQuestionEditorBody({
     setQuestionForm({ ...questionForm, correct_option_ids: next });
   };
 
-  const filledOptions = questionForm.options?.filter((o) => o?.trim()).length || 0;
-  const statusItems = [{ label: "Question text", ok: !!questionForm.text?.trim() }];
-  if (showOptions) {
-    statusItems.push({ label: "Options", ok: filledOptions >= 2 });
-    statusItems.push({
-      label: "Correct answer",
-      ok: isMcq ? !!questionForm.correct_option_id : (questionForm.correct_option_ids || []).length > 0,
-    });
-  }
+  const [activeField, setActiveField] = useState('question');
+  const fieldProps = (id) => ({
+    hideToolbar: true,
+    equationTools: activeField === id,
+    onFocus: () => setActiveField(id),
+  });
 
   return (
     <>
       <HeaderDescription asDialog={asDialog}>
         Edit this question&apos;s text, options, and correct answer using LaTeX math notation, with a live preview
-        of exactly how students will see it.
+        including the answer key for teachers.
       </HeaderDescription>
 
       {/* Sticky header: stays reachable without scrolling to the bottom */}
       <div className="flex-shrink-0 border-b border-border bg-background/95 px-6 py-4 pr-16 backdrop-blur">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground ">
+          <div className="flex min-w-0 flex-wrap items-center gap-3">
+            <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 ">
               <Sigma className="h-4.5 w-4.5" />
             </div>
             <div className="min-w-0">
               <HeaderTitle asDialog={asDialog} className="text-base leading-tight">
-                Math Question Editor
+                Math question editor
               </HeaderTitle>
-              <p className="truncate text-xs text-muted-foreground">
-                Use <code className="rounded bg-muted px-1 py-0.5">$...$</code> for inline math or{" "}
-                <code className="rounded bg-muted px-1 py-0.5">$$...$$</code> for a block equation.
-                </p>
+              <p className="mt-1 text-sm text-muted-foreground">Write your question and answers, then save here.</p>
               </div>
               <Select value={questionForm.type} onValueChange={onTypeChange}>
                 <SelectTrigger size="sm" className="w-auto flex-shrink-0 text-xs">
@@ -215,7 +211,6 @@ export function MathQuestionEditorBody({
                 <SelectContent>
                   <SelectItem value="mcq">Multiple Choice (Single Answer)</SelectItem>
                   <SelectItem value="mcq_multiple">Multiple Choice (Multiple Answers)</SelectItem>
-                  <SelectItem value="fill_blank">Fill in the Blanks</SelectItem>
                   <SelectItem value="short">Short Answer</SelectItem>
                   <SelectItem value="long">Long Answer</SelectItem>
                 </SelectContent>
@@ -223,39 +218,22 @@ export function MathQuestionEditorBody({
             </div>
 
             <div className="flex flex-shrink-0 items-center gap-4">
-              <div className="hidden items-center gap-3 lg:flex">
-                {statusItems.map((item) => (
-                  <span
-                    key={item.label}
-                    className={cn(
-                      "flex items-center gap-1.5 text-xs font-medium",
-                      item.ok ? "text-green-600 dark:text-green-400" : "text-muted-foreground"
-                    )}
-                  >
-                    {item.ok ? (
-                      <CircleCheck className="h-3.5 w-3.5" />
-                    ) : (
-                      <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/40" />
-                    )}
-                    {item.label}
-                  </span>
-                ))}
-              </div>
-              <Button type="button" onClick={onSubmit || onDone} disabled={isSubmitting}>
+              <Button className="bg-emerald-700 text-white hover:bg-emerald-800" type="button" onClick={onSubmit || onDone} disabled={isSubmitting || isUnsupportedType}>
                 {isSubmitting ? "Saving…" : submitLabel}
               </Button>
             </div>
           </div>
         </div>
       {/* Scrollable body */}
-      <div className="flex-1 overflow-y-auto px-6 py-6">
+      <div className="min-h-0 flex-1 overflow-y-auto bg-emerald-50/20 px-4 py-5 sm:px-6 dark:bg-emerald-950/10">
           <div className="mx-auto grid w-full max-w-6xl grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="min-w-0 space-y-5">
-              <Section icon={FileQuestion} title="Question Stem" required>
+              <Section icon={FileQuestion} title="Question text" required>
                 <EquationField
+                  {...fieldProps("question")} hideLabel
                   value={questionForm.text}
                   onChange={(v) => setQuestionForm({ ...questionForm, text: v })}
-                  placeholder="Enter your question... e.g. Solve $x^2 = 4$"
+                  label="Question text" placeholder="Type your question here…"
                   rows={3}
                 />
               </Section>
@@ -265,6 +243,7 @@ export function MathQuestionEditorBody({
                   <div className="space-y-4">
                     {questionForm.options.map((option, index) => (
                       <EquationField
+                        {...fieldProps(`option-${index}`)}
                         key={index}
                         label={`Option ${OPTION_LABELS[index] || index + 1}`}
                         value={option}
@@ -294,6 +273,7 @@ export function MathQuestionEditorBody({
                             key={letter}
                             type="button"
                             onClick={onSelect}
+                            aria-pressed={isCorrect}
                             className={cn(
                               "flex w-full items-center gap-3 rounded-md border px-3 py-2 text-left transition-colors",
                               isCorrect
@@ -328,7 +308,8 @@ export function MathQuestionEditorBody({
               {showCorrectAnswer && (
                 <Section icon={MessageSquareText} title="Correct Answer">
                   <EquationField
-                    value={questionForm.correct_answer}
+                    {...fieldProps("answer")}
+                    label="Expected answer" value={questionForm.correct_answer}
                     onChange={(v) => setQuestionForm({ ...questionForm, correct_answer: v })}
                     placeholder="Expected answer"
                     rows={3}
@@ -363,7 +344,7 @@ export function MathQuestionEditorBody({
 
 // Thin wrapper: puts MathQuestionEditorBody inside the full-screen Dialog
 // used in production. Reads/writes questionForm in place, so every edit is
-// already saved — "Done" just closes the dialog, it never discards anything.
+// retained in the draft; onSubmit persists it when supplied.
 export function MathQuestionEditorDialog({
   open,
   onOpenChange,

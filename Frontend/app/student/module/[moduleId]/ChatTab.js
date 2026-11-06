@@ -9,22 +9,24 @@ import { apiClient } from "@/lib/auth";
 import { chatMessageText, feedbackDiscussionContext } from "@/lib/feedbackDiscussion.mjs";
 
 
-export default function ChatTab({ moduleId, moduleAccess, feedbackContext, onContextSent }) {
+export default function ChatTab({ active = false, moduleId, moduleAccess, feedbackContext, onContextSent }) {
   const [conversations, setConversations] = useState([]);
   const [historyError, setHistoryError] = useState('');
   const [loadingChat, setLoadingChat] = useState(false);
   const selectionKey = `aipilot:chat:${moduleId}:${moduleAccess?.studentId}`;
-  const rememberConversation = (id) => {
+  const rememberConversation = useCallback((id) => {
     try { localStorage.setItem(selectionKey, id || 'new'); } catch {}
-  };
+  }, [selectionKey]);
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [inputMessage, setInputMessage] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [loadingConversations, setLoadingConversations] = useState(true);
   const messagesEndRef = useRef(null);
+  const sectionRef = useRef(null);
   const inputRef = useRef(null);
   const startedFeedback = useRef(new Set());
+  const pendingDiscussions = useRef(new Map());
   const conversationRevision = useRef(0);
   const feedbackContextRef = useRef(feedbackContext);
   const currentConversationRef = useRef(currentConversationId);
@@ -37,11 +39,20 @@ export default function ChatTab({ moduleId, moduleAccess, feedbackContext, onCon
     const revision = ++conversationRevision.current;
     setDiscussionSummary({ question: feedbackContext.question, attempt: feedbackContext.attempt, ready: false });
     setCurrentConversationId(null);
+    setLoadingChat(false);
+    setHistoryError('');
     setInputMessage('');
     setMessages([{ role: 'student', content: 'Help me understand this feedback and improve my answer.', created_at: new Date().toISOString() }]);
     setIsSending(true);
-    apiClient.post(`/api/chat/feedback/${feedbackContext.feedbackId}/discuss`)
-      .then(async response => {
+    // Switching away and back must reuse an in-flight generation request.
+    const feedbackId = feedbackContext.feedbackId;
+    let discussion = pendingDiscussions.current.get(feedbackId);
+    if (!discussion) {
+      discussion = apiClient.post(`/api/chat/feedback/${feedbackId}/discuss`)
+        .finally(() => pendingDiscussions.current.delete(feedbackId));
+      pendingDiscussions.current.set(feedbackId, discussion);
+    }
+    discussion.then(async response => {
         if (revision !== conversationRevision.current) return;
         const result = response?.data || response;
         const savedResponse = await apiClient.get(`/api/chat/conversations/${result.conversation_id}`);
@@ -62,7 +73,17 @@ export default function ChatTab({ moduleId, moduleAccess, feedbackContext, onCon
       .finally(() => {
         if (revision === conversationRevision.current) setIsSending(false);
       });
-  }, [feedbackContext, onContextSent]);
+  }, [feedbackContext, onContextSent, rememberConversation]);
+
+  // Each explicit discussion selection should bring the tutor into view,
+  // including repeated clicks after returning to a long feedback list.
+  useEffect(() => {
+    if (!active || !feedbackContext?.id) return;
+    const frame = requestAnimationFrame(() => {
+      sectionRef.current?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [active, feedbackContext?.id]);
 
   // Auto-scroll to bottom of messages
   const scrollToBottom = () => {
@@ -236,7 +257,7 @@ export default function ChatTab({ moduleId, moduleAccess, feedbackContext, onCon
   const initialLoading = loadingConversations && !isSending && !feedbackContext && messages.length === 0;
 
   return (
-    <section aria-label="AI tutor chat" className="flex h-[min(760px,80dvh)] min-h-[480px] flex-col overflow-hidden rounded-2xl border border-border/70 bg-background text-foreground">
+    <section ref={sectionRef} aria-label="AI tutor chat" className="flex h-[min(760px,80dvh)] min-h-[480px] flex-col overflow-hidden rounded-2xl border border-border/70 bg-background text-foreground">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border/60 px-4 py-3 sm:px-6">
         <div className="flex items-center gap-2.5">
           <MessageSquare className="h-4 w-4 text-muted-foreground" aria-hidden="true" />

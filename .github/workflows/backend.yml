@@ -8,8 +8,38 @@ on:
       - '.github/workflows/backend.yml'
 
 jobs:
+  performance-regressions:
+    name: Check feedback performance regressions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: Backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: Backend/requirements.txt
+      - run: pip install -r requirements.txt
+      - name: Verify pool availability, background grading, and recovery
+        run: >-
+          python -m pytest
+          tests/platform/test_performance_contracts.py
+          tests/platform/test_feedback_runtime_recovery.py
+          tests/platform/test_worker.py
+          -ra --junitxml=test-results/performance.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: feedback-performance-results
+          path: Backend/test-results/performance.xml
+
   deploy:
     name: Build & Deploy to Cloud Run
+    needs: performance-regressions
     runs-on: ubuntu-latest
 
     steps:

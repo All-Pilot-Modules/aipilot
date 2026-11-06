@@ -320,51 +320,63 @@ const DashboardContent = memo(function DashboardContent() {
       <AppSidebar variant="inset" />
       <SidebarInset>
         <SiteHeader />
-        <main id="main-content" className="min-w-0 flex-1 bg-muted/20">
+        <main id="main-content" className="min-w-0 flex-1 bg-muted/20 [--ring:var(--color-emerald-600)] dark:[--ring:var(--color-emerald-400)] [&_:focus-visible]:outline-emerald-600 dark:[&_:focus-visible]:outline-emerald-400">
           <div className="mx-auto max-w-[1440px] space-y-6 px-4 py-6 sm:px-6 lg:px-8">
-            <header className="flex flex-wrap items-end justify-between gap-4">
-              <div className="min-w-0">
-                <p className="mb-2 text-sm text-muted-foreground">Module overview</p>
-                <h1 className="break-words text-3xl font-semibold tracking-tight text-foreground">{moduleName}</h1>
-                <p className="mt-2 text-sm text-muted-foreground">Your teaching workspace. See progress and decide what needs attention.</p>
+            <section aria-label="Module home" className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="flex min-w-0 flex-col justify-between rounded-2xl border border-emerald-900/10 bg-emerald-50/40 p-6 shadow-[0_3px_0_rgba(15,23,42,0.06),0_10px_24px_-8px_rgba(15,23,42,0.10)] sm:p-8 dark:border-emerald-300/10 dark:bg-emerald-950/15 dark:shadow-[0_8px_24px_rgba(0,0,0,0.18)]">
+                <header>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-800 dark:text-emerald-300">Module home</p>
+                    <Button variant="ghost" size="sm" onClick={loadModuleData} disabled={loadingModuleData} className="text-muted-foreground"><RotateCcw aria-hidden="true" className={`size-4 ${loadingModuleData ? 'animate-spin motion-reduce:animate-none' : ''}`} />Refresh</Button>
+                  </div>
+                  <h1 className="mt-4 break-words text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">{moduleName}</h1>
+                  <p className="mt-3 max-w-xl text-base leading-relaxed text-muted-foreground">Prepare your materials, invite your class, and follow their learning—all in one place.</p>
+                  <div className="mt-6 flex flex-wrap gap-3">
+                    <Button asChild className="min-h-11 bg-emerald-700 text-white hover:bg-emerald-800"><Link href={dashboardLink('questions')}><PlusCircle aria-hidden="true" className="size-4" />Manage questions</Link></Button>
+                    <Button asChild variant="outline" className="min-h-11"><Link href={dashboardLink('documents')}><FileText aria-hidden="true" className="size-4" />Add course materials</Link></Button>
+                  </div>
+                </header>
+                <nav aria-label="Teaching shortcuts" className="mt-8 flex flex-wrap gap-x-6 gap-y-3 border-t border-emerald-900/10 pt-4 dark:border-emerald-300/10">
+                  {[[dashboardLink('grading'), 'Review submissions', ClipboardList], [dashboardLink('students'), 'View students', Users], [dashboardLink('settings'), 'Module settings', Settings]].map(([href, label, Icon]) => (
+                    <Link key={href} href={href} className="inline-flex min-h-9 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-300"><Icon aria-hidden="true" className="size-4" />{label}<ArrowUpRight aria-hidden="true" className="size-3.5" /></Link>
+                  ))}
+                </nav>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Button variant="outline" onClick={loadModuleData} disabled={loadingModuleData}><RotateCcw className={`size-4 ${loadingModuleData ? 'animate-spin' : ''}`} />Refresh</Button>
-                <Button asChild className="bg-teal-700 text-white hover:bg-teal-800"><Link href={dashboardLink('questions')}><PlusCircle className="size-4" />Manage questions</Link></Button>
-              </div>
-            </header>
 
-            <section aria-label="Student access" className="flex flex-col gap-4 rounded-xl border border-emerald-200 bg-emerald-50/60 p-4 sm:p-5 lg:flex-row lg:items-center lg:justify-between dark:border-emerald-800 dark:bg-emerald-950/30">
-              <div className="flex min-w-0 items-center gap-4">
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-emerald-700 text-white"><Share2 className="size-5" /></div>
-                <div className="min-w-0">
-                  <h2 className="text-xs font-semibold uppercase tracking-wide text-emerald-800 dark:text-emerald-300">Student access code</h2>
-                  {loadingModuleData ? <Skeleton className="mt-2 h-8 w-32" /> : <p className="mt-1 break-all font-mono text-2xl font-bold tracking-wider text-emerald-900 dark:text-emerald-200">{moduleData.accessCode || 'Unavailable'}</p>}
-                  <p className="mt-1 text-xs text-muted-foreground">Share this code or the invite link with your students.</p>
+              <section aria-label="Student access" className="flex w-full max-w-sm flex-col justify-between justify-self-center rounded-2xl border border-emerald-800/15 bg-emerald-50/60 p-6 shadow-[0_3px_0_rgba(6,78,59,0.10),0_10px_24px_-8px_rgba(6,78,59,0.12)] xl:aspect-square xl:self-start xl:max-w-none dark:border-emerald-300/15 dark:bg-emerald-950/20">
+                <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+                  <Share2 aria-hidden="true" className="size-4" /><h2 className="text-sm font-semibold">Invite your students</h2>
                 </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button size="sm" disabled={loadingModuleData || !moduleData.accessCode} onClick={() => copyToClipboard(moduleData.accessCode, 'code')} className="bg-emerald-700 text-white hover:bg-emerald-800">
-                  {copiedItems.code ? <Check className="size-4" /> : <Copy className="size-4" />}
-                  {copiedItems.code ? 'Code Copied!' : 'Copy Code'}
-                </Button>
-                <Button size="sm" variant="outline" disabled={loadingModuleData || !moduleData.accessCode} onClick={() => copyToClipboard(generateModuleUrl(), 'link')}>
-                  {copiedItems.link ? <Check className="size-4" /> : <ExternalLink className="size-4" />}
-                  {copiedItems.link ? 'Link Copied!' : 'Copy Link'}
-                </Button>
-                <Button size="sm" variant="outline" disabled={loadingModuleData || !moduleData.accessCode} onClick={() => setShowRegenerateDialog(true)}><RotateCcw className="size-4" />Regenerate</Button>
-              </div>
+                <div className="py-6 text-center">
+                  <p className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Student access code</p>
+                  {loadingModuleData ? <Skeleton className="mx-auto mt-3 h-10 w-40" /> : <p className="mt-3 break-all font-mono text-4xl font-bold tracking-[0.12em] text-emerald-900 dark:text-emerald-200">{moduleData.accessCode || 'Unavailable'}</p>}
+                  <p className="mt-3 text-sm text-muted-foreground">Share this code with your class.</p>
+                </div>
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button disabled={loadingModuleData || !moduleData.accessCode} onClick={() => copyToClipboard(moduleData.accessCode, 'code')} className="min-h-11 bg-emerald-700 text-white hover:bg-emerald-800">
+                      {copiedItems.code ? <Check aria-hidden="true" className="size-4" /> : <Copy aria-hidden="true" className="size-4" />}{copiedItems.code ? 'Copied!' : 'Copy code'}
+                    </Button>
+                    <Button variant="outline" className="min-h-11" disabled={loadingModuleData || !moduleData.accessCode} onClick={() => copyToClipboard(generateModuleUrl(), 'link')}>
+                      {copiedItems.link ? <Check aria-hidden="true" className="size-4" /> : <ExternalLink aria-hidden="true" className="size-4" />}{copiedItems.link ? 'Copied!' : 'Copy link'}
+                    </Button>
+                  </div>
+                  <Button size="sm" variant="ghost" className="w-full text-xs text-muted-foreground" disabled={loadingModuleData || !moduleData.accessCode} onClick={() => setShowRegenerateDialog(true)}><RotateCcw aria-hidden="true" className="size-3.5" />Regenerate code</Button>
+                  <p className="sr-only" role="status">{copiedItems.code ? 'Access code copied to clipboard.' : copiedItems.link ? 'Invite link copied to clipboard.' : ''}</p>
+                </div>
+              </section>
             </section>
 
             {dashboardError && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-200">{dashboardError}</div>}
 
+            <div className="flex items-center justify-between gap-3 pt-2"><h2 className="text-lg font-semibold">At a glance</h2><span className="text-xs text-muted-foreground">Module activity</span></div>
             <section aria-label="Module statistics" className="grid grid-cols-2 gap-3 xl:grid-cols-4">
               {[
                 ['Submitting students', moduleData.totalStudents, 'Students with at least one answer', 'students', Users],
                 ['Answer submissions', performanceMetrics.totalSubmissions, 'Includes repeat attempts', 'grading', ClipboardList],
                 ['Average score', `${performanceMetrics.averageScore}%`, 'Across scored answers', 'analytics', BarChart3],
                 ['AI feedback', performanceMetrics.aiFeedbackCount, 'Feedback records available', 'students', Brain],
-              ].map(([label, value, detail, route, Icon]) => <Link key={label} href={dashboardLink(route)} className="rounded-xl border bg-background p-5 transition-colors hover:border-teal-500/50 focus-visible:outline-2 focus-visible:outline-teal-600">
+              ].map(([label, value, detail, route, Icon]) => <Link key={label} href={dashboardLink(route)} className="rounded-xl border bg-background p-5 transition-colors hover:border-emerald-500/50 focus-visible:outline-2 focus-visible:outline-emerald-600">
                 <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground"><span>{label}</span><Icon className="size-4 shrink-0" /></div>
                 {loadingModuleData ? <Skeleton className="my-3 h-9 w-20" /> : <p className="my-2 text-3xl font-semibold tracking-tight tabular-nums">{dashboardError ? '—' : value}</p>}
                 <p className="text-xs text-muted-foreground">{detail}</p>
@@ -373,7 +385,7 @@ const DashboardContent = memo(function DashboardContent() {
 
             <section className="space-y-4" aria-label="Student learning analytics">
               <div><h2 className="text-lg font-semibold">Student learning</h2><p className="mt-1 text-sm text-muted-foreground">Based on students who have submitted. Completed AI scores on each latest answer; these are not final teacher grades.</p></div>
-              {loadingMetrics ? <Skeleton className="h-32 w-full" /> : !studentInsights || dashboardError ? <p className="rounded-xl border bg-background p-5 text-sm text-muted-foreground">Student analytics are unavailable. Refresh after the backend has loaded the updated analytics service.</p> : <>
+              {loadingMetrics ? <Skeleton className="h-32 w-full" /> : !studentInsights || dashboardError ? <p className="rounded-xl border bg-background p-5 text-sm text-muted-foreground">Student analytics are unavailable. Try refreshing in a moment.</p> : !studentInsights.students.length ? <div className="rounded-2xl border border-dashed bg-background p-6 sm:p-8"><h3 className="font-medium">Your class’s progress starts here</h3><p className="mt-2 max-w-xl text-sm leading-relaxed text-muted-foreground">Once students submit their first answers, you’ll see learning progress, questions that need attention, and opportunities to help.</p><Link href={dashboardLink('students')} className="mt-4 inline-flex min-h-10 items-center gap-2 text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400">View students<ArrowUpRight aria-hidden="true" className="size-4" /></Link></div> : <>
                 <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
                   {[
                     ['Question coverage', `${studentInsights.question_coverage}%`, 'Unique questions answered; retries counted once'],
@@ -383,8 +395,8 @@ const DashboardContent = memo(function DashboardContent() {
                   ].map(([label,value,detail]) => <div key={label} className="rounded-xl border bg-background p-5"><p className="text-sm text-muted-foreground">{label}</p><p className="my-2 text-2xl font-semibold tabular-nums">{value}</p><p className="text-xs leading-relaxed text-muted-foreground">{detail}</p></div>)}
                 </div>
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <section className="overflow-hidden rounded-xl border bg-background"><div className="border-b p-5"><h3 className="font-semibold">Student overview</h3><p className="mt-1 text-xs text-muted-foreground">Lowest scored averages first. Open a student for their answers and feedback.</p></div><div className="max-h-80 overflow-auto"><table className="w-full text-left text-sm"><thead className="bg-muted/40 text-xs text-muted-foreground"><tr><th className="px-5 py-3">Student</th><th className="p-3">Answered</th><th className="p-3">AI average</th><th className="p-3">Attempts</th></tr></thead><tbody className="divide-y">{studentInsights.students.map(student => <tr key={student.student_id}><td className="max-w-48 break-words px-5 py-3"><Link className="text-teal-700 underline-offset-4 hover:underline dark:text-teal-400" href={`/dashboard/students/${encodeURIComponent(student.student_id)}?${new URLSearchParams({module:moduleName,moduleId})}`}>{student.student_id}</Link></td><td className="p-3 tabular-nums">{student.answered_questions}/{moduleData.totalQuestions}</td><td className="p-3 tabular-nums">{student.average_score == null ? 'Pending' : `${student.average_score}%`}<span className="block text-xs text-muted-foreground">{student.scored_questions} scored</span></td><td className="p-3 tabular-nums">{student.attempts}</td></tr>)}</tbody></table>{!studentInsights.students.length && <p className="p-5 text-sm text-muted-foreground">Students will appear after their first submission.</p>}</div></section>
-                  <section className="rounded-xl border bg-background p-5"><h3 className="font-semibold">Questions to review</h3><p className="mt-1 text-xs text-muted-foreground">Lowest averages using each student’s latest answer. Small samples may not reflect question difficulty.</p><div className="mt-4 space-y-4">{studentInsights.question_difficulty.slice(0,5).map(question => <Link key={question.question_id} href={dashboardLink('questions')} className="block rounded-lg p-2 -mx-2 hover:bg-muted/50"><div className="mb-2 flex justify-between gap-3 text-sm"><span className="min-w-0"><MathText>{question.question_text || "Question"}</MathText><span className="text-xs text-muted-foreground">{question.student_count} scored students</span></span><span className="tabular-nums">{question.average_score}%</span></div><div className="h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-teal-600" style={{width:`${Math.max(0,Math.min(100,question.average_score))}%`}} /></div></Link>)}{!studentInsights.question_difficulty.length && <p className="text-sm text-muted-foreground">Available after feedback is successfully graded.</p>}</div></section>
+                  <section className="overflow-hidden rounded-xl border bg-background"><div className="border-b p-5"><h3 className="font-semibold">Student overview</h3><p className="mt-1 text-xs text-muted-foreground">Lowest scored averages first. Open a student for their answers and feedback.</p></div><div className="max-h-80 overflow-auto"><table className="w-full text-left text-sm"><thead className="bg-muted/40 text-xs text-muted-foreground"><tr><th className="px-5 py-3">Student</th><th className="p-3">Answered</th><th className="p-3">AI average</th><th className="p-3">Attempts</th></tr></thead><tbody className="divide-y">{studentInsights.students.map(student => <tr key={student.student_id}><td className="max-w-48 break-words px-5 py-3"><Link className="text-emerald-700 underline-offset-4 hover:underline dark:text-emerald-400" href={`/dashboard/students/${encodeURIComponent(student.student_id)}?${new URLSearchParams({module:moduleName,moduleId})}`}>{student.student_id}</Link></td><td className="p-3 tabular-nums">{student.answered_questions}/{moduleData.totalQuestions}</td><td className="p-3 tabular-nums">{student.average_score == null ? 'Pending' : `${student.average_score}%`}<span className="block text-xs text-muted-foreground">{student.scored_questions} scored</span></td><td className="p-3 tabular-nums">{student.attempts}</td></tr>)}</tbody></table>{!studentInsights.students.length && <p className="p-5 text-sm text-muted-foreground">Students will appear after their first submission.</p>}</div></section>
+                  <section className="rounded-xl border bg-background p-5"><h3 className="font-semibold">Questions to review</h3><p className="mt-1 text-xs text-muted-foreground">Lowest averages using each student’s latest answer. Small samples may not reflect question difficulty.</p><div className="mt-4 space-y-4">{studentInsights.question_difficulty.slice(0,5).map(question => <Link key={question.question_id} href={dashboardLink('questions')} className="block rounded-lg p-2 -mx-2 hover:bg-muted/50"><div className="mb-2 flex justify-between gap-3 text-sm"><span className="min-w-0"><MathText>{question.question_text || "Question"}</MathText><span className="text-xs text-muted-foreground">{question.student_count} scored students</span></span><span className="tabular-nums">{question.average_score}%</span></div><div className="h-1.5 rounded-full bg-muted"><div className="h-full rounded-full bg-emerald-600" style={{width:`${Math.max(0,Math.min(100,question.average_score))}%`}} /></div></Link>)}{!studentInsights.question_difficulty.length && <p className="text-sm text-muted-foreground">Available after feedback is successfully graded.</p>}</div></section>
                 </div>
               </>}
             </section>
@@ -396,20 +408,20 @@ const DashboardContent = memo(function DashboardContent() {
                   {loadingActions ? <Skeleton className="h-24 w-full" /> : dashboardError ? <p className="text-sm text-muted-foreground">Review tasks are unavailable until statistics load.</p> : <div className="divide-y">
                     {attentionItems.length ? attentionItems.map(item => <Link key={item.title} href={dashboardLink(item.route)} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0 group">
                       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-sm font-semibold text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{item.count}</span>
-                      <div className="min-w-0 flex-1"><p className="text-sm font-medium group-hover:text-teal-700 dark:group-hover:text-teal-400">{item.title}</p><p className="mt-1 text-sm text-muted-foreground">{item.detail}</p></div><ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
+                      <div className="min-w-0 flex-1"><p className="text-sm font-medium group-hover:text-emerald-700 dark:group-hover:text-emerald-400">{item.title}</p><p className="mt-1 text-sm text-muted-foreground">{item.detail}</p></div><ArrowUpRight className="size-4 shrink-0 text-muted-foreground" />
                     </Link>) : <div className="flex items-center gap-3 py-2"><CheckCircle className="size-5 text-emerald-600 dark:text-emerald-300" /><div><p className="text-sm font-medium">You’re up to date</p><p className="mt-1 text-sm text-muted-foreground">No review tasks flagged for this module.</p></div></div>}
                   </div>}
                 </section>
 
                 <section className="rounded-xl border bg-background p-5 sm:p-6">
-                  <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Submission activity</h2><p className="mt-1 text-sm text-muted-foreground">Answer submissions over the last 7 days</p></div><Link href={dashboardLink('analytics')} className="text-sm font-medium text-teal-700 hover:underline dark:text-teal-400">View analytics ↗</Link></div>
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="font-semibold">Submission activity</h2><p className="mt-1 text-sm text-muted-foreground">Answer submissions over the last 7 days</p></div><Link href={dashboardLink('analytics')} className="text-sm font-medium text-emerald-700 hover:underline dark:text-emerald-400">View analytics ↗</Link></div>
                   {loadingMetrics ? <Skeleton className="mt-6 h-40 w-full" /> : dashboardError ? <p className="py-10 text-sm text-muted-foreground">Activity could not be loaded.</p> : <div className="mt-6 grid grid-cols-7 gap-2 sm:gap-4" aria-label="Daily answer submissions">
-                    {progressData.map(day => <div key={day.dateKey} className="min-w-0 text-center"><div className="flex h-32 flex-col justify-end gap-2"><span className="text-xs tabular-nums text-muted-foreground">{day.count}</span><div className="mx-auto w-full max-w-12 rounded-t-md bg-teal-600/80 dark:bg-teal-500/70" style={{height: `${Math.max(2, day.count / Math.max(1, ...progressData.map(d => d.count)) * 94)}px`}} /></div><p className="mt-3 text-xs text-muted-foreground">{day.dayName}</p></div>)}
+                    {progressData.map(day => <div key={day.dateKey} className="min-w-0 text-center"><div className="flex h-32 flex-col justify-end gap-2"><span className="text-xs tabular-nums text-muted-foreground">{day.count}</span><div className="mx-auto w-full max-w-12 rounded-t-md bg-emerald-600/80 dark:bg-emerald-500/70" style={{height: `${Math.max(2, day.count / Math.max(1, ...progressData.map(d => d.count)) * 94)}px`}} /></div><p className="mt-3 text-xs text-muted-foreground">{day.dayName}</p></div>)}
                   </div>}
                 </section>
 
                 <section className="overflow-hidden rounded-xl border bg-background">
-                  <div className="flex items-center justify-between gap-3 border-b px-5 py-4"><h2 className="font-semibold">Recent submissions</h2><Link href={dashboardLink('students')} className="text-sm text-teal-700 hover:underline dark:text-teal-400">View students ↗</Link></div>
+                  <div className="flex items-center justify-between gap-3 border-b px-5 py-4"><h2 className="font-semibold">Recent submissions</h2><Link href={dashboardLink('students')} className="text-sm text-emerald-700 hover:underline dark:text-emerald-400">View students ↗</Link></div>
                   {loadingActivities ? <div className="space-y-3 p-5"><Skeleton className="h-12" /><Skeleton className="h-12" /></div> : dashboardError ? <p className="p-5 text-sm text-muted-foreground">Recent submissions could not be loaded.</p> : recentActivities.length ? <ul className="divide-y">{recentActivities.slice(0,5).map(activity => <li key={activity.id} className="flex items-center gap-3 px-5 py-4"><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{activity.studentName}</p><p className="mt-1 text-xs text-muted-foreground">Answer submitted · {getTimeAgo(activity.timestamp)}</p></div><span className="rounded-md bg-muted px-2.5 py-1 text-sm tabular-nums">{activity.score == null ? 'Not scored' : `${activity.score}%`}</span></li>)}</ul> : <div className="p-6"><p className="text-sm font-medium">No submissions yet</p><p className="mt-1 text-sm text-muted-foreground">Share the module link to invite students. Their activity will appear here.</p></div>}
                 </section>
               </div>
@@ -421,9 +433,9 @@ const DashboardContent = memo(function DashboardContent() {
                   ['grading', 'Grading', 'Review student answers', ClipboardList],
                   ['survey/responses', 'Survey responses', 'Hear from your students', MessageSquare],
                   ['rubric', 'Feedback rubric', 'Manage grading guidance', Settings],
-                ].map(([route,label,detail,Icon]) => <Link key={route} href={dashboardLink(route)} className="group flex items-center gap-3 py-3"><Icon className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="text-sm font-medium group-hover:text-teal-700 dark:group-hover:text-teal-400">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{dashboardError && ['documents','questions'].includes(route) ? 'Open to view' : detail}</p></div><ArrowUpRight className="size-3.5 text-muted-foreground" /></Link>)}</nav></section>
+                ].map(([route,label,detail,Icon]) => <Link key={route} href={dashboardLink(route)} className="group flex items-center gap-3 py-3"><Icon className="size-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><p className="text-sm font-medium group-hover:text-emerald-700 dark:group-hover:text-emerald-400">{label}</p><p className="mt-0.5 text-xs text-muted-foreground">{dashboardError && ['documents','questions'].includes(route) ? 'Open to view' : detail}</p></div><ArrowUpRight className="size-3.5 text-muted-foreground" /></Link>)}</nav></section>
 
-                <section className="rounded-xl border bg-background p-5"><h2 className="font-semibold">Score distribution</h2><p className="mt-1 text-xs text-muted-foreground">Scored answers across all attempts</p><div className="mt-4 space-y-3">{loadingMetrics ? <Skeleton className="h-24" /> : dashboardError ? <p className="text-sm text-muted-foreground">Scores unavailable.</p> : scoreDistribution.some(range => range.count > 0) ? scoreDistribution.map(range => <div key={range.range}><div className="mb-1.5 flex justify-between text-xs"><span className="text-muted-foreground">{range.range}</span><span className="tabular-nums">{range.count}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-teal-600/70" style={{width: `${range.count / Math.max(1, scoreDistribution.reduce((total, r) => total + r.count, 0)) * 100}%`}} /></div></div>) : <p className="text-sm text-muted-foreground">Scores will appear after answers are graded.</p>}</div></section>
+                <section className="rounded-xl border bg-background p-5"><h2 className="font-semibold">Score distribution</h2><p className="mt-1 text-xs text-muted-foreground">Scored answers across all attempts</p><div className="mt-4 space-y-3">{loadingMetrics ? <Skeleton className="h-24" /> : dashboardError ? <p className="text-sm text-muted-foreground">Scores unavailable.</p> : scoreDistribution.some(range => range.count > 0) ? scoreDistribution.map(range => <div key={range.range}><div className="mb-1.5 flex justify-between text-xs"><span className="text-muted-foreground">{range.range}</span><span className="tabular-nums">{range.count}</span></div><div className="h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full rounded-full bg-emerald-600/70" style={{width: `${range.count / Math.max(1, scoreDistribution.reduce((total, r) => total + r.count, 0)) * 100}%`}} /></div></div>) : <p className="text-sm text-muted-foreground">Scores will appear after answers are graded.</p>}</div></section>
               </aside>
             </div>
           </div>

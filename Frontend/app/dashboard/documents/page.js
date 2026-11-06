@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
-import { openDocument, uploadDocument } from "@/lib/documents";
+import { openDocument, uploadDocument, validateDocumentFile } from "@/lib/documents";
 import DocumentUploadDialog from '@/components/document-upload-dialog';
 
 function DocumentsContent() {
@@ -63,9 +63,9 @@ function DocumentsContent() {
   const [uploadNotice, setUploadNotice] = useState("");
   const [isTestbank, setIsTestbank] = useState(false);
 
-  const fetchModuleAndDocuments = useCallback(async () => {
+  const fetchModuleAndDocuments = useCallback(async (background = false) => {
     try {
-      setIsLoadingDocuments(true);
+      if (!background) setIsLoadingDocuments(true);
       const userId = user?.id || user?.sub;
       if (!userId) { setIsLoadingDocuments(false); return; }
       if (moduleIdFromParam) {
@@ -92,7 +92,7 @@ function DocumentsContent() {
     } catch (error) {
       console.error("Failed to fetch module or documents:", error);
     } finally {
-      setIsLoadingDocuments(false);
+      if (!background) setIsLoadingDocuments(false);
     }
   }, [user?.id, user?.sub, moduleName, moduleIdFromParam]);
 
@@ -103,14 +103,20 @@ function DocumentsContent() {
   }, [isAuthenticated, user?.id, user?.sub, moduleName, fetchModuleAndDocuments]);
 
   useEffect(() => {
-    if (!isUploadOpen && !isUploading) { setUploadForm({ title: "", file: null }); setIsTestbank(false); setUploadError(""); }
-  }, [isUploadOpen, isUploading]);
+    if (!isUploadOpen && !isUploading && !uploadError) { setUploadForm({ title: "", file: null }); setIsTestbank(false); setUploadError(""); }
+  }, [isUploadOpen, isUploading, uploadError]);
 
   useEffect(() => {
-    if (!documents.some(doc => doc.processing_status === 'queued')) return;
-    const timer = setInterval(fetchModuleAndDocuments, 3000);
-    return () => clearInterval(timer);
-  }, [documents, fetchModuleAndDocuments]);
+    if (!isUploading && !documents.some(doc => ['uploading', 'queued', 'extracting', 'chunking', 'embedding'].includes(doc.processing_status))) return;
+    let cancelled = false;
+    let timer;
+    const poll = async () => {
+      await fetchModuleAndDocuments(true);
+      if (!cancelled) timer = setTimeout(poll, 3000);
+    };
+    timer = setTimeout(poll, 3000);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [documents, isUploading, fetchModuleAndDocuments]);
 
   const retryDocument = async (doc) => {
     try {
@@ -147,7 +153,7 @@ function DocumentsContent() {
   };
 
   const STATUS_CONFIG = {
-    uploading: { dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-200', label: 'Upload incomplete — upload again', spin: false },
+    uploading: { dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-200', label: 'Waiting for upload to finish', spin: true },
     queued: { dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-200', label: 'Queued / processing', spin: true },
     parsed: { dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-200', label: 'Questions extracted', spin: false },
     deleting: { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-200', label: 'Deletion pending — retry', spin: false },
@@ -182,7 +188,7 @@ function DocumentsContent() {
       const st = doc.processing_status?.toLowerCase() || 'uploaded';
       if (st === 'embedded' || st === 'indexed') s.embedded++;
       else if (st === 'chunked' || st === 'extracted') s.processed++;
-      else if (st === 'extracting' || st === 'chunking' || st === 'embedding') s.processing++;
+      else if (['uploading', 'queued', 'extracting', 'chunking', 'embedding'].includes(st)) s.processing++;
       else if (st === 'failed') s.failed++;
       else s.uploaded++;
     });
@@ -197,7 +203,7 @@ function DocumentsContent() {
     const st = doc.processing_status?.toLowerCase() || 'uploaded';
     if (statusFilter === "embedded") return matchesSearch && (st === 'embedded' || st === 'indexed');
     if (statusFilter === "processed") return matchesSearch && (st === 'chunked' || st === 'extracted');
-    if (statusFilter === "processing") return matchesSearch && (st === 'extracting' || st === 'chunking' || st === 'embedding');
+    if (statusFilter === "processing") return matchesSearch && ['uploading', 'queued', 'extracting', 'chunking', 'embedding'].includes(st);
     if (statusFilter === "failed") return matchesSearch && st === 'failed';
     if (statusFilter === "uploaded") return matchesSearch && st === 'uploaded';
     return matchesSearch;
@@ -207,6 +213,8 @@ function DocumentsContent() {
     event.preventDefault();
     if (isUploading) return;
     setUploadError('');
+    try { validateDocumentFile(uploadForm.file, isTestbank); }
+    catch (error) { setUploadError(error.message); return; }
     setUploadNotice('');
     setIsUploading(true);
     try {
@@ -217,7 +225,8 @@ function DocumentsContent() {
       setIsUploadOpen(false);
     } catch (error) {
       setUploadError(error.message || 'Could not upload the file. Try again.');
-      setIsUploadOpen(true);
+      // Keep the failure visible on the page even if the dialog was dismissed.
+      await fetchModuleAndDocuments(true);
     } finally { setIsUploading(false); }
   };
 
@@ -360,6 +369,16 @@ function DocumentsContent() {
                 form={uploadForm} onFormChange={setUploadForm} testbank={isTestbank} onTestbankChange={setIsTestbank}
                 uploading={isUploading} error={uploadError} onErrorChange={setUploadError} onSubmit={handleUpload} />
             </div>
+            {isUploading && <div role="status" className="flex items-center gap-3 rounded-lg border bg-muted/40 p-4 text-sm">
+              <Loader2 aria-hidden="true" className="h-5 w-5 shrink-0 animate-spin motion-reduce:animate-none" />
+              <div className="min-w-0 flex-1"><p className="break-all font-medium">{uploadForm.file?.name}</p>
+                <p className="text-muted-foreground">Uploading… Keep this page open. You can close the dialog.</p></div>
+              <Button variant="outline" size="sm" onClick={() => setIsUploadOpen(true)}>View upload</Button>
+            </div>}
+            {!isUploadOpen && uploadError && <div role="alert" className="rounded-lg border border-destructive/40 p-4 text-sm">
+              <p className="text-destructive">{uploadError}</p>
+              <Button variant="outline" className="mt-2" onClick={() => setIsUploadOpen(true)}>Review upload</Button>
+            </div>}
             {uploadNotice && <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{uploadNotice}</p>}
 
 
@@ -491,7 +510,8 @@ function DocumentsContent() {
                       {/* Status */}
                       <div className="flex-shrink-0">
                         {getStatusBadge(doc.processing_status)}
-                        {doc.processing_status === 'failed' && <div className="text-xs text-red-600 max-w-64" role="alert">{doc.parse_error || doc.processing_metadata?.error || 'Processing failed'}<button className="underline ml-2" onClick={() => retryDocument(doc)}>Retry</button></div>}
+                        {doc.processing_status === 'uploading' && !isUploading && <button className="text-xs underline ml-2" onClick={() => { setUploadForm({ title: doc.title, file: null }); setIsTestbank(Boolean(doc.is_testbank)); setIsUploadOpen(true); }}>Choose file again</button>}
+                        {doc.processing_status === 'failed' && <div className="text-xs text-red-600 max-w-64" role="alert">{doc.parse_error || doc.processing_metadata?.error || 'Processing failed'}<button className="underline ml-2" onClick={() => { if (doc.processing_metadata?.upload_complete === false) { setUploadForm({ title: doc.title, file: null }); setIsTestbank(Boolean(doc.is_testbank)); setIsUploadOpen(true); } else retryDocument(doc); }}>{doc.processing_metadata?.upload_complete === false ? 'Choose file again' : 'Retry'}</button></div>}
                         {['uploaded', 'chunked', 'extracting', 'extracted', 'chunking', 'embedding'].includes(doc.processing_status) && <button className="text-xs underline ml-2" onClick={() => retryDocument(doc)}>Retry processing</button>}
                       </div>
 

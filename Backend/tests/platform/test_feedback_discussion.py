@@ -48,6 +48,42 @@ def test_discussion_uses_saved_context(client, db_session, student_answer_text, 
     assert client.post(f'/api/chat/feedback/{fb.id}/discuss', headers=student_session).status_code == 404
 
 
+def test_completed_discussion_does_not_block_another_question(client, db_session, student_answer_text, student_session):
+    from app.models.question import Question
+    from app.models.student_answer import StudentAnswer
+
+    question = Question(module_id=student_answer_text.module_id, type='short', text='Explain the chain rule.')
+    db_session.add(question)
+    db_session.flush()
+    answer = StudentAnswer(
+        student_id=student_answer_text.student_id, module_id=student_answer_text.module_id,
+        question_id=question.id, answer={'text': 'Differentiate the outer function.'},
+        attempt=student_answer_text.attempt,
+    )
+    db_session.add(answer)
+    db_session.flush()
+    feedbacks = [AIFeedback(answer_id=item.id, released=True, generation_status='completed',
+                           feedback_data={'explanation': explanation})
+                 for item, explanation in [(student_answer_text, 'Review the product rule'),
+                                            (answer, 'Review the inner derivative')]]
+    db_session.add_all(feedbacks)
+    db_session.flush()
+    with patch('app.api.routes.chat.get_chatbot_response', side_effect=[
+        {'response': 'First question discussion'}, {'response': 'Second question discussion'},
+    ]) as ai:
+        first = client.post(f'/api/chat/feedback/{feedbacks[0].id}/discuss', headers=student_session)
+        second = client.post(f'/api/chat/feedback/{feedbacks[1].id}/discuss', headers=student_session)
+        reopened = client.post(f'/api/chat/feedback/{feedbacks[0].id}/discuss', headers=student_session)
+    assert first.status_code == second.status_code == reopened.status_code == 200
+    assert first.json()['conversation_id'] != second.json()['conversation_id']
+    assert reopened.json()['conversation_id'] == first.json()['conversation_id']
+    assert second.json()['assistant_message']['content'] == 'Second question discussion'
+    assert ai.call_count == 2
+    second_context = json.loads(ai.call_args_list[1].kwargs['student_question'].split('\n\n', 1)[1])
+    assert second_context['question'] == question.text
+    assert second_context['feedback_id'] == str(feedbacks[1].id)
+
+
 def test_discussion_rejects_other_student(client, db_session, student_answer_text):
     fb = AIFeedback(answer_id=student_answer_text.id, released=True)
     db_session.add(fb)
@@ -76,12 +112,13 @@ def test_long_discussion_retains_original_feedback_context():
     from unittest.mock import MagicMock
     db = MagicMock()
     db.query.return_value.filter.return_value.first.return_value = SimpleNamespace(
-        name='Calculus', assignment_config={}, chatbot_instructions=None)
+        name='Calculus', assignment_config={}, ai_config={}, chatbot_instructions=None)
     completion = SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='Continue the product rule.'))])
     with patch('app.services.chatbot.get_context_for_feedback', return_value={'has_context':False}), \
          patch('app.services.chatbot._chatbot_client.create_chat_completion', return_value=completion) as ai:
         get_chatbot_response(db, 'module', 'Explain again', history, 'student')
     messages = ai.call_args.kwargs['messages']
+    assert 'CURRENT TEACHER ANSWER POLICY: HINTS ONLY' in messages[0]['content']
     assert messages[1]['content'] == first.content
     assert sum(item['content'] == first.content for item in messages) == 1
     assert messages[-2]['content'] == 'Turn 11'

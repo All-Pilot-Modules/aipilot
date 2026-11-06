@@ -23,3 +23,17 @@ test('legacy observations do not invent shared concepts or relationships', () =>
   assert.ok(graph.nodes.every(n => Number.isFinite(n.x) && Number.isFinite(n.y)));
   assert.deepEqual(buildLearningMemoryGraph([]), { nodes: [], edges: [] });
 });
+test('tree layout gives shared concepts one row and links every attempt', async () => {
+  const { layoutLearningMemoryTree } = await import('../../lib/learningMemoryGraph.js');
+  const graph = buildLearningMemoryGraph([
+    entry('b', 2, [{ concept: 'Joins', signal: 'demonstrated', observation: 'Correct join' }]),
+    entry('a', 1, [{ concept: 'Joins', signal: 'difficulty', observation: 'Wrong key' }, { concept: 'Keys', signal: 'practice', observation: 'Review keys' }]),
+  ]);
+  const tree = layoutLearningMemoryTree(graph, { row: 60, gap: 20 });
+  assert.deepEqual(tree.attempts.map(a => a.node.label), ['Attempt 1', 'Attempt 2']);
+  assert.equal(tree.leaves.length, 2);
+  const joins = tree.leaves.find(l => l.node.label === 'Joins');
+  assert.equal(joins.parents.length, 2);
+  assert.ok(tree.leaves.every(l => Number.isFinite(l.y)));
+  assert.equal(tree.height, 60 * 2 + 20 + 60); // attempt 2 has no own rows, so it gets one slot
+});

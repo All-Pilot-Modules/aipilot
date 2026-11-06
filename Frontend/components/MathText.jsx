@@ -16,7 +16,7 @@ export function MathText({ children, className, inline = false, embedLinks = fal
   const Wrapper = inline ? "span" : "div";
 
   return (
-    <Wrapper className={cn("text-sm leading-relaxed [&_.katex-display]:my-2", className)}>
+    <Wrapper className={cn("text-sm leading-relaxed [&_.katex-display]:my-2 [&_.katex]:whitespace-nowrap [&_.katex-display]:overflow-x-auto", className)}>
       <ReactMarkdown
         remarkPlugins={[remarkMath]}
         rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}

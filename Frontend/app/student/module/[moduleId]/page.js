@@ -75,13 +75,13 @@ const StudentModuleContent = memo(function StudentModuleContent() {
   const initialTab = searchParams.get('tab') || 'assignments';
   const [activeTab, setActiveTab] = useState(initialTab);
   const [feedbackChat, setFeedbackChat] = useState(null);
+  const feedbackRequestSequence = useRef(0);
 
   // Sync activeTab with URL parameter changes (important for redirects)
   // Only sync when URL changes, not when activeTab changes (to prevent race condition)
   useEffect(() => {
-    const tabParam = searchParams.get('tab') || 'assignments';
-    setActiveTab(tabParam);
-  }, [searchParams]);
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   // State declarations - MUST come before useEffect hooks
   const [moduleAccess, setModuleAccess] = useState(null);
@@ -2082,9 +2082,9 @@ const StudentModuleContent = memo(function StudentModuleContent() {
                                 {hasWrittenFeedback(feedback) && (
                                 <FeedbackPanel feedback={feedback}>
                                 {isChatbotEnabled && feedback?.id && feedback.generation_status === 'completed' && !feedback.fallback && feedback.explanation?.trim() && (
-                                  <Button type="button" variant="outline" className="w-full" disabled={Boolean(feedbackChat)} onClick={() => {
+                                  <Button type="button" variant="outline" className="w-full" disabled={feedbackChat?.feedbackId === feedback.id} onClick={() => {
                                     setFeedbackChat({
-                                      id: `${question.id}-${selectedAttempt}-${Date.now()}`,
+                                      id: `${question.id}-${selectedAttempt}-${++feedbackRequestSequence.current}`,
                                       feedbackId: feedback.id,
                                       question: question.text,
                                       attempt: selectedAttempt,
@@ -2200,7 +2200,7 @@ const StudentModuleContent = memo(function StudentModuleContent() {
           {/* Chat Tab */}
           <TabsContent value="chat" className="space-y-6 data-[state=inactive]:hidden" forceMount>
             {isChatbotEnabled ? (
-              <ChatTab moduleId={moduleId} moduleAccess={moduleAccess} feedbackContext={feedbackChat} onContextSent={(requestId) => setFeedbackChat(current => current?.id === requestId ? null : current)} />
+              <ChatTab active={activeTab === 'chat'} moduleId={moduleId} moduleAccess={moduleAccess} feedbackContext={feedbackChat} onContextSent={(requestId) => setFeedbackChat(current => current?.id === requestId ? null : current)} />
             ) : (
               <Card className="relative overflow-hidden border border-amber-200 dark:border-amber-800 shadow-sm">
                 <div className="absolute inset-0  bg-amber-50   dark:bg-amber-950/30  "></div>

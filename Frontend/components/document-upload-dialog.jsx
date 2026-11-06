@@ -1,8 +1,8 @@
 'use client';
 
-import { useId } from 'react';
+import { useId, useRef, useState } from 'react';
 import Link from 'next/link';
-import { Loader2, FileText } from 'lucide-react';
+import { Loader2, FileText, Upload, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,12 +12,30 @@ import { validateDocumentFile } from '@/lib/documents';
 export default function DocumentUploadDialog({ open, onOpenChange, trigger, form, onFormChange,
   testbank = false, onTestbankChange, uploading, error, onErrorChange, onSubmit }) {
   const id = useId();
+  const fileInput = useRef(null);
+  const chooseButton = useRef(null);
+  const [dragging, setDragging] = useState(false);
   const formats = testbank ? '.pdf,.docx,.txt' : '.pdf,.docx,.pptx,.txt';
-  const selectFile = (event) => {
-    const file = event.target.files?.[0] || null;
+  let fileError = '';
+  if (form.file) {
+    try { validateDocumentFile(form.file, testbank); }
+    catch (error) { fileError = error.message; }
+  }
+  const selectFiles = (files) => {
+    if (uploading || !files?.length) return;
+    if (files.length > 1) {
+      onErrorChange('Choose one file at a time.');
+      return;
+    }
+    const file = files[0];
     onFormChange({ ...form, file });
-    try { if (file) validateDocumentFile(file, testbank); onErrorChange(''); }
-    catch (error) { onErrorChange(error.message); }
+    onErrorChange('');
+  };
+  const removeFile = () => {
+    onFormChange({ ...form, file: null });
+    onErrorChange('');
+    if (fileInput.current) fileInput.current.value = '';
+    chooseButton.current?.focus();
   };
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -44,15 +62,49 @@ export default function DocumentUploadDialog({ open, onOpenChange, trigger, form
             </div>
           </fieldset>}
           <div className="space-y-2">
-            <Label htmlFor={`${id}-file`}>File</Label>
-            <Input id={`${id}-file`} type="file" accept={formats} onChange={selectFile} disabled={uploading}
-              aria-describedby={`${id}-formats`} className="h-auto min-h-11 py-2 file:mr-3 file:cursor-pointer" />
-            <p id={`${id}-formats`} className="text-xs text-muted-foreground">{testbank ? 'PDF, DOCX or TXT' : 'PDF, DOCX, PPTX or TXT'} · Up to 20 MB</p>
-            {form.file && <div className="flex min-w-0 items-start gap-2 rounded-md bg-muted p-3 text-sm">
-              <FileText aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" />
-              <div className="min-w-0"><p className="break-all font-medium">{form.file.name}</p>
-                <p className="text-xs text-muted-foreground">{(form.file.size / 1024 / 1024).toFixed(2)} MB</p></div>
-            </div>}
+            <Label htmlFor={`${id}-file`}>Document file</Label>
+            <input ref={fileInput} id={`${id}-file`} type="file" accept={formats} disabled={uploading}
+              aria-label="Document file" className="hidden"
+              onChange={event => { selectFiles(event.target.files); event.target.value = ''; }} />
+            <div
+              onDragOver={event => {
+                event.preventDefault();
+                if (!uploading && event.dataTransfer.types.includes('Files')) setDragging(true);
+              }}
+              onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget)) setDragging(false); }}
+              onDrop={event => { event.preventDefault(); setDragging(false); selectFiles(event.dataTransfer.files); }}
+              className={`rounded-lg border p-4 transition-colors motion-reduce:transition-none ${fileError ? 'border-destructive bg-destructive/5' : dragging ? 'border-primary bg-accent' : 'border-dashed border-input bg-muted/20'}`}
+            >
+              {form.file ? (
+                <div className="flex min-w-0 items-start gap-3" role="status">
+                  <FileText aria-hidden="true" className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div className="min-w-0 flex-1">
+                    <p className="break-all text-sm font-medium">{form.file.name}</p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      {form.file.size < 1024 * 1024 ? `${Math.max(1, Math.ceil(form.file.size / 1024))} KB` : `${(form.file.size / 1024 / 1024).toFixed(1)} MB`}
+                      {!fileError && (uploading ? ' · Uploading…' : ' · Ready to upload')}
+                    </p>
+                  </div>
+                  <Button type="button" variant="ghost" size="icon" className="h-11 w-11 shrink-0 -mt-2 -mr-2"
+                    disabled={uploading} onClick={removeFile} aria-label="Remove selected file">
+                    <X aria-hidden="true" className="h-4 w-4" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-start gap-3">
+                  <Upload aria-hidden="true" className="mt-1 h-5 w-5 shrink-0 text-muted-foreground" />
+                  <div><p className="text-sm font-medium">Choose a file to upload</p>
+                    <p className="mt-1 text-sm text-muted-foreground">Browse your device or drag a file here.</p></div>
+                </div>
+              )}
+              <Button ref={chooseButton} id={`${id}-choose`} type="button" variant="outline" className="mt-4 min-h-11 w-full sm:w-auto"
+                disabled={uploading} onClick={() => fileInput.current?.click()}
+                aria-describedby={`${id}-formats${fileError ? ` ${id}-file-error` : ''}`}>
+                {form.file ? 'Replace file' : 'Choose file'}
+              </Button>
+            </div>
+            <p id={`${id}-formats`} className="text-xs text-muted-foreground">{testbank ? 'PDF, DOCX or TXT' : 'PDF, DOCX, PPTX or TXT'} · One file, up to 20 MB</p>
+            {fileError && <p id={`${id}-file-error`} role="alert" className="text-sm text-destructive">{fileError}</p>}
           </div>
           <div className="space-y-2">
             <Label htmlFor={`${id}-title`}>Title <span className="font-normal text-muted-foreground">(optional)</span></Label>
@@ -64,12 +116,12 @@ export default function DocumentUploadDialog({ open, onOpenChange, trigger, form
             {/sign in/i.test(error) && <Link href="/sign-in" className="ml-1 font-medium underline">Sign in</Link>}
           </div>}
           <div role="status" aria-live="polite" className="text-sm text-muted-foreground">
-            {uploading ? <span className="flex gap-2"><Loader2 aria-hidden="true" className="h-4 w-4 mt-0.5 shrink-0 animate-spin motion-reduce:animate-none" />Uploading your file. You can close this dialog; the upload will continue.</span>
+            {uploading ? <span className="flex gap-2"><Loader2 aria-hidden="true" className="h-4 w-4 mt-0.5 shrink-0 animate-spin motion-reduce:animate-none" />Uploading your file. You can close this dialog, but keep this page open.</span>
               : 'After upload, processing continues in the background. You can keep working.'}
           </div>
           <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>{uploading ? 'Hide upload' : 'Cancel'}</Button>
-            <Button type="submit" disabled={uploading}>{uploading ? 'Uploading…' : testbank ? 'Upload testbank' : 'Upload document'}</Button>
+            <Button type="submit" disabled={uploading || Boolean(fileError)}>{uploading ? 'Uploading…' : testbank ? 'Upload testbank' : 'Upload document'}</Button>
           </DialogFooter>
         </form>
       </DialogContent>

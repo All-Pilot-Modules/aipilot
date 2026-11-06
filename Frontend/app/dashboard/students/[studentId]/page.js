@@ -7,15 +7,52 @@ import StudentLearningMemory from '@/components/StudentLearningMemory';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MathText } from "@/components/MathText";
+import { StatusDot, STATUS_STYLES } from "@/components/student/QuestionStatus";
 import { AppSidebar } from "@/components/app-sidebar";
 import { SiteHeader } from "@/components/site-header";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { ArrowLeft, User, Calendar, Clock, Award, BookOpen, TrendingUp, TrendingDown, Minus, CheckCircle, XCircle, HelpCircle, List, Download, BarChart3, PieChart, Bot, FileDown, FileText, FileJson, ClipboardList, MessageSquare, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, AlertCircle, Target, GraduationCap, Activity, Shield, Eye, EyeOff } from "lucide-react";
+import { ArrowLeft, User, BookOpen, TrendingUp, TrendingDown, Minus, CheckCircle, XCircle, HelpCircle, Download, FileText, FileJson, ClipboardList, MessageSquare, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, Target, GraduationCap, Activity, Shield, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
 import { useState, useEffect, useCallback, Suspense, useMemo, memo } from "react";
 import { apiClient } from "@/lib/auth";
 import { useAPI } from "@/lib/useSWR";
+
+// Same visual language as the student review (components/student/*): neutral
+// panels, and colour only for the outcome or the reference answer.
+const ANSWER_TONES = {
+  reference: { box: 'bg-green-50 dark:bg-green-950/50 border-green-300 dark:border-green-700', title: 'text-green-700 dark:text-green-400' },
+  correct: { box: 'bg-green-50 dark:bg-green-950/50 border-green-300 dark:border-green-700', title: 'text-green-700 dark:text-green-400' },
+  partial: { box: 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-700', title: 'text-amber-700 dark:text-amber-400' },
+  incorrect: { box: 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800', title: 'text-rose-700 dark:text-rose-400' },
+  neutral: { box: 'bg-muted/50 dark:bg-muted border-border', title: 'text-foreground' },
+};
+// Left edge of each question card, so outcomes can be scanned down the page.
+const CARD_EDGE = {
+  correct: 'border-l-green-600', partial: 'border-l-amber-500', incorrect: 'border-l-rose-500',
+  unanswered: 'border-l-border', reviewed: 'border-l-border', pending: 'border-l-border', unavailable: 'border-l-border',
+};
+
+function AnswerBox({ title, tone = 'neutral', children }) {
+  const t = ANSWER_TONES[tone] || ANSWER_TONES.neutral;
+  return <div className={`min-w-0 rounded-lg border p-4 ${t.box}`}>
+    <h4 className={`mb-2 text-sm font-semibold ${t.title}`}>{title}</h4>
+    {children}
+  </div>;
+}
+
+function FeedbackSection({ title, children }) {
+  return <section className="space-y-2">
+    <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{title}</h4>
+    {children}
+  </section>;
+}
+
+function FeedbackPoints({ items }) {
+  return <ul className="space-y-1.5 pl-5">
+    {items.map((item, idx) => <li key={idx} className="list-disc text-sm leading-relaxed marker:text-muted-foreground"><MathText inline>{item}</MathText></li>)}
+  </ul>;
+}
 
 function StudentDetailPageContent() {
   const { user, loading, isAuthenticated } = useAuth();
@@ -310,6 +347,16 @@ function StudentDetailPageContent() {
           }
 
           if (typeof answer === 'object') {
+            // Handle {text_response: "..."} format (short/long answer)
+            if (answer.text_response !== undefined) {
+              return String(answer.text_response ?? '').trim() || null;
+            }
+
+            // Handle {selected_option_ids: ["A", "C"]} format (multi-select MCQ)
+            if (Array.isArray(answer.selected_option_ids)) {
+              return answer.selected_option_ids.map(id => formatAnswer(id, options)).join(', ') || null;
+            }
+
             // Handle {blanks: {"0": "val", "1": "val"}} format (fill-in-the-blank)
             if (answer.blanks && typeof answer.blanks === 'object') {
               const entries = Object.entries(answer.blanks).sort(([a], [b]) => Number(a) - Number(b));
@@ -328,7 +375,9 @@ function StudentDetailPageContent() {
               }
             }
             if (optionKey) return optionKey;
-            return JSON.stringify(answer);
+            // Unknown shape: show its plain values rather than raw JSON.
+            const values = Object.values(answer).filter(v => v !== null && typeof v !== 'object' && String(v).trim());
+            return values.length ? values.join(', ') : null;
           }
 
           return answer;
@@ -512,13 +561,13 @@ function StudentDetailPageContent() {
     const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice' || qHasOptions;
 
     if (questionData.student_answer === null) {
-      return { label: 'Unanswered', color: 'bg-muted text-slate-500 dark:text-muted-foreground', points: null };
+      return { label: 'Unanswered', status: 'unanswered', points: null };
     }
 
     if (isMCQ) {
       return questionData.is_correct
-        ? { label: 'Correct', color: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300', points: '1/1' }
-        : { label: 'Incorrect', color: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300', points: '0/1' };
+        ? { label: 'Correct', status: 'correct', points: '1/1' }
+        : { label: 'Incorrect', status: 'incorrect', points: '0/1' };
     }
 
     // Essay/short answer with score
@@ -528,15 +577,13 @@ function StudentDetailPageContent() {
       const pointsPossible = feedback.points_possible || null;
       const pointsDisplay = pointsEarned != null && pointsPossible != null ? `${pointsEarned}/${pointsPossible}` : `${scorePercent}%`;
 
-      if (scorePercent >= 80) return { label: pointsDisplay, color: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300', points: pointsDisplay, percent: scorePercent };
-      if (scorePercent >= 60) return { label: pointsDisplay, color: 'bg-yellow-100 dark:bg-yellow-900/40 text-yellow-700 dark:text-yellow-300', points: pointsDisplay, percent: scorePercent };
-      if (scorePercent >= 40) return { label: pointsDisplay, color: 'bg-orange-100 dark:bg-orange-900/40 text-orange-700 dark:text-orange-300', points: pointsDisplay, percent: scorePercent };
-      return { label: pointsDisplay, color: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300', points: pointsDisplay, percent: scorePercent };
+      const status = scorePercent >= 80 ? 'correct' : scorePercent >= 40 ? 'partial' : 'incorrect';
+      return { label: pointsDisplay, status, points: pointsDisplay, percent: scorePercent };
     }
 
     return questionData.is_correct
-      ? { label: 'Correct', color: 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300', points: null }
-      : { label: 'Incorrect', color: 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300', points: null };
+      ? { label: 'Correct', status: 'correct', points: null }
+      : { label: 'Incorrect', status: 'incorrect', points: null };
   };
 
   // Function to get formatted AI feedback text for export
@@ -845,7 +892,7 @@ function StudentDetailPageContent() {
 
                     {/* Main Header Content */}
                     <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-                      <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background text-teal-700 dark:text-teal-300">
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-xl border bg-background text-muted-foreground">
                         <User className="size-6" aria-hidden="true" />
                       </div>
 
@@ -864,7 +911,7 @@ function StudentDetailPageContent() {
                             <span><strong className="text-foreground">{student?.completed_questions || 0}</strong> / {student?.total_questions || 0} Questions</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-muted-foreground">
-                            <CheckCircle className="w-4 h-4 text-green-500" />
+                            <CheckCircle className="w-4 h-4" />
                             <span><strong className="text-foreground">{student?.completed_questions > 0 ? Math.round((student.correct_answers / student.completed_questions) * 100) : 0}%</strong> Correct Rate</span>
                           </div>
                           <div className="flex items-center gap-1.5 text-muted-foreground">
@@ -875,7 +922,7 @@ function StudentDetailPageContent() {
                             <Shield className="w-4 h-4" />
                             <span>
                               {student?.teacher_graded_count > 0
-                                ? <strong className="text-green-600 dark:text-green-400">{student.teacher_graded_count} Teacher Graded</strong>
+                                ? <strong className="text-foreground">{student.teacher_graded_count} Teacher Graded</strong>
                                 : student?.ai_only_count > 0
                                   ? <strong className="text-gray-700 dark:text-muted-foreground">AI Graded</strong>
                                   : <strong className="text-muted-foreground">Pending</strong>
@@ -937,10 +984,10 @@ function StudentDetailPageContent() {
                         {/* Circular Progress */}
                         <div className="relative w-16 h-16 flex-shrink-0">
                           <svg className="w-16 h-16 -rotate-90" viewBox="0 0 64 64">
-                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="6" className="text-gray-200 dark:text-muted-foreground" />
+                            <circle cx="32" cy="32" r="28" fill="none" stroke="currentColor" strokeWidth="6" className="text-muted" />
                             <circle cx="32" cy="32" r="28" fill="none" strokeWidth="6" strokeLinecap="round"
                               strokeDasharray={`${(student?.avg_score || 0) * 1.759} 175.9`}
-                              className={`${(student?.avg_score || 0) >= 80 ? 'text-green-500' : (student?.avg_score || 0) >= 60 ? 'text-yellow-500' : 'text-red-500'}`}
+                              className="text-foreground"
                               stroke="currentColor"
                             />
                           </svg>
@@ -963,28 +1010,28 @@ function StudentDetailPageContent() {
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-sm font-medium text-muted-foreground">Questions</p>
-                        <BookOpen className="w-5 h-5 text-green-500" />
+                        <BookOpen className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span> Correct</span>
+                          <span className="flex items-center gap-1"><StatusDot status="correct" /> Correct</span>
                           <span className="font-bold text-foreground">{student?.correct_answers || 0}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span> Incorrect</span>
+                          <span className="flex items-center gap-1"><StatusDot status="incorrect" /> Incorrect</span>
                           <span className="font-bold text-foreground">{student?.incorrect_answers || 0}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block"></span> Unanswered</span>
+                          <span className="flex items-center gap-1"><StatusDot status="unanswered" /> Unanswered</span>
                           <span className="font-bold text-foreground">{student?.unanswered || 0}</span>
                         </div>
                         {/* Mini bar chart */}
                         <div className="flex h-2 rounded-full overflow-hidden bg-muted mt-1">
                           {(student?.correct_answers || 0) > 0 && (
-                            <div className="bg-green-500 h-full" style={{width: `${(student.correct_answers / student.total_questions) * 100}%`}}></div>
+                            <div className="bg-emerald-500 h-full" style={{width: `${(student.correct_answers / student.total_questions) * 100}%`}}></div>
                           )}
                           {(student?.incorrect_answers || 0) > 0 && (
-                            <div className="bg-red-500 h-full" style={{width: `${(student.incorrect_answers / student.total_questions) * 100}%`}}></div>
+                            <div className="bg-rose-500 h-full" style={{width: `${(student.incorrect_answers / student.total_questions) * 100}%`}}></div>
                           )}
                         </div>
                       </div>
@@ -1007,7 +1054,7 @@ function StudentDetailPageContent() {
                       {moduleData?.max_attempts ? (
                         <>
                           <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
-                            <div className={`h-full rounded-full ${(student?.total_attempts || 1) >= moduleData.max_attempts ? 'bg-red-500' : 'bg-primary text-primary-foreground'}`}
+                            <div className="h-full rounded-full bg-foreground"
                               style={{width: `${Math.min(100, ((student?.total_attempts || 1) / moduleData.max_attempts) * 100)}%`}}
                             ></div>
                           </div>
@@ -1026,19 +1073,19 @@ function StudentDetailPageContent() {
                     <CardContent className="p-5">
                       <div className="flex items-center justify-between mb-3">
                         <p className="text-sm font-medium text-muted-foreground">Grade Status</p>
-                        <GraduationCap className="w-5 h-5 text-orange-500" />
+                        <GraduationCap className="w-5 h-5 text-muted-foreground" />
                       </div>
                       <div className="space-y-2">
                         <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span> Teacher Graded</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-foreground inline-block"></span> Teacher graded</span>
                           <span className="font-bold text-foreground">{student?.teacher_graded_count || 0}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary inline-block text-primary-foreground"></span> AI Only</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground/60 inline-block"></span> AI only</span>
                           <span className="font-bold text-foreground">{student?.ai_only_count || 0}</span>
                         </div>
                         <div className="flex items-center justify-between text-xs">
-                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-gray-400 inline-block"></span> Ungraded</span>
+                          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full border border-muted-foreground/50 inline-block"></span> Ungraded</span>
                           <span className="font-bold text-foreground">{student?.ungraded_count || 0}</span>
                         </div>
                       </div>
@@ -1067,25 +1114,22 @@ function StudentDetailPageContent() {
                               <button
                                 key={attempt.attempt}
                                 onClick={() => setSelectedAttempt(attempt.attempt)}
-                                className={`flex-shrink-0 p-4 rounded-xl border-2 transition-all min-w-[140px] text-left ${
+                                aria-pressed={selectedAttempt === attempt.attempt}
+                                className={`flex-shrink-0 p-4 rounded-xl border transition-colors min-w-[140px] text-left ${
                                   selectedAttempt === attempt.attempt
-                                    ? 'border-gray-400 bg-muted/50 dark:bg-background/30 shadow-md'
-                                    : 'border-border hover:border-border hover:bg-muted/50'
+                                    ? 'border-foreground'
+                                    : 'border-border hover:border-foreground/40'
                                 }`}
                               >
                                 <div className="flex items-center justify-between mb-2">
                                   <span className="text-xs font-semibold text-muted-foreground uppercase">Attempt {attempt.attempt}</span>
                                   {trend && (
-                                    trend === 'up' ? <TrendingUp className="w-4 h-4 text-green-500" /> :
-                                    trend === 'down' ? <TrendingDown className="w-4 h-4 text-red-500" /> :
-                                    <Minus className="w-4 h-4 text-gray-400" />
+                                    trend === 'up' ? <TrendingUp aria-label="Improved" className="w-4 h-4 text-muted-foreground" /> :
+                                    trend === 'down' ? <TrendingDown aria-label="Declined" className="w-4 h-4 text-rose-500" /> :
+                                    <Minus aria-label="No change" className="w-4 h-4 text-muted-foreground" />
                                   )}
                                 </div>
-                                <div className={`text-2xl font-bold ${
-                                  attempt.score >= 80 ? 'text-green-600 dark:text-green-400' :
-                                  attempt.score >= 60 ? 'text-yellow-600 dark:text-yellow-400' :
-                                  'text-red-600 dark:text-red-400'
-                                }`}>
+                                <div className="text-2xl font-semibold tabular-nums text-foreground">
                                   {attempt.score}%
                                 </div>
                                 <div className="text-xs text-muted-foreground mt-1">
@@ -1106,13 +1150,13 @@ function StudentDetailPageContent() {
                     <Card className="overflow-hidden border-border bg-background py-0 gap-0 shadow-none">
                       <button
                         type="button"
-                        className="flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-teal-600 focus-visible:-outline-offset-2"
+                        className="flex w-full items-center justify-between gap-4 p-5 text-left transition-colors hover:bg-muted/40 focus-visible:outline-2 focus-visible:outline-ring focus-visible:-outline-offset-2"
                         aria-expanded={showSurvey}
                         aria-controls="student-survey-details"
                         onClick={() => setShowSurvey(value => !value)}
                       >
                         <span className="flex min-w-0 items-center gap-3">
-                          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300"><ClipboardList className="size-5" /></span>
+                          <span className="flex size-10 shrink-0 items-center justify-center rounded-lg border border-border text-muted-foreground"><ClipboardList className="size-5" /></span>
                           <span><span className="block text-base font-semibold text-foreground">Student feedback survey</span>
                             <span className="mt-1 block text-sm text-muted-foreground">{surveyResponse ? `Submitted on ${new Date(surveyResponse.submitted_at).toLocaleString()}` : 'Not submitted yet'}</span>
                           </span>
@@ -1180,16 +1224,17 @@ function StudentDetailPageContent() {
 
                 {/* Attempt Selector Tabs */}
                 {Object.keys(answersByAttempt).length > 1 && (
-                  <div className="mb-6 bg-muted/50 dark:bg-muted rounded-lg p-2 border border-border ">
-                    <div className="flex gap-2">
+                  <div className="mb-6 inline-flex rounded-lg border border-border p-1" role="group" aria-label="Choose attempt">
+                    <div className="flex flex-wrap gap-1">
                       {Object.keys(answersByAttempt).sort((a, b) => Number(a) - Number(b)).map(attempt => (
                         <button
                           key={attempt}
                           onClick={() => setSelectedAttempt(Number(attempt))}
-                          className={`px-6 py-3 rounded-lg font-semibold text-sm transition-all ${
+                          aria-pressed={selectedAttempt === Number(attempt)}
+                          className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
                             selectedAttempt === Number(attempt)
-                              ? 'bg-primary text-primary-foreground shadow-lg'
-                              : 'bg-card dark:bg-muted text-slate-600 dark:text-foreground hover:bg-muted dark:hover:bg-slate-600'
+                              ? 'bg-foreground text-background'
+                              : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                           }`}
                         >
                           Attempt {attempt}
@@ -1208,11 +1253,10 @@ function StudentDetailPageContent() {
                 <div>
                   {/* Section Header */}
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-bold flex items-center gap-2 text-foreground">
-                      <List className="w-6 h-6" />
-                      Question Analysis
+                    <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                      Answers
                       {Object.keys(answersByAttempt).length > 1 && (
-                        <span className="text-sm font-normal text-muted-foreground ml-1">- Attempt {selectedAttempt}</span>
+                        <span className="text-sm font-normal text-muted-foreground ml-2">Attempt {selectedAttempt}</span>
                       )}
                     </h2>
                     <div className="flex items-center gap-2">
@@ -1244,11 +1288,11 @@ function StudentDetailPageContent() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-sm">
                           <thead>
-                            <tr className="border-b bg-muted/40">
-                              <th className="text-left p-3 font-semibold text-muted-foreground w-10">#</th>
-                              <th className="text-left p-3 font-semibold text-muted-foreground">Question</th>
-                              <th className="text-left p-3 font-semibold text-muted-foreground w-48">Student Answer</th>
-                              <th className="text-center p-3 font-semibold text-muted-foreground w-24">Result</th>
+                            <tr className="border-b border-border text-xs">
+                              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground w-10">#</th>
+                              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground">Question</th>
+                              <th className="text-left px-3 py-2.5 font-medium text-muted-foreground w-48">Student&apos;s answer</th>
+                              <th className="text-center px-3 py-2.5 font-medium text-muted-foreground w-28">Result</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -1271,8 +1315,9 @@ function StudentDetailPageContent() {
                                       )}
                                     </td>
                                     <td className="p-3 text-center">
-                                      <span className={`inline-block px-2 py-0.5 rounded-md text-xs font-bold ${result.color}`}>
-                                        {result.points || result.label}
+                                      <span className="inline-flex items-center gap-2 text-xs">
+                                        <StatusDot status={result.status} />
+                                        <span className="tabular-nums">{result.points || STATUS_STYLES[result.status].label}</span>
                                       </span>
                                     </td>
                                   </tr>
@@ -1284,7 +1329,7 @@ function StudentDetailPageContent() {
                     </Card>
                   ) : (
                     /* ===== DETAILED MODE: Card-based layout ===== */
-                    <div className="space-y-5">
+                    <div className="space-y-6">
                       {studentAnswers
                         .filter(q => q.attempt === selectedAttempt)
                         .map((questionData, index) => {
@@ -1303,360 +1348,181 @@ function StudentDetailPageContent() {
                           }
                           const isMCQ = questionType === 'mcq' || questionType === 'multiple_choice' || hasOptions;
 
-                          const isCorrectish = questionData.is_correct === true || (result.percent && result.percent >= 60);
                           const isUnanswered = questionData.student_answer === null;
+                          let parsedOpts = {};
+                          if (isMCQ && questionData.options) {
+                            try { parsedOpts = typeof questionData.options === 'string' ? JSON.parse(questionData.options) : questionData.options; } catch (e) { /* ignore */ }
+                          }
+                          const readBlanks = (value) => {
+                            if (value && typeof value === 'object') return value.blanks || null;
+                            if (typeof value === 'string') { try { return JSON.parse(value)?.blanks || null; } catch (e) { return null; } }
+                            return null;
+                          };
+                          const blanksData = isMCQ ? null : readBlanks(questionData.raw_student_answer);
+                          const correctBlanks = blanksData ? readBlanks(questionData.raw_correct_answer) : null;
+                          const typeLabel = isMCQ ? 'Multiple choice' : blanksData ? 'Fill in the blank' : questionType === 'essay' ? 'Essay' : 'Short answer';
+                          const studentOptId = questionData.raw_student_answer?.selected_option_id
+                            || questionData.raw_student_answer?.selected_option
+                            || (typeof questionData.raw_student_answer === 'string' && questionData.raw_student_answer.length === 1 ? questionData.raw_student_answer : null);
+                          const correctOptId = questionData.raw_correct_answer?.selected_option_id
+                            || questionData.raw_correct_answer?.selected_option
+                            || (typeof questionData.raw_correct_answer === 'string' ? questionData.raw_correct_answer.trim() : null);
+                          const sameKey = (a, b) => a && b && String(a).toUpperCase() === String(b).toUpperCase();
 
                           return (
-                            <div
+                            <article
                               key={`${questionData.question_id}-${questionData.attempt}`}
-                              className="rounded-xl border border-border bg-card shadow-sm"
+                              aria-label={`Question ${index + 1}`}
+                              className={`overflow-hidden rounded-xl border border-l-4 border-border bg-card shadow-sm ${CARD_EDGE[result.status] || 'border-l-border'}`}
                             >
-                              {/* ── Question header ── */}
-                              <div className="flex items-start gap-3 p-4 pb-3"
-                              >
-                                {/* Number badge */}
-                                <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-xs font-bold ${
-                                  isUnanswered
-                                    ? 'bg-muted text-muted-foreground'
-                                    : isCorrectish
-                                      ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-300'
-                                      : 'bg-rose-100 dark:bg-rose-900/40 text-rose-700 dark:text-rose-300'
-                                }`}>
-                                  {index + 1}
+                              {/* Question + outcome */}
+                              <header className="flex flex-col gap-3 border-b border-border bg-muted/40 px-5 py-4 sm:flex-row sm:items-start">
+                                <div className="flex min-w-0 flex-1 items-start gap-3">
+                                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-foreground text-sm font-bold tabular-nums text-background">
+                                    {index + 1}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <MathText embedLinks className="text-base font-semibold leading-relaxed text-foreground">{questionData.question_text}</MathText>
+                                    {questionData.image_url && (
+                                      <div className="mt-2" style={{ maxHeight: '140px' }}>
+                                        <Image
+                                          src={questionData.image_url}
+                                          alt="Question illustration"
+                                          width={300}
+                                          height={140}
+                                          className="rounded-lg border border-border object-contain"
+                                          style={{ maxHeight: '140px', width: 'auto' }}
+                                        />
+                                      </div>
+                                    )}
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      {typeLabel}
+                                      {questionData.answered_at && ` · ${new Date(questionData.answered_at).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })}`}
+                                    </p>
+                                  </div>
                                 </div>
+                                <div className="flex shrink-0 flex-col gap-1 pl-11 text-sm sm:items-end sm:pl-0">
+                                  <span className="inline-flex items-center gap-2">
+                                    <StatusDot status={result.status} />
+                                    <span className="font-medium">{STATUS_STYLES[result.status].label}</span>
+                                    {result.points && <span className="tabular-nums text-muted-foreground">{result.points}</span>}
+                                  </span>
+                                  {teacherGrade && (
+                                    <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground">
+                                      <GraduationCap className="h-3.5 w-3.5" aria-hidden="true" />
+                                      Teacher grade · {teacherGrade.points_awarded} pts
+                                    </span>
+                                  )}
+                                </div>
+                              </header>
 
-                                {/* Question text */}
-                                <div className="flex-1 min-w-0">
-                                  <MathText embedLinks className="text-sm font-medium text-foreground leading-relaxed">{questionData.question_text}</MathText>
-                                  {questionData.image_url && (
-                                    <div className="mt-2" style={{ maxHeight: '140px' }}>
-                                      <Image
-                                        src={questionData.image_url}
-                                        alt="Question illustration"
-                                        width={300}
-                                        height={140}
-                                        className="rounded-lg border border-border object-contain"
-                                        style={{ maxHeight: '140px', width: 'auto' }}
-                                      />
+                              {/* Answers */}
+                              {!isUnanswered && (
+                                <div className="p-5">
+                                  {isMCQ && Object.keys(parsedOpts).length > 0 ? (
+                                    <ul className="space-y-2" aria-label="Answer options">
+                                      {Object.entries(parsedOpts).map(([key, text]) => {
+                                        const chosen = sameKey(key, studentOptId);
+                                        const right = sameKey(key, correctOptId);
+                                        return (
+                                          <li key={key} className={`flex items-center gap-3 rounded-lg border p-3 ${
+                                            right ? 'bg-green-50 dark:bg-green-950/50 border-green-300 dark:border-green-700'
+                                              : chosen ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800'
+                                              : 'bg-muted/50 dark:bg-muted border-border'
+                                          }`}>
+                                            <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
+                                              right ? 'bg-green-700 text-white' : chosen ? 'bg-rose-600 text-white' : 'bg-gray-300 text-gray-700 dark:bg-gray-600 dark:text-foreground'
+                                            }`}>{key}</span>
+                                            <MathText className={`min-w-0 flex-1 text-sm leading-relaxed break-words ${right || chosen ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}>
+                                              {typeof text === 'string' ? text : text?.text || String(text)}
+                                            </MathText>
+                                            {(chosen || right) && (
+                                              <span className="flex shrink-0 flex-col items-end gap-0.5 text-xs font-bold sm:flex-row sm:items-center sm:gap-3">
+                                                {chosen && !right && <span className="inline-flex items-center gap-1 text-rose-700 dark:text-rose-400"><XCircle className="h-4 w-4" aria-hidden="true" />Student&apos;s choice</span>}
+                                                {chosen && right && <span className="text-green-700 dark:text-green-400">Student&apos;s choice</span>}
+                                                {right && <span className="inline-flex items-center gap-1 text-green-700 dark:text-green-400"><CheckCircle className="h-4 w-4" aria-hidden="true" />Correct answer</span>}
+                                              </span>
+                                            )}
+                                          </li>
+                                        );
+                                      })}
+                                    </ul>
+                                  ) : blanksData ? (
+                                    <div className="space-y-4">
+                                      {Object.entries(blanksData).sort(([a], [b]) => Number(a) - Number(b)).map(([idx, val]) => (
+                                        <div key={idx}>
+                                          <h4 className="mb-2 text-sm font-semibold">Blank {Number(idx) + 1}</h4>
+                                          <div className="grid gap-3 md:grid-cols-2">
+                                            <AnswerBox title="Student&apos;s answer" tone={ANSWER_TONES[result.status] ? result.status : 'neutral'}>
+                                              <MathText className="text-sm leading-relaxed break-words">{val || 'Left empty'}</MathText>
+                                            </AnswerBox>
+                                            {correctBlanks?.[idx] !== undefined && (
+                                              <AnswerBox title="Accepted answer" tone="reference">
+                                                <MathText className="text-sm leading-relaxed break-words">{correctBlanks[idx]}</MathText>
+                                              </AnswerBox>
+                                            )}
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="grid gap-3 md:grid-cols-2">
+                                      <AnswerBox title="Student&apos;s answer" tone={ANSWER_TONES[result.status] ? result.status : 'neutral'}>
+                                        {questionData.student_answer
+                                          ? <MathText className="text-sm leading-relaxed whitespace-pre-wrap break-words">{questionData.student_answer}</MathText>
+                                          : <p className="text-sm italic text-muted-foreground">No answer given</p>}
+                                      </AnswerBox>
+                                      <AnswerBox title="Reference answer" tone="reference">
+                                        {questionData.correct_answer
+                                          ? <MathText className="text-sm leading-relaxed whitespace-pre-wrap break-words">{questionData.correct_answer}</MathText>
+                                          : <p className="text-sm text-muted-foreground">No reference answer for this question.</p>}
+                                      </AnswerBox>
                                     </div>
                                   )}
-                                  <div className="flex items-center gap-2 mt-1.5">
-                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase ${
-                                      isMCQ
-                                        ? 'bg-muted/50 dark:bg-card/30 text-gray-700 dark:text-muted-foreground'
-                                        : questionType === 'essay'
-                                          ? 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400'
-                                          : 'bg-muted/50 dark:bg-card dark:bg-card/30 text-gray-700 dark:text-muted-foreground'
-                                    }`}>
-                                      {isMCQ ? 'MCQ' : questionType === 'essay' ? 'Essay' : 'Short Answer'}
-                                    </span>
-                                    {questionData.answered_at && (
-                                      <span className="text-[11px] text-muted-foreground flex items-center gap-1">
-                                        <Clock className="w-3 h-3" />
-                                        {new Date(questionData.answered_at).toLocaleString()}
-                                      </span>
+                                </div>
+                              )}
+
+                              {/* Feedback, inline and keyboard/touch friendly */}
+                              {hasFeedback && !isUnanswered && (
+                                <details className="group border-t border-border">
+                                  <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+                                    <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180 motion-reduce:transition-none" aria-hidden="true" />
+                                    View feedback
+                                  </summary>
+                                  <div className="space-y-5 px-5 pb-5">
+                                    {teacherGrade && (
+                                      <FeedbackSection title="Teacher's grade">
+                                        <p className="text-base font-semibold tabular-nums">
+                                          {teacherGrade.points_awarded}{feedback?.points_possible ? ` / ${feedback.points_possible}` : ''} points
+                                        </p>
+                                        {teacherGrade.feedback_text && <MathText className="text-sm leading-relaxed whitespace-pre-wrap">{teacherGrade.feedback_text}</MathText>}
+                                      </FeedbackSection>
+                                    )}
+                                    {feedback?.explanation?.trim() && (
+                                      <FeedbackSection title="Feedback">
+                                        <MathText className="text-sm leading-relaxed">{feedback.explanation}</MathText>
+                                      </FeedbackSection>
+                                    )}
+                                    {feedback?.strengths?.length > 0 && (
+                                      <FeedbackSection title="What went well"><FeedbackPoints items={feedback.strengths} /></FeedbackSection>
+                                    )}
+                                    {feedback?.weaknesses?.length > 0 && (
+                                      <FeedbackSection title="Areas to improve"><FeedbackPoints items={feedback.weaknesses} /></FeedbackSection>
+                                    )}
+                                    {feedback?.improvement_hint && (
+                                      <FeedbackSection title="Suggestion">
+                                        <MathText className="text-sm leading-relaxed">{feedback.improvement_hint}</MathText>
+                                      </FeedbackSection>
+                                    )}
+                                    {feedback?.concept_explanation && (
+                                      <FeedbackSection title="Key concept">
+                                        <MathText className="text-sm leading-relaxed">{feedback.concept_explanation}</MathText>
+                                      </FeedbackSection>
                                     )}
                                   </div>
-                                </div>
-
-                                {/* Unanswered indicator */}
-                                {isUnanswered && (
-                                  <span className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-muted text-muted-foreground">
-                                    <HelpCircle className="w-3.5 h-3.5" /> Unanswered
-                                  </span>
-                                )}
-                              </div>
-
-
-                              {/* ── Answer Section with Result ── */}
-                              {questionData.student_answer !== null && (
-                                <div className="px-4 pb-3">
-                                  {isMCQ && questionData.options ? (
-                                    /* === MCQ: All options, color only on correct + student pick === */
-                                    (() => {
-                                      let parsedOpts = {};
-                                      try {
-                                        parsedOpts = typeof questionData.options === 'string' ? JSON.parse(questionData.options) : questionData.options;
-                                      } catch (e) { /* ignore */ }
-                                      const studentOptId = questionData.raw_student_answer?.selected_option_id
-                                        || questionData.raw_student_answer?.selected_option
-                                        || (typeof questionData.raw_student_answer === 'string' && questionData.raw_student_answer.length === 1 ? questionData.raw_student_answer : null);
-                                      const correctOptId = questionData.raw_correct_answer?.selected_option_id
-                                        || questionData.raw_correct_answer?.selected_option
-                                        || (typeof questionData.raw_correct_answer === 'string' ? questionData.raw_correct_answer.trim() : null);
-                                      const optionEntries = Object.entries(parsedOpts);
-
-                                      return (
-                                        <div className="space-y-1.5">
-                                          {optionEntries.map(([key, text]) => {
-                                            const isStudentPick = studentOptId && key.toUpperCase() === studentOptId.toUpperCase();
-                                            const isCorrectOpt = correctOptId && key.toUpperCase() === correctOptId.toUpperCase();
-                                            const isStudentCorrect = isStudentPick && isCorrectOpt;
-                                            const isStudentWrong = isStudentPick && !isCorrectOpt;
-
-                                            return (
-                                              <div key={key} className={`flex items-center gap-3 px-3 py-2 rounded-lg ${
-                                                isStudentCorrect
-                                                  ? 'bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-300 dark:border-emerald-700'
-                                                  : isStudentWrong
-                                                    ? 'bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-700'
-                                                    : isCorrectOpt
-                                                      ? 'bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 border-dashed'
-                                                      : 'border border-transparent'
-                                              }`}>
-                                                {/* Letter */}
-                                                <span className={`w-6 h-6 rounded flex items-center justify-center text-xs font-bold flex-shrink-0 ${
-                                                  isStudentCorrect ? 'bg-emerald-700 text-white'
-                                                  : isStudentWrong ? 'bg-rose-600 text-white'
-                                                  : isCorrectOpt ? 'bg-emerald-100 dark:bg-emerald-800 text-emerald-700 dark:text-emerald-200'
-                                                  : 'text-muted-foreground'
-                                                }`}>
-                                                  {key}
-                                                </span>
-                                                {/* Text */}
-                                                <MathText inline className={`text-sm flex-1 ${
-                                                  isStudentPick || isCorrectOpt ? 'font-medium text-foreground' : 'text-muted-foreground'
-                                                }`}>{text}</MathText>
-                                                {/* Labels */}
-                                                {isStudentCorrect && (
-                                                  <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 flex items-center gap-1 flex-shrink-0">
-                                                    <CheckCircle className="w-3.5 h-3.5" /> Correct
-                                                  </span>
-                                                )}
-                                                {isStudentWrong && (
-                                                  <span className="text-[11px] font-semibold text-rose-600 dark:text-rose-400 flex items-center gap-1 flex-shrink-0">
-                                                    <XCircle className="w-3.5 h-3.5" /> Selected
-                                                  </span>
-                                                )}
-                                                {isCorrectOpt && !isStudentPick && (
-                                                  <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1 flex-shrink-0">
-                                                    <CheckCircle className="w-3.5 h-3.5" /> Correct Answer
-                                                  </span>
-                                                )}
-                                              </div>
-                                            );
-                                          })}
-                                          {/* Result row */}
-                                          <div className="flex items-center justify-end gap-2 pt-1.5">
-                                            {teacherGrade && (
-                                              <span className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30">
-                                                <GraduationCap className="w-3.5 h-3.5" />
-                                                {teacherGrade.points_awarded} pts
-                                              </span>
-                                            )}
-                                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${result.color}`}>
-                                              {isCorrectish ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                                              {result.points || result.label}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()
-                                  ) : (
-                                    /* === Non-MCQ / Fill-in-the-blank === */
-                                    (() => {
-                                      // Detect fill-in-the-blank from raw answer
-                                      const raw = questionData.raw_student_answer;
-                                      let blanksData = null;
-                                      if (raw && typeof raw === 'object' && raw.blanks) {
-                                        blanksData = raw.blanks;
-                                      } else if (typeof raw === 'string') {
-                                        try {
-                                          const parsed = JSON.parse(raw);
-                                          if (parsed?.blanks) blanksData = parsed.blanks;
-                                        } catch (e) { /* not JSON */ }
-                                      }
-
-                                      // Also check raw correct answer for blanks
-                                      const rawCorrect = questionData.raw_correct_answer;
-                                      let correctBlanks = null;
-                                      if (rawCorrect && typeof rawCorrect === 'object' && rawCorrect.blanks) {
-                                        correctBlanks = rawCorrect.blanks;
-                                      } else if (typeof rawCorrect === 'string') {
-                                        try {
-                                          const parsed = JSON.parse(rawCorrect);
-                                          if (parsed?.blanks) correctBlanks = parsed.blanks;
-                                        } catch (e) { /* not JSON */ }
-                                      }
-
-                                      if (blanksData) {
-                                        // Fill-in-the-blank display
-                                        const entries = Object.entries(blanksData).sort(([a], [b]) => Number(a) - Number(b));
-                                        return (
-                                          <div className="space-y-2">
-                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Student&apos;s Answers</p>
-                                            <div className="flex flex-wrap gap-2">
-                                              {entries.map(([idx, val]) => (
-                                                <div key={idx} className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-sm ${
-                                                  isCorrectish
-                                                    ? 'bg-muted/50 dark:bg-background/20 border-border text-gray-700 dark:text-foreground'
-                                                    : 'bg-rose-50 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200'
-                                                }`}>
-                                                  <span className="text-[10px] font-bold text-muted-foreground">Blank {Number(idx) + 1}:</span>
-                                                  <MathText inline className="font-medium">{val || '(empty)'}</MathText>
-                                                </div>
-                                              ))}
-                                            </div>
-                                            {correctBlanks && (
-                                              <>
-                                                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mt-2">Expected Answers</p>
-                                                <div className="flex flex-wrap gap-2">
-                                                  {Object.entries(correctBlanks).sort(([a], [b]) => Number(a) - Number(b)).map(([idx, val]) => (
-                                                    <div key={idx} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-800 text-sm text-emerald-800 dark:text-emerald-200">
-                                                      <span className="text-[10px] font-bold text-muted-foreground">Blank {Number(idx) + 1}:</span>
-                                                      <MathText inline className="font-medium">{val || '(empty)'}</MathText>
-                                                    </div>
-                                                  ))}
-                                                </div>
-                                              </>
-                                            )}
-                                            {/* Result row */}
-                                            <div className="flex items-center justify-end gap-2 pt-1.5">
-                                              {teacherGrade && (
-                                                <span className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30">
-                                                  <GraduationCap className="w-3.5 h-3.5" />
-                                                  {teacherGrade.points_awarded} pts
-                                                </span>
-                                              )}
-                                              <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${result.color}`}>
-                                                {isCorrectish ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                                                {result.points || result.label}
-                                              </div>
-                                            </div>
-                                          </div>
-                                        );
-                                      }
-
-                                      // Regular non-MCQ side by side
-                                      return (
-                                        <div className="space-y-2">
-                                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3">
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 mb-1 flex items-center gap-1">
-                                                <CheckCircle className="w-3 h-3" /> Expected Answer
-                                              </p>
-                                              <MathText className="text-sm text-foreground break-words leading-relaxed">{questionData.correct_answer || 'Not specified'}</MathText>
-                                            </div>
-                                            <div className={`border rounded-lg p-3 ${
-                                              isCorrectish
-                                                ? 'bg-muted/70 dark:bg-background/20 border-border '
-                                                : 'bg-rose-50/70 dark:bg-rose-950/20 border-rose-200 dark:border-rose-800'
-                                            }`}>
-                                              <p className={`text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-1 ${
-                                                isCorrectish ? 'text-gray-700 dark:text-muted-foreground' : 'text-rose-600 dark:text-rose-400'
-                                              }`}>
-                                                <User className="w-3 h-3" /> Student&apos;s Answer
-                                              </p>
-                                              <MathText className="text-sm text-foreground break-words leading-relaxed">{questionData.student_answer}</MathText>
-                                            </div>
-                                          </div>
-                                          {/* Result row */}
-                                          <div className="flex items-center justify-end gap-2 pt-1.5">
-                                            {teacherGrade && (
-                                              <span className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/30">
-                                                <GraduationCap className="w-3.5 h-3.5" />
-                                                {teacherGrade.points_awarded} pts
-                                              </span>
-                                            )}
-                                            <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${result.color}`}>
-                                              {isCorrectish ? <CheckCircle className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                                              {result.points || result.label}
-                                            </div>
-                                          </div>
-                                        </div>
-                                      );
-                                    })()
-                                  )}
-                                </div>
+                                </details>
                               )}
-
-                              {/* ── Feedback on hover ── */}
-                              {hasFeedback && questionData.student_answer !== null && (
-                                <div className="px-4 pb-3">
-                                  <div className="relative inline-block group/feedback">
-                                    {/* Eye icon trigger */}
-                                    <button type="button" className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium text-gray-700 dark:text-foreground cursor-pointer hover:bg-muted/50 dark:hover:bg-background/30 focus-visible:outline-2 focus-visible:outline-primary transition-colors">
-                                      <Eye className="w-3.5 h-3.5" />
-                                      View Feedback
-                                    </button>
-
-                                    {/* Popover — opens to the right */}
-                                    <div className="invisible group-hover/feedback:visible group-focus-within/feedback:visible opacity-0 group-hover/feedback:opacity-100 group-focus-within/feedback:opacity-100 transition-opacity duration-150 absolute left-0 top-full pt-2 sm:left-full sm:top-auto sm:bottom-0 sm:pl-3 sm:pt-0 z-[60] w-[min(500px,calc(100vw-4rem))]">
-                                      {/* Arrow pointing left */}
-                                      <div className="w-3 h-3 bg-card border-l border-b border-border rotate-45 absolute left-[6px] bottom-3 z-10 hidden sm:block"></div>
-                                      <div tabIndex={0} role="region" aria-label="Question feedback" className="rounded-xl border border-border shadow-xl bg-card max-h-[min(450px,60dvh)] overflow-y-auto overscroll-contain [scrollbar-gutter:stable] focus-visible:outline-2 focus-visible:outline-primary">
-                                        <div className="p-4 space-y-3">
-                                          {feedback?.explanation && (
-                                            <div className="bg-muted/50 dark:bg-background/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-blue-900 dark:text-muted-foreground mb-1">Feedback</p>
-                                              <MathText className="text-sm text-gray-700 dark:text-foreground leading-relaxed">{feedback.explanation}</MathText>
-                                            </div>
-                                          )}
-
-                                          {feedback?.strengths && feedback.strengths.length > 0 && (
-                                            <div className="bg-green-50 dark:bg-green-950/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-green-900 dark:text-green-100 mb-2">What you did well</p>
-                                              <ul className="space-y-1">
-                                                {feedback.strengths.map((s, idx) => (
-                                                  <li key={idx} className="text-sm text-green-800 dark:text-green-200 flex items-start gap-2">
-                                                    <span className="mt-1">&bull;</span><MathText inline>{s}</MathText>
-                                                  </li>
-                                                ))}
-                                              </ul>
-                                            </div>
-                                          )}
-
-                                          {feedback?.weaknesses && feedback.weaknesses.length > 0 && (
-                                            <div className="bg-orange-50 dark:bg-orange-950/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-orange-900 dark:text-orange-100 mb-2">Areas to improve</p>
-                                              <ul className="space-y-1">
-                                                {feedback.weaknesses.map((w, idx) => (
-                                                  <li key={idx} className="text-sm text-orange-800 dark:text-orange-200 flex items-start gap-2">
-                                                    <span className="mt-1">&bull;</span><MathText inline>{w}</MathText>
-                                                  </li>
-                                                ))}
-                                              </ul>
-                                            </div>
-                                          )}
-
-                                          {feedback?.improvement_hint && (
-                                            <div className="bg-yellow-50 dark:bg-yellow-950/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-yellow-900 dark:text-yellow-100 mb-1">Suggestion</p>
-                                              <MathText className="text-sm text-yellow-800 dark:text-yellow-200 leading-relaxed">{feedback.improvement_hint}</MathText>
-                                            </div>
-                                          )}
-
-                                          {feedback?.concept_explanation && (
-                                            <div className="bg-muted/50 dark:bg-background/20 p-4 rounded-lg">
-                                              <p className="text-sm font-medium text-gray-900 dark:text-foreground mb-1">Key concept</p>
-                                              <MathText className="text-sm text-gray-700 dark:text-foreground leading-relaxed">{feedback.concept_explanation}</MathText>
-                                            </div>
-                                          )}
-
-                                          {teacherGrade && (
-                                            <div className="bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/20 dark:to-teal-950/20 p-4 rounded-lg border-2 border-emerald-300 dark:border-emerald-700">
-                                              <div className="flex items-center gap-3">
-                                                <div className="w-8 h-8 rounded-full bg-emerald-600 flex items-center justify-center flex-shrink-0">
-                                                  <GraduationCap className="w-4 h-4 text-white" />
-                                                </div>
-                                                <div>
-                                                  <p className="text-sm font-bold text-emerald-900 dark:text-emerald-100">
-                                                    {teacherGrade.points_awarded}{feedback?.points_possible ? ` / ${feedback.points_possible}` : ''} points
-                                                  </p>
-                                                  {teacherGrade.feedback_text && (
-                                                    <p className="text-sm text-gray-700 dark:text-foreground mt-1">{teacherGrade.feedback_text}</p>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
+                            </article>
                           );
                         })}
                     </div>

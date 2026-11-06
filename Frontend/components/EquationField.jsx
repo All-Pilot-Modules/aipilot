@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent } from "@/compon
 import { MathText } from "@/components/MathText";
 import { Eye, EyeOff, Sigma, TriangleAlert } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { equationError } from "@/lib/equationValidation.mjs";
 
 // Scratch pad for symbols/fractions/matrices/etc: a disposable MathLive
 // <math-field> whose own virtual keyboard does the work (fractions, roots,
@@ -16,9 +17,10 @@ import { cn } from "@/lib/utils";
 // hand-picked subset of it), rather than us re-implementing a toolbar.
 // Build the expression visually, hit Insert, and only its LaTeX lands in the
 // field at the cursor — the scratch pad itself is thrown away afterward.
-function MathSymbolPicker({ onInsert }) {
+function MathSymbolPicker({ onInsert, buttonLabel = "Insert equation" }) {
   const [open, setOpen] = useState(false);
   const [ready, setReady] = useState(false);
+  const [insertError, setInsertError] = useState(null);
   const scratchRef = useRef(null);
 
   useEffect(() => {
@@ -36,6 +38,7 @@ function MathSymbolPicker({ onInsert }) {
     const el = scratchRef.current;
     if (!el) return;
     el.value = "";
+    setInsertError(null);
     const raf = requestAnimationFrame(() => {
       el.focus();
       window.mathVirtualKeyboard?.show({ animate: true });
@@ -49,8 +52,14 @@ function MathSymbolPicker({ onInsert }) {
   };
 
   const handleInsert = () => {
-    const latex = scratchRef.current?.value?.trim();
-    if (latex) onInsert(latex);
+    const latex = scratchRef.current?.value?.trim() || "";
+    const error = equationError(latex);
+    if (error) {
+      setInsertError(error);
+      scratchRef.current?.focus();
+      return;
+    }
+    onInsert(latex);
     close();
   };
 
@@ -59,21 +68,22 @@ function MathSymbolPicker({ onInsert }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          tabIndex={-1}
           className="flex h-6 items-center gap-1.5 rounded px-2 text-xs font-medium text-foreground/75 hover:bg-background hover:text-foreground hover:shadow-sm transition-colors"
         >
           <Sigma className="h-3.5 w-3.5" />
-          Insert symbol, fraction, matrix…
+          {buttonLabel}
         </button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-[340px] p-3">
+      <DropdownMenuContent align="start" className="w-[340px] max-w-[calc(100vw-2rem)] p-3">
         <p className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-          Build it below, then insert
+          Build an equation, then insert it into your text
         </p>
         <div className="rounded-md border border-border px-2 py-2">
           {ready ? (
             // eslint-disable-next-line react/no-unknown-property
             <math-field
+              aria-label="Equation"
+              aria-invalid={!!insertError}
               ref={scratchRef}
               math-virtual-keyboard-policy="manual"
               style={{ width: "100%", minHeight: "2.25rem", fontSize: "1.15rem", display: "block" }}
@@ -82,11 +92,12 @@ function MathSymbolPicker({ onInsert }) {
             <p className="text-sm text-muted-foreground">Loading…</p>
           )}
         </div>
+        {insertError && <p role="alert" className="mt-2 text-sm text-red-700 dark:text-red-400">{insertError}</p>}
         <div className="mt-3 flex justify-end gap-2">
           <Button type="button" variant="outline" size="sm" className="h-7" onClick={close}>
             Cancel
           </Button>
-          <Button type="button" size="sm" className="h-7" onClick={handleInsert}>
+          <Button type="button" size="sm" className="h-7" disabled={!ready} onClick={handleInsert}>
             Insert
           </Button>
         </div>
@@ -98,7 +109,9 @@ function MathSymbolPicker({ onInsert }) {
 // One box to type or click-build LaTeX in. The rendered result stays out of
 // the way by default — hover the eye icon for a quick peek, or click it to
 // pin a small preview below while you work on something longer.
-export function EquationField({ label, value, onChange, placeholder, rows = 3, disabled = false, id }) {
+export function EquationField({ label, value, onChange, placeholder, rows = 3, disabled = false, id, onFocus, hideToolbar = false, hideLabel = false, equationTools = false }) {
+  const generatedId = useId();
+  const fieldId = id || generatedId;
   const [hasError, setHasError] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const textareaRef = useRef(null);
@@ -110,7 +123,7 @@ export function EquationField({ label, value, onChange, placeholder, rows = 3, d
   // mounted (just visually hidden) when collapsed so this check keeps working.
   useEffect(() => {
     const raf = requestAnimationFrame(() => {
-      setHasError(!!previewRef.current?.querySelector(".katex-error"));
+      setHasError(/\\placeholder\b/.test(value || "") || !!previewRef.current?.querySelector(".katex-error"));
     });
     return () => cancelAnimationFrame(raf);
   }, [value]);
@@ -147,7 +160,7 @@ export function EquationField({ label, value, onChange, placeholder, rows = 3, d
 
   return (
     <div className="space-y-1">
-      {label && <Label className="text-[13px]">{label}</Label>}
+      {label && <Label htmlFor={fieldId} className={hideLabel ? "sr-only" : "text-[13px]"}>{label}</Label>}
 
       <div
         className={cn(
@@ -155,7 +168,7 @@ export function EquationField({ label, value, onChange, placeholder, rows = 3, d
           disabled && "opacity-60"
         )}
       >
-        <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-1.5 py-1">
+        {!hideToolbar && <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-1.5 py-1">
           {!disabled && <MathSymbolPicker onInsert={insertAtCursor} />}
           {disabled && <span />}
 
@@ -163,7 +176,8 @@ export function EquationField({ label, value, onChange, placeholder, rows = 3, d
             <TooltipTrigger asChild>
               <button
                 type="button"
-                tabIndex={-1}
+                aria-label={showPreview ? "Hide preview" : "Show preview"}
+                aria-pressed={showPreview}
                 onClick={() => setShowPreview((v) => !v)}
                 className={cn(
                   "flex h-6 w-6 flex-shrink-0 items-center justify-center rounded transition-colors",
@@ -181,9 +195,10 @@ export function EquationField({ label, value, onChange, placeholder, rows = 3, d
               {hasError ? "LaTeX error — click to see what's broken" : preview}
             </TooltipContent>
           </Tooltip>
-        </div>
+        </div>}
         <Textarea
-          id={id}
+          onFocus={onFocus}
+          id={fieldId}
           ref={textareaRef}
           value={value || ""}
           onChange={(e) => onChange(e.target.value)}
@@ -191,8 +206,13 @@ export function EquationField({ label, value, onChange, placeholder, rows = 3, d
           rows={rows}
           disabled={disabled}
           spellCheck={true}
-          className="rounded-none border-0 font-mono text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
+          className={cn("rounded-none border-0 text-sm shadow-none focus-visible:ring-0 focus-visible:ring-offset-0", rows === 1 && "min-h-[44px]")}
         />
+        {equationTools && !disabled && (
+          <div className="border-t border-emerald-100 bg-emerald-50/60 px-2 py-2 dark:border-emerald-900 dark:bg-emerald-950/30">
+            <MathSymbolPicker onInsert={insertAtCursor} buttonLabel="Add equation" />
+          </div>
+        )}
       </div>
 
       <div
@@ -212,7 +232,9 @@ export function EquationField({ label, value, onChange, placeholder, rows = 3, d
       {hasError && (
         <p className="flex items-center gap-1.5 text-xs text-red-600 dark:text-red-400">
           <TriangleAlert className="h-3.5 w-3.5 flex-shrink-0" />
-          Part of this didn&apos;t render — check the LaTeX for a typo.
+          {/\\placeholder\b/.test(value || "")
+            ? "This equation has empty boxes. Replace each \\placeholder{} with a value, or rebuild it with Insert equation."
+            : "Part of this didn’t render — check the LaTeX for a typo."}
         </p>
       )}
     </div>

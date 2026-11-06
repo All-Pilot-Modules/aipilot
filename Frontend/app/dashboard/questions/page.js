@@ -1152,18 +1152,18 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                             type="button"
                             variant="outline"
                             size="sm"
-                            className="h-7 gap-1.5 text-xs"
-                            onClick={() => setMathEditorOpen(true)}
+                            className="h-8 gap-1.5 border-0 bg-transparent px-2 text-xs text-emerald-700 shadow-none hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                            title="Optional: add equations to the question or answers" onClick={() => setMathEditorOpen(true)}
                           >
                             <Sigma className="h-3.5 w-3.5" />
-                            Math Question Editor
+                            Add equations
                           </Button>
                         </div>
                         <Textarea
                           id="text"
                           value={questionForm.text}
                           onChange={(e) => handleQuestionTextChange(e.target.value)}
-                          placeholder="Enter your question... use $x^2$ for inline math or $$x^2$$ for a block equation"
+                          placeholder="Type your question here…"
                           required
                           rows={3}
                           className="mt-1"
@@ -2047,11 +2047,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                               : "Use the form on the left to create your first question"
                             }
                           </p>
-                          <div className="text-xs text-muted-foreground/70 mb-4 p-2 bg-muted/30 rounded">
-                            Debug: Total questions: {questions.length}, Filtered: {filteredQuestions.length}<br/>
-                            Module: {currentModule?.name} (ID: {currentModule?.id})<br/>
-                            Search: &quot;{searchTerm}&quot;, Filter: {filterType}
-                          </div>
+
                         </CardContent>
                       </Card>
                     )}
@@ -2113,18 +2109,18 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-7 gap-1.5 text-xs"
-                      onClick={() => setMathEditorOpen(true)}
+                      className="h-8 gap-1.5 border-0 bg-transparent px-2 text-xs text-emerald-700 shadow-none hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
+                      title="Optional: add equations to the question or answers" onClick={() => setMathEditorOpen(true)}
                     >
                       <Sigma className="h-3.5 w-3.5" />
-                      Math Question Editor
+                      Add equations
                     </Button>
                   </div>
                   <Textarea
                     id="edit-text"
                     value={questionForm.text}
                     onChange={(e) => handleQuestionTextChange(e.target.value)}
-                    placeholder="Enter your question... use $x^2$ for inline math or $$x^2$$ for a block equation"
+                    placeholder="Type your question here…"
                     required
                     rows={3}
                     className="mt-1"
@@ -2632,9 +2628,10 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
           questionForm={questionForm}
           setQuestionForm={setQuestionForm}
           onTypeChange={handleQuestionTypeChange}
-          submitLabel={isEditOpen ? "Update Question" : "Create Question"}
+          submitLabel={isEditOpen ? "Update question" : "Create question"}
           isSubmitting={isMathEditorSubmitting}
           onSubmit={async () => {
+            if (isMathEditorSubmitting) return;
             setIsMathEditorSubmitting(true);
             try {
               const success = isEditOpen ? await handleEdit() : await handleCreate();

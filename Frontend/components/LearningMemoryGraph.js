@@ -1,84 +1,151 @@
 'use client';
 import { useMemo, useState } from 'react';
-import { buildLearningMemoryGraph } from '@/lib/learningMemoryGraph';
+import { Search, X } from 'lucide-react';
+import { buildLearningMemoryGraph, layoutLearningMemoryTree, SIGNAL_ORDER } from '@/lib/learningMemoryGraph';
 import { MathText } from '@/components/MathText';
-import { Button } from '@/components/ui/button';
 
-const colors = { memory: '#0f766e', demonstrated: '#0d9488', difficulty: '#d97706', mixed: '#8b5cf6', uncertain: '#64748b', practice: '#2563eb', attempt: '#64748b' };
-const labels = { memory: 'Student learning memory', demonstrated: 'Demonstrated in this attempt', difficulty: 'Difficulty observed', mixed: 'Mixed evidence', uncertain: 'Uncertain evidence', practice: 'Suggested practice', attempt: 'Assignment attempt' };
+// Colour is reserved for what the evidence says; structure stays neutral.
+const SIGNALS = {
+  demonstrated: { label: 'Showed understanding', color: '#10b981' },
+  difficulty: { label: 'Struggled', color: '#f59e0b' },
+  practice: { label: 'Practice next', color: '#0ea5e9' },
+  mixed: { label: 'Mixed evidence', color: '#94a3b8' },
+  uncertain: { label: 'Unclear evidence', color: '#94a3b8' },
+};
+const ROW = 64, GAP = 20, CARD_H = 52;
+const ATTEMPT_W = 132, LEAF_X = 220;
+
+const branch = (x1, y1, x2, y2) => {
+  const mid = (x1 + x2) / 2;
+  return `M${x1} ${y1} C${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+};
+const formatDate = date => new Date(date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
 export default function LearningMemoryGraph({ entries, onAttempt }) {
   const graph = useMemo(() => buildLearningMemoryGraph(entries), [entries]);
+  const tree = useMemo(() => layoutLearningMemoryTree(graph, { row: ROW, gap: GAP }), [graph]);
   const [selectedId, setSelectedId] = useState(null);
   const [search, setSearch] = useState('');
-  const [zoom, setZoom] = useState(1);
-  const [pan, setPan] = useState({ x: 0, y: 0 });
-  const selected = graph.nodes.find(node => node.id === selectedId && node.kind !== 'memory');
-  const matches = graph.nodes.filter(node => node.label.toLowerCase().includes(search.toLowerCase()));
-  const matchIds = new Set(matches.map(node => node.id));
-  const lookup = new Map(graph.nodes.map(node => [node.id, node]));
-  const bounds = useMemo(() => {
-    if (!graph.nodes.length) return { x: 0, y: 0, w: 800, h: 520 };
-    const xs = graph.nodes.map(n => n.x), ys = graph.nodes.map(n => n.y);
-    const w = Math.max(800, Math.max(...xs) - Math.min(...xs) + 260);
-    const h = Math.max(520, Math.max(...ys) - Math.min(...ys) + 140);
-    return { x: (Math.min(...xs) + Math.max(...xs) - w) / 2, y: (Math.min(...ys) + Math.max(...ys) - h) / 2, w, h };
-  }, [graph]);
-  const visibleLabels = useMemo(() => {
-    const placed = [], visible = new Set();
-    const ordered = [...graph.nodes].sort((a, b) =>
-      Number(b.id === selectedId) - Number(a.id === selectedId) ||
-      Number(b.kind === 'memory') - Number(a.kind === 'memory') || Number(b.kind === 'attempt') - Number(a.kind === 'attempt'));
-    for (const node of ordered) {
-      const width = Math.min(node.label.length, 30) * 10 / zoom;
-      if (!placed.some(p => Math.abs(node.x - p.x) < (width + p.width) / 2 + 12 / zoom && Math.abs(node.y - p.y) < 38 / zoom)) {
-        placed.push({ x: node.x, y: node.y, width }); visible.add(node.id);
-      }
-    }
-    return visible;
-  }, [graph, selectedId, zoom]);
-  const view = `${bounds.x + bounds.w * (1 - 1 / zoom) / 2 + pan.x} ${bounds.y + bounds.h * (1 - 1 / zoom) / 2 + pan.y} ${bounds.w / zoom} ${bounds.h / zoom}`;
-  const select = node => { setSelectedId(node.id); setPan({ x: node.x - (bounds.x + bounds.w / 2), y: node.y - (bounds.y + bounds.h / 2) }); };
-  return <div className="mt-5 overflow-hidden rounded-xl border border-border">
-    <div className="flex flex-wrap items-center gap-2 border-b bg-muted/20 p-3">
-      <input aria-label="Search learning memory" placeholder="Find a concept or observation…" value={search} onChange={e => setSearch(e.target.value)} className="min-w-0 flex-1 rounded-md border bg-background px-3 py-2 text-sm sm:min-w-60" />
-      <Button variant="outline" size="sm" aria-label="Zoom out" disabled={zoom <= 0.5} onClick={() => setZoom(z => Math.max(0.5, z / 1.3))}>−</Button>
-      <span className="w-12 text-center text-xs text-muted-foreground">{Math.round(zoom * 100)}%</span>
-      <Button variant="outline" size="sm" aria-label="Zoom in" disabled={zoom >= 4} onClick={() => setZoom(z => Math.min(4, z * 1.3))}>+</Button>
-      <Button variant="ghost" size="sm" onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }}>Fit map</Button>
-    </div>
-    <div className="grid lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="min-w-0 bg-muted/60 dark:bg-background/40">
-        <svg viewBox={view} className="h-[420px] w-full sm:h-[520px]" role="group" aria-label="Learning memory graph. Select a node to inspect evidence.">
-          {graph.edges.map(edge => { const a = lookup.get(edge.source), b = lookup.get(edge.target); return <line key={`${a.id}:${b.id}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="currentColor" className="text-slate-300 dark:text-muted-foreground" strokeWidth={selectedId === a.id || selectedId === b.id ? 2 : 1} />; })}
-          {graph.nodes.map(node => <g key={node.id} transform={`translate(${node.x} ${node.y})`} role="button" tabIndex={0} aria-label={`${node.label}. ${labels[node.signal]}. ${node.records.length} observations`} aria-pressed={selectedId === node.id} onClick={() => setSelectedId(node.id)} onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setSelectedId(node.id); } }} className="cursor-pointer outline-none focus:stroke-teal-500" opacity={search && !matchIds.has(node.id) ? 0.2 : 1}>
-            <title>{node.label}</title>
-            <circle r="22" fill="transparent" />
-            <circle r={node.kind === 'memory' ? 22 : node.kind === 'attempt' ? 13 : 9 + Math.min(node.records.length, 5)} fill={colors[node.signal]} stroke={selectedId === node.id ? 'currentColor' : 'transparent'} strokeWidth="3" />
-            {visibleLabels.has(node.id) && <text y={node.kind === 'memory' ? 40 : 28} textAnchor="middle" fill="currentColor" stroke="none" className="text-[18px] font-medium">{node.label.length > 30 ? `${node.label.slice(0, 28)}…` : node.label}</text>}
-          </g>)}
-        </svg>
-        <div className="flex flex-wrap items-center gap-2 px-3 pb-3" aria-label="Pan map">
-          {[['←', -90, 0, 'Pan left'], ['↑', 0, -90, 'Pan up'], ['↓', 0, 90, 'Pan down'], ['→', 90, 0, 'Pan right']].map(([icon, x, y, label]) => <Button key={label} variant="outline" size="sm" aria-label={label} onClick={() => setPan(p => ({ x: p.x + x / zoom, y: p.y + y / zoom }))}>{icon}</Button>)}
-          <span className="text-xs text-muted-foreground">Select any dot for details. Zoom in to reveal more labels.</span>
-        </div>
+  const [hidden, setHidden] = useState(() => new Set());
+
+  const counts = useMemo(() => {
+    const c = {};
+    tree.leaves.forEach(({ node }) => { c[node.signal] = (c[node.signal] || 0) + 1; });
+    return c;
+  }, [tree]);
+  const attemptY = new Map(tree.attempts.map(a => [a.node.id, a.y]));
+  const query = search.trim().toLowerCase();
+  const isVisible = node => !hidden.has(node.signal) && (!query || node.label.toLowerCase().includes(query));
+  const selected = graph.nodes.find(n => n.id === selectedId);
+  const linked = useMemo(() => {
+    if (!selectedId) return null;
+    const ids = new Set([selectedId]);
+    graph.edges.forEach(e => { if (e.source === selectedId) ids.add(e.target); if (e.target === selectedId) ids.add(e.source); });
+    return ids;
+  }, [graph, selectedId]);
+  const dimmed = node => !isVisible(node) || (linked && !linked.has(node.id));
+  const toggleSignal = signal => setHidden(prev => {
+    const next = new Set(prev);
+    next.has(signal) ? next.delete(signal) : next.add(signal);
+    return next;
+  });
+  const choose = id => setSelectedId(current => (current === id ? null : id));
+  const visibleCount = tree.leaves.filter(l => isVisible(l.node)).length;
+
+  return <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card">
+    {/* Toolbar: search + signal filters (doubles as the legend) */}
+    <div className="flex flex-col gap-3 border-b border-border p-3 lg:flex-row lg:items-center">
+      <div className="relative min-w-0 lg:w-72">
+        <Search aria-hidden="true" className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <input aria-label="Search learning memory" placeholder="Find a concept" value={search} onChange={e => setSearch(e.target.value)}
+          className="h-9 w-full rounded-md border border-input bg-background pl-9 pr-8 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" />
+        {search && <button aria-label="Clear search" onClick={() => setSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-0.5 text-muted-foreground hover:text-foreground"><X className="h-4 w-4" /></button>}
       </div>
-      <aside className="min-w-0 border-t p-4 lg:border-l lg:border-t-0" aria-label="Memory evidence">
+      <div role="group" aria-label="Show evidence types" className="flex flex-wrap gap-1.5">
+        {SIGNAL_ORDER.filter(s => counts[s]).map(signal => {
+          const on = !hidden.has(signal);
+          return <button key={signal} aria-pressed={on} onClick={() => toggleSignal(signal)}
+            className={`inline-flex h-8 items-center gap-2 rounded-full border px-3 text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${on ? 'border-border bg-background text-foreground' : 'border-dashed border-border bg-transparent text-muted-foreground line-through'}`}>
+            <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: on ? SIGNALS[signal].color : 'transparent', boxShadow: on ? 'none' : `inset 0 0 0 1px ${SIGNALS[signal].color}` }} />
+            {SIGNALS[signal].label}
+            <span className="tabular-nums text-muted-foreground">{counts[signal]}</span>
+          </button>;
+        })}
+      </div>
+    </div>
+
+    <div className="grid lg:grid-cols-[minmax(0,1fr)_320px]">
+      {/* Tree */}
+      <div className="max-h-[560px] min-w-0 overflow-auto p-4 sm:p-5">
+        <div className="relative min-w-[560px]" style={{ height: tree.height }}>
+          <svg aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 overflow-visible" width={LEAF_X} height={tree.height}>
+            {tree.leaves.flatMap(({ node, parents, y }) => parents.map(parentId => {
+              const active = linked?.has(node.id) && linked?.has(parentId);
+              return <path key={`${parentId}:${node.id}`} d={branch(ATTEMPT_W, attemptY.get(parentId), LEAF_X, y)} fill="none"
+                stroke={active ? SIGNALS[node.signal].color : 'currentColor'} strokeWidth={active ? 2 : 1.25}
+                className={`text-border transition-opacity ${dimmed(node) && !active ? 'opacity-30' : ''}`} />;
+            }))}
+          </svg>
+
+          {tree.attempts.map(({ node, y }) => {
+            const record = node.records[0];
+            const isSelected = selectedId === node.id;
+            return <button key={node.id} onClick={() => choose(node.id)} aria-pressed={isSelected}
+              aria-label={`Attempt ${record.attempt}, ${formatDate(record.date)}`}
+              className={`absolute left-0 flex flex-col justify-center rounded-lg border px-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isSelected ? 'border-foreground bg-foreground text-background' : 'border-border bg-background hover:border-foreground/40'} ${linked && !linked.has(node.id) ? 'opacity-50' : ''}`}
+              style={{ top: y - CARD_H / 2, height: CARD_H, width: ATTEMPT_W }}>
+              <span className="text-sm font-medium">Attempt {record.attempt}</span>
+              <span className={`text-xs ${isSelected ? 'text-background/70' : 'text-muted-foreground'}`}>{formatDate(record.date)}</span>
+            </button>;
+          })}
+
+          {tree.leaves.map(({ node, parents, y }) => {
+            const isSelected = selectedId === node.id;
+            const signal = SIGNALS[node.signal];
+            return <button key={node.id} onClick={() => choose(node.id)} aria-pressed={isSelected}
+              aria-label={`${node.label}. ${signal.label}. Seen in ${parents.length} ${parents.length === 1 ? 'attempt' : 'attempts'}.`}
+              title={node.label}
+              className={`absolute right-0 flex items-center gap-3 rounded-lg border px-3 text-left transition-[opacity,border-color] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isSelected ? 'border-foreground shadow-sm' : 'border-border hover:border-foreground/40'} bg-background ${dimmed(node) && !isSelected ? 'opacity-35' : ''}`}
+              style={{ top: y - CARD_H / 2, height: CARD_H, left: LEAF_X }}>
+              <span aria-hidden="true" className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: signal.color }} />
+              <span className="line-clamp-2 min-w-0 flex-1 text-[13px] leading-snug">{node.label}</span>
+              {parents.length > 1 && <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[11px] tabular-nums text-muted-foreground">{parents.length} attempts</span>}
+            </button>;
+          })}
+        </div>
+        {visibleCount === 0 && <p className="mt-2 text-sm text-muted-foreground">Nothing matches. Clear the search or turn an evidence type back on.</p>}
+      </div>
+
+      {/* Evidence panel */}
+      <aside aria-label="Memory evidence" aria-live="polite" className="min-w-0 border-t border-border p-5 lg:border-l lg:border-t-0">
         {selected ? <>
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{selected.kind === 'concept' ? 'Concept evidence' : selected.kind === 'attempt' ? 'Assignment memory' : 'Journal observation'}</p>
-          <h3 className="mt-2 break-words text-base font-semibold"><MathText>{selected.label}</MathText></h3>
-          <p className="mt-2 text-xs text-muted-foreground">{selected.records.length} recorded {selected.records.length === 1 ? 'observation' : 'observations'}. These are evidence, not a mastery rating.</p>
-          <ol className="mt-4 max-h-[380px] space-y-5 overflow-y-auto pr-2">{selected.records.map((record, i) => <li key={`${record.id}:${i}`} className="border-t pt-3 text-sm">
-            <p className="mb-2 text-xs text-muted-foreground">{new Date(record.date).toLocaleDateString()} · Attempt {record.attempt}</p>
-            {record.detail && <p className="mb-2 text-xs font-medium" style={{ color: colors[record.detail.signal] }}>{labels[record.detail.signal]}</p>}
-            <MathText>{record.detail?.observation || record.observations.summary}</MathText>
-            <p className="mt-2 text-xs text-muted-foreground">{record.detail?.answer_ids?.length ?? record.source_answer_ids?.length ?? 0} supporting answers{selected.kind === 'observation' ? ' · assignment-level evidence' : ''}</p>
-            <button className="mt-2 text-teal-700 underline underline-offset-4 dark:text-teal-300" onClick={() => onAttempt?.(record.attempt)}>View attempt {record.attempt} answers</button>
-          </li>)}</ol>
-        </> : <><h3 className="font-medium">Explore this student’s learning</h3><p className="mt-2 text-sm text-muted-foreground">Select a node to see what was observed, when it happened, and the assignment behind it.</p><p className="mt-3 text-sm text-muted-foreground">Shared concepts connect across attempts. Older journals appear as separate observations until concept evidence is available.</p></>}
+          <p className="text-xs text-muted-foreground">{selected.kind === 'attempt' ? 'Attempt summary' : selected.kind === 'concept' ? 'Concept' : 'Observation'}</p>
+          <h3 className="mt-1 break-words font-semibold leading-snug"><MathText>{selected.label}</MathText></h3>
+          {selected.kind !== 'attempt' && <p className="mt-2 text-xs text-muted-foreground">
+            Recorded {selected.records.length} {selected.records.length === 1 ? 'time' : 'times'}. This is evidence from feedback, not a mastery score.
+          </p>}
+          <ol className="mt-4 max-h-[420px] space-y-4 overflow-y-auto">
+            {selected.records.map((record, i) => <li key={`${record.id}:${i}`} className="border-t border-border pt-3 text-sm">
+              <div className="mb-1.5 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>Attempt {record.attempt} · {formatDate(record.date)}</span>
+                {record.detail && <span className="inline-flex items-center gap-1.5">
+                  <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ background: SIGNALS[record.detail.signal]?.color }} />
+                  {SIGNALS[record.detail.signal]?.label}
+                </span>}
+              </div>
+              <MathText>{record.detail?.observation || record.observations.summary}</MathText>
+              <div className="mt-2 flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                <span>{record.detail?.answer_ids?.length ?? record.source_answer_ids?.length ?? 0} supporting answers</span>
+                <button className="font-medium text-foreground underline underline-offset-4 hover:no-underline" onClick={() => onAttempt?.(record.attempt)}>View answers</button>
+              </div>
+            </li>)}
+          </ol>
+        </> : <>
+          <h3 className="font-medium">Select a card to see the evidence</h3>
+          <p className="mt-2 text-sm text-muted-foreground">Each branch links an attempt to something its feedback recorded. When a concept comes up in more than one attempt, branches from each attempt meet at the same card.</p>
+          <p className="mt-3 text-sm text-muted-foreground">{tree.attempts.length} {tree.attempts.length === 1 ? 'attempt' : 'attempts'} · {tree.leaves.length} observations</p>
+        </>}
       </aside>
     </div>
-    <div className="flex flex-wrap gap-x-4 gap-y-2 border-t px-4 py-3 text-xs text-muted-foreground">{Object.entries(labels).map(([key, label]) => <span key={key} className="inline-flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: colors[key] }} />{label}</span>)}</div>
-    <details className="border-t px-4 py-3 text-sm"><summary className="cursor-pointer">Browse nodes as a list ({matches.length})</summary><ul className="mt-3 max-h-64 space-y-2 overflow-y-auto">{matches.map(node => <li key={node.id}><button onClick={() => select(node)} className="text-left text-teal-700 underline underline-offset-4 dark:text-teal-300">{node.label}</button></li>)}</ul>{!matches.length && <p className="mt-2 text-muted-foreground">No matching concepts or observations.</p>}</details>
   </div>;
 }

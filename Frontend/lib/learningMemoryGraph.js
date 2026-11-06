@@ -56,3 +56,35 @@ export function buildLearningMemoryGraph(entries = []) {
   });
   return { nodes, edges };
 }
+
+// Signals in reading order: what went well, then what needs work, then what to do next.
+export const SIGNAL_ORDER = ['demonstrated', 'mixed', 'uncertain', 'difficulty', 'practice'];
+
+// Left-to-right tree: attempts → evidence. Each evidence card gets one row under the
+// earliest attempt that recorded it; later attempts still link to it, so shared
+// concepts show converging branches instead of duplicate cards.
+export function layoutLearningMemoryTree(graph, { row = 64, gap = 20 } = {}) {
+  const attempts = graph.nodes.filter(n => n.kind === 'attempt')
+    .sort((a, b) => a.records[0].attempt - b.records[0].attempt || new Date(a.records[0].date) - new Date(b.records[0].date));
+  const order = new Map(attempts.map((a, i) => [a.id, i]));
+  const parents = new Map();
+  for (const edge of graph.edges) {
+    if (!order.has(edge.source)) continue;
+    if (!parents.has(edge.target)) parents.set(edge.target, []);
+    parents.get(edge.target).push(edge.source);
+  }
+  const leaves = graph.nodes.filter(n => n.kind === 'concept' || n.kind === 'observation').map(node => {
+    const ids = (parents.get(node.id) || []).sort((a, b) => order.get(a) - order.get(b));
+    return { node, parents: ids, primary: ids[0] };
+  }).sort((a, b) => order.get(a.primary) - order.get(b.primary)
+    || SIGNAL_ORDER.indexOf(a.node.signal) - SIGNAL_ORDER.indexOf(b.node.signal));
+  let y = 0;
+  const placedAttempts = attempts.map((attempt, i) => {
+    const own = leaves.filter(l => l.primary === attempt.id);
+    if (i > 0) y += gap;
+    if (!own.length) { const slot = y + row / 2; y += row; return { node: attempt, y: slot }; }
+    own.forEach(l => { l.y = y + row / 2; y += row; });
+    return { node: attempt, y: (own[0].y + own[own.length - 1].y) / 2 };
+  });
+  return { attempts: placedAttempts, leaves, height: Math.max(y, row) };
+}

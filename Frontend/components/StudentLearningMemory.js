@@ -19,8 +19,8 @@ export default function StudentLearningMemory({ moduleId, studentId, onAttempt }
     return () => {current = false;};
   }, [moduleId, studentId, revision]);
   return <section className="my-6 rounded-xl border bg-background p-5 sm:p-6" aria-label="AI learning history">
-    <div className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-semibold">Learning memory</h2><p className="mt-1 text-sm text-muted-foreground">A connected view of observed learning across assignments. Each connection is backed by recorded evidence, not a model of the student’s thoughts.</p></div><Button variant="outline" size="sm" onClick={() => setRevision(v=>v+1)}>Refresh memory</Button></div>
-    {error ? <p role="alert" className="mt-4 text-sm text-red-600 dark:text-red-300">{error}</p> : !data ? <p role="status" className="mt-4 text-sm text-muted-foreground">Loading learning history…</p> : <>
+    <div className="flex flex-wrap justify-between gap-3"><div><h2 className="text-xl font-semibold">Learning memory</h2><p className="mt-1 text-sm text-muted-foreground">What feedback recorded across this student’s attempts. Every branch points to real evidence.</p></div><Button variant="outline" size="sm" className="self-start" onClick={() => setRevision(v=>v+1)}>Refresh</Button></div>
+    {error ? <p role="alert" className="mt-4 text-sm text-destructive">{error}</p> : !data ? <p role="status" className="mt-4 text-sm text-muted-foreground">Loading learning history…</p> : <>
       {data.entries.length > 0 && <LearningMemoryGraph key={`${moduleId}:${studentId}:${revision}`} entries={data.entries.slice(0, 20)} onAttempt={onAttempt} />}
       {data.entries.length > 20 && <p className="mt-2 text-xs text-muted-foreground">The map shows the latest 20 attempts. Earlier entries remain in the journal below.</p>}
       {data.pending_entries > 0 && <p className="my-4 text-sm text-muted-foreground">{data.pending_entries} assignment entries awaiting complete feedback or memory generation.</p>}

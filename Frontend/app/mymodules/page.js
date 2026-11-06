@@ -25,6 +25,9 @@ import AssignmentFeaturesSelector from "@/components/AssignmentFeaturesSelector"
 import RubricQuickSelector from "@/components/rubric/RubricQuickSelector";
 import { LoadingSpinner } from "@/components/LoadingSpinner";
 
+// Shared raised surface for the creation panel and existing modules.
+const raisedCard = "rounded-2xl border border-border bg-card shadow-[0_3px_0_0_rgba(15,23,42,0.10),0_10px_24px_-6px_rgba(15,23,42,0.16),inset_0_1px_0_0_rgba(255,255,255,0.85)] dark:shadow-[0_3px_0_0_rgba(0,0,0,0.45),0_12px_28px_-6px_rgba(0,0,0,0.45),inset_0_1px_0_0_rgba(255,255,255,0.08)]";
+
 export default function MyModules() {
   const { user, loading, isAuthenticated } = useAuth();
   const router = useRouter();
@@ -249,7 +252,7 @@ export default function MyModules() {
   if (user && user.role === 'student') return null;
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background [--ring:var(--color-emerald-600)] dark:[--ring:var(--color-emerald-400)] [&_:focus-visible]:outline-emerald-600 dark:[&_:focus-visible]:outline-emerald-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <header className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
           <div>
@@ -266,9 +269,9 @@ export default function MyModules() {
           {/* Create Module Form - Left Side */}
           <div className="lg:col-span-1">
             <div className="space-y-6">
-              <div className="relative overflow-hidden rounded-2xl sticky top-6">
+              <div className="relative rounded-2xl sticky top-6">
 
-                <Card className="shadow-sm border border-border bg-card">
+                <Card className={raisedCard}>
                   <CardHeader className="px-5 pt-5 pb-0">
                     <CardTitle className="text-lg font-semibold tracking-tight">New module</CardTitle>
                     <p className="text-xs text-muted-foreground">Start with a name. Customize as you go.</p>
@@ -336,7 +339,7 @@ export default function MyModules() {
                     <Button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-full h-11 rounded-xl text-sm font-semibold"
+                      className="w-full h-11 rounded-xl bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-700 dark:hover:bg-emerald-600 text-sm font-semibold"
                     >
                       {isSubmitting ? (
                         <>
@@ -381,7 +384,7 @@ export default function MyModules() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {modules.map((module) => (
-                  <Card key={module.id} className="group rounded-2xl border border-border bg-card shadow-none hover:border-primary/20 hover:shadow-sm transition-[border-color,box-shadow] duration-200">
+                  <Card key={module.id} className={`group ${raisedCard}`}>
                     <CardContent className="p-5">
                       <div className="space-y-4">
                         {/* Header */}
@@ -469,7 +472,7 @@ export default function MyModules() {
                         {/* Actions */}
                         <div className="pt-4 border-t border-border">
                           <div className="space-y-2">
-                            <Button asChild size="lg" className="w-full h-10 rounded-lg bg-primary hover:bg-primary/90 text-sm font-medium shadow-none">
+                            <Button asChild size="lg" className="w-full h-10 rounded-lg bg-emerald-700 text-white hover:bg-emerald-800 dark:bg-emerald-700 dark:hover:bg-emerald-600 text-sm font-medium shadow-none">
                               <Link href={`/dashboard?module=${encodeURIComponent(module.name)}`}>
                                 Manage Module
                               </Link>
