@@ -1,6 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-test('teacher creates a question directly inside the math workspace', async ({ page, context }) => {
+test('teacher creates a question directly inside the math workspace', async ({ page, context }, testInfo) => {
   const token = `e30.${Buffer.from(JSON.stringify({ sub: 'teacher', exp: 4102444800 })).toString('base64url')}.test`;
   await context.addCookies([{ name: 'token', value: token, url: 'http://127.0.0.1:3100' }]);
   await page.addInitScript(() => sessionStorage.setItem('user', JSON.stringify({ id: 'teacher', name: 'Teacher', can_create_modules: true })));
@@ -32,4 +32,14 @@ test('teacher creates a question directly inside the math workspace', async ({ p
   expect(saved.text).toBe('What is $2 + 2$?');
   expect(saved.options.A).toBe('$4$');
   expect(saved.correct_option_id).toBe('A');
+  await page.getByRole('button', { name: 'Export', exact: true }).click();
+  const downloadPromise = page.waitForEvent('download');
+  await page.getByRole('menuitem', { name: 'Export as RTF (opens in Word)' }).click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(/\.rtf$/);
+  const path = testInfo.outputPath('questions.rtf');
+  await download.saveAs(path);
+  await page.getByRole('button', { name: 'Import', exact: true }).click();
+  await page.getByLabel('Document file', { exact: true }).setInputFiles(path);
+  await expect(page.getByRole('button', { name: 'Upload testbank', exact: true })).toBeEnabled();
 });

@@ -15,7 +15,7 @@ export default function DocumentUploadDialog({ open, onOpenChange, trigger, form
   const fileInput = useRef(null);
   const chooseButton = useRef(null);
   const [dragging, setDragging] = useState(false);
-  const formats = testbank ? '.pdf,.docx,.txt' : '.pdf,.docx,.pptx,.txt';
+  const formats = testbank ? '.pdf,.docx,.txt,.rtf' : '.pdf,.docx,.pptx,.txt,.rtf';
   let fileError = '';
   if (form.file) {
     try { validateDocumentFile(form.file, testbank); }
@@ -103,7 +103,7 @@ export default function DocumentUploadDialog({ open, onOpenChange, trigger, form
                 {form.file ? 'Replace file' : 'Choose file'}
               </Button>
             </div>
-            <p id={`${id}-formats`} className="text-xs text-muted-foreground">{testbank ? 'PDF, DOCX or TXT' : 'PDF, DOCX, PPTX or TXT'} · One file, up to 20 MB</p>
+            <p id={`${id}-formats`} className="text-xs text-muted-foreground">{testbank ? 'PDF, DOCX, TXT or RTF' : 'PDF, DOCX, PPTX, TXT or RTF'} · One file, up to 20 MB</p>
             {fileError && <p id={`${id}-file-error`} role="alert" className="text-sm text-destructive">{fileError}</p>}
           </div>
           <div className="space-y-2">

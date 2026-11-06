@@ -8,7 +8,7 @@ MAX_UPLOAD_BYTES = 20 * 1024 * 1024
 MAX_EXPANDED_BYTES = 100 * 1024 * 1024
 MAX_EXTRACTED_CHARS = 500_000
 MAX_PAGES = 500
-SUPPORTED_TYPES = {'pdf', 'docx', 'pptx', 'txt'}
+SUPPORTED_TYPES = {'pdf', 'docx', 'pptx', 'txt', 'rtf'}
 
 
 def validate_upload(content, filename, is_testbank):
@@ -47,6 +47,8 @@ def validate_upload(content, filename, is_testbank):
                     raise ValueError('Invalid Office document')
         except (zipfile.BadZipFile, ValueError):
             raise HTTPException(422, 'File content does not match its Office extension')
+    if extension == 'rtf' and not content.lstrip().startswith(b'{\\rtf1'):
+        raise HTTPException(422, 'File content is not an RTF document')
     if extension == 'txt':
         try:
             text = decode_text(content)

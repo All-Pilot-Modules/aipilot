@@ -124,6 +124,10 @@ def validate_questions(questions):
         if q.type == 'mcq':
             if not q.options or len(q.options) < 2 or q.correct_option_id not in q.options:
                 raise ValueError('Every multiple-choice question needs options and a matching answer key')
+        elif q.type == 'mcq_multiple':
+            keys = (q.extended_config or {}).get('correct_option_ids', [])
+            if not q.options or len(q.options) < 2 or not keys or any(key not in q.options for key in keys):
+                raise ValueError('Every multiple-answer question needs matching answer keys')
         elif not q.correct_answer or not q.correct_answer.strip():
             raise ValueError('Every short-answer question needs an answer key')
     return validated

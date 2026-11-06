@@ -302,6 +302,11 @@ def extract_text_from_file(file_path: str, file_type: str, is_testbank: bool = F
             result = extract_text_from_docx(file_path)
         elif file_type in ['pptx', 'ppt']:
             result = extract_text_from_pptx(file_path)
+        elif file_type == 'rtf':
+            from striprtf.striprtf import rtf_to_text
+            with open(file_path, 'rb') as source:
+                text = rtf_to_text(source.read().decode('latin-1'))
+            result = {'text': text, 'metadata': {'extractor': 'striprtf'}}
         elif file_type == 'txt':
             result = extract_text_from_txt(file_path)
         else:
