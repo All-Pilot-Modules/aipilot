@@ -568,7 +568,7 @@ export default function StudentModuleManage() {
                           <Upload className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
                         </div>
                         <p className="text-sm font-medium text-slate-700 dark:text-foreground">Drop file here or click to browse</p>
-                        <p className="text-xs text-slate-400 dark:text-muted-foreground">PDF, DOCX, or PPTX</p>
+                        <p className="text-xs text-slate-400 dark:text-muted-foreground">PDF, DOCX, PPTX, TXT or RTF</p>
                       </div>
                     )}
                   </div>
@@ -577,7 +577,7 @@ export default function StudentModuleManage() {
                       <AlertCircle className="w-3 h-3" />{uploadError}
                     </p>
                   )}
-                  <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt" className="hidden"
+                  <input ref={fileRef} type="file" accept=".pdf,.docx,.pptx,.txt,.rtf" className="hidden"
                     onChange={e => { const f = e.target.files?.[0]; if (f) handleUpload(f); }} />
                 </div>
               )}
