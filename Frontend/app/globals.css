@@ -144,19 +144,19 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
+  --primary: #047857;
+  --primary-foreground: #ffffff;
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
+  --accent: #ecfdf5;
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: #ffffff;
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: #059669;
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
@@ -164,12 +164,12 @@
   --chart-5: oklch(0.769 0.188 70.08);
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: var(--primary);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: var(--ring);
 }
 
 .dark {
@@ -180,8 +180,8 @@
   --card-foreground: var(--foreground);
   --popover: #182234;
   --popover-foreground: var(--foreground);
-  --primary: #e2e8f0;
-  --primary-foreground: #0f172a;
+  --primary: #34d399;
+  --primary-foreground: #052e16;
   --secondary: #1e293b;
   --secondary-foreground: var(--foreground);
   --muted: #1e293b;
@@ -192,7 +192,7 @@
   --destructive-foreground: #450a0a;
   --border: #334155;
   --input: #64748b;
-  --ring: #93c5fd;
+  --ring: #34d399;
   --chart-1: #818cf8;
   --chart-2: #34d399;
   --chart-3: #fbbf24;
@@ -225,7 +225,7 @@
   [tabindex]:focus-visible,
   [role="button"]:focus-visible,
   [role="link"]:focus-visible {
-    @apply outline-2 outline-offset-2 outline-blue-600 dark:outline-blue-400;
+    @apply outline-2 outline-offset-2 outline-emerald-600 dark:outline-emerald-400;
   }
 
   /* Ensure focus is never hidden */
@@ -356,5 +356,15 @@
   }
   50% {
     transform: translateY(-6px);
+  }
+}
+
+/* Respect motion preferences across shared controls and page animations. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
   }
 }

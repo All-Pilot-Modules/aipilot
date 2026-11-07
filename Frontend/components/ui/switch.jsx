@@ -17,8 +17,8 @@ const Switch = React.forwardRef(({ className, checked, onCheckedChange, disabled
       onClick={handleClick}
       disabled={disabled}
       className={`
-        relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50
-        ${checked ? 'bg-blue-600' : 'bg-input'}
+        relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50
+        ${checked ? 'bg-emerald-700' : 'bg-input'}
         ${className || ''}
       `}
       ref={ref}

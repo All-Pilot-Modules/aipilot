@@ -46,6 +46,8 @@ function DocumentsContent() {
   const [, setAvailableModules] = useState([]);
   const [isUploading, setIsUploading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(null);
+  const [actionError, setActionError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState(null);
@@ -62,6 +64,7 @@ function DocumentsContent() {
   const [uploadError, setUploadError] = useState("");
   const [uploadNotice, setUploadNotice] = useState("");
   const [isTestbank, setIsTestbank] = useState(false);
+  useEffect(() => { setActionError(""); }, [isEditOpen, isGenerateOpen]);
 
   const fetchModuleAndDocuments = useCallback(async (background = false) => {
     try {
@@ -122,7 +125,7 @@ function DocumentsContent() {
     try {
       await apiClient.post(`/api/documents/${doc.id}/${doc.is_testbank ? 'reparse' : 'reprocess'}`, {});
       await fetchModuleAndDocuments();
-    } catch (error) { alert(error.message || 'Could not retry processing.'); }
+    } catch (error) { setActionError(error.message || 'Could not retry processing.'); }
   };
 
   const formatFileSize = (bytes) => {
@@ -157,8 +160,8 @@ function DocumentsContent() {
     queued: { dot: 'bg-amber-500', text: 'text-amber-700', bg: 'bg-amber-50', ring: 'ring-amber-200', label: 'Queued / processing', spin: true },
     parsed: { dot: 'bg-emerald-500', text: 'text-emerald-700', bg: 'bg-emerald-50', ring: 'ring-emerald-200', label: 'Questions extracted', spin: false },
     deleting: { dot: 'bg-red-500', text: 'text-red-700', bg: 'bg-red-50', ring: 'ring-red-200', label: 'Deletion pending — retry', spin: false },
-    embedded: { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-200 dark:ring-emerald-800', label: 'Embedded', spin: false },
-    indexed:  { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-200 dark:ring-emerald-800', label: 'Embedded', spin: false },
+    embedded: { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-200 dark:ring-emerald-800', label: 'Ready', spin: false },
+    indexed:  { dot: 'bg-emerald-500', text: 'text-emerald-700 dark:text-emerald-400', bg: 'bg-emerald-50 dark:bg-emerald-950/30', ring: 'ring-emerald-200 dark:ring-emerald-800', label: 'Ready', spin: false },
     chunked:  { dot: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30', ring: 'ring-blue-200 dark:ring-blue-800', label: 'Processed', spin: false },
     extracted:{ dot: 'bg-blue-500', text: 'text-blue-700 dark:text-blue-400', bg: 'bg-blue-50 dark:bg-blue-950/30', ring: 'ring-blue-200 dark:ring-blue-800', label: 'Processed', spin: false },
     extracting:{ dot: 'bg-amber-500', text: 'text-amber-700 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-950/30', ring: 'ring-amber-200 dark:ring-amber-800', label: 'Processing', spin: true },
@@ -232,7 +235,9 @@ function DocumentsContent() {
 
   const handleEdit = async (e) => {
     e.preventDefault();
-    if (!selectedDocument) return;
+    if (!selectedDocument || isSaving) return;
+    setActionError("");
+    setIsSaving(true);
     try {
       const updatedDoc = await apiClient.put(`/api/documents/${selectedDocument.id}`, { title: uploadForm.title });
       setDocuments(docs => docs.map(d => d.id === selectedDocument.id ? updatedDoc : d));
@@ -240,13 +245,14 @@ function DocumentsContent() {
       setSelectedDocument(null);
     } catch (error) {
       console.error("Edit error:", error);
-      alert("Failed to update document. Please try again.");
-    }
+      setActionError("Could not rename this document. Your changes are still here; please try again.");
+    } finally { setIsSaving(false); }
   };
 
   const handleDelete = (doc) => {
-    if (doc.is_testbank) { setDocumentToDelete(doc); setDeleteDialogOpen(true); }
-    else { if (!confirm("Are you sure you want to delete this document?")) return; executeDelete(doc.id, false); }
+    setActionError("");
+    setDocumentToDelete(doc);
+    setDeleteDialogOpen(true);
   };
 
   const executeDelete = async (id, deleteQuestions) => {
@@ -257,6 +263,7 @@ function DocumentsContent() {
       setDocuments(docs => docs.filter(d => d.id !== id));
     } catch (error) {
       console.error("Delete error:", error);
+      setActionError(error.message || "Could not delete this document. Please try again.");
     } finally {
       setIsDeleting(null);
       setDocumentToDelete(null);
@@ -267,19 +274,20 @@ function DocumentsContent() {
     e.preventDefault();
     if (!selectedDocForGeneration) return;
     const total = generationForm.num_short + generationForm.num_long + generationForm.num_mcq;
-    if (total === 0) { alert("Please specify at least one question to generate"); return; }
-    if (total > 100) { alert("Cannot generate more than 100 questions at once"); return; }
+    if (total === 0) { setActionError("Choose at least one question to generate."); return; }
+    if (total > 100) { setActionError("Choose 100 questions or fewer."); return; }
     try {
-      setIsGenerating(true);
+      setActionError("");
+    setIsGenerating(true);
       const response = await apiClient.post(`/api/documents/${selectedDocForGeneration.id}/generate-questions`, generationForm);
       setIsGenerateOpen(false);
       setSelectedDocForGeneration(null);
       setGenerationForm({ num_short: 0, num_long: 0, num_mcq: 0, instructions: "" });
-      alert(`Successfully generated ${response.generated_count} questions! Redirecting to review page...`);
+
       window.location.href = response.review_url;
     } catch (error) {
       console.error("Generate error:", error);
-      alert(error.response?.data?.detail || "Failed to generate questions. Please try again.");
+      setActionError(error.message || "Could not generate questions. Please try again.");
     } finally {
       setIsGenerating(false);
     }
@@ -379,6 +387,7 @@ function DocumentsContent() {
               <p className="text-destructive">{uploadError}</p>
               <Button variant="outline" className="mt-2" onClick={() => setIsUploadOpen(true)}>Review upload</Button>
             </div>}
+            {actionError && !isEditOpen && !isGenerateOpen && <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{actionError}</p>}
             {uploadNotice && <p role="status" className="rounded-lg border bg-muted/40 p-3 text-sm">{uploadNotice}</p>}
 
 
@@ -386,9 +395,9 @@ function DocumentsContent() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               {[
                 { label: 'Total', value: documents.length, sub: formatFileSize(totalSize), icon: <FileText className="w-4 h-4 text-muted-foreground" /> },
-                { label: 'Embedded', value: statusStats.embedded, sub: `${statusStats.processed} processed`, icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" /> },
+                { label: 'Ready to use', value: statusStats.embedded, sub: `${statusStats.processed} processed`, icon: <CheckCircle2 className="w-4 h-4 text-emerald-500" /> },
                 { label: 'PDFs', value: documents.filter(d => d.file_type?.toLowerCase() === 'pdf').length, sub: 'PDF files', icon: <FileText className="w-4 h-4 text-red-400" /> },
-                { label: 'Testbanks', value: testbankCount, sub: 'Auto-parsed', icon: <Sparkles className="w-4 h-4 text-violet-400" /> },
+                { label: 'Testbanks', value: testbankCount, sub: 'Question banks', icon: <Sparkles className="w-4 h-4 text-violet-400" /> },
               ].map(({ label, value, sub, icon }) => (
                 <div key={label} className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
                   <div className="flex items-center justify-between mb-1">
@@ -406,7 +415,7 @@ function DocumentsContent() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
                 <Input
-                  placeholder="Search documents…"
+                  aria-label="Search documents" placeholder="Search documents…"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-9 h-9 text-sm"
@@ -419,10 +428,10 @@ function DocumentsContent() {
                   { key: 'regular', label: 'Documents' },
                   { key: 'testbank', label: `Testbanks${testbankCount > 0 ? ` (${testbankCount})` : ''}` },
                 ].map(t => (
-                  <button key={t.key} onClick={() => setTypeFilter(t.key)}
+                  <button key={t.key} aria-pressed={typeFilter === t.key} onClick={() => setTypeFilter(t.key)}
                     className={`h-9 px-3 text-xs font-medium rounded-lg border transition-colors ${
                       typeFilter === t.key
-                        ? 'bg-foreground text-background border-foreground'
+                        ? 'bg-emerald-700 text-white border-emerald-700'
                         : 'bg-background text-muted-foreground border-border hover:bg-muted'
                     }`}>
                     {t.label}
@@ -430,15 +439,15 @@ function DocumentsContent() {
                 ))}
                 {/* Status pills */}
                 {[
-                  { key: 'all', label: 'Any' },
-                  { key: 'embedded', label: 'Embedded' },
+                  { key: 'all', label: 'Any status' },
+                  { key: 'embedded', label: 'Ready' },
                   { key: 'processing', label: 'Processing' },
                   ...(statusStats.failed > 0 ? [{ key: 'failed', label: 'Failed' }] : []),
                 ].map(s => (
-                  <button key={s.key} onClick={() => setStatusFilter(s.key)}
+                  <button key={s.key} aria-pressed={statusFilter === s.key} onClick={() => setStatusFilter(s.key)}
                     className={`h-9 px-3 text-xs font-medium rounded-lg border transition-colors ${
                       statusFilter === s.key
-                        ? 'bg-foreground text-background border-foreground'
+                        ? 'bg-emerald-700 text-white border-emerald-700'
                         : 'bg-background text-muted-foreground border-border hover:bg-muted'
                     }`}>
                     {s.label}
@@ -572,6 +581,7 @@ function DocumentsContent() {
               <DialogDescription>Change the display title for this document</DialogDescription>
             </DialogHeader>
             <form onSubmit={handleEdit} className="space-y-4 mt-1">
+              {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
               <div className="space-y-1.5">
                 <Label htmlFor="edit-title" className="text-sm">Title</Label>
                 <Input id="edit-title" value={uploadForm.title}
@@ -586,7 +596,7 @@ function DocumentsContent() {
               )}
               <DialogFooter>
                 <Button type="button" variant="outline" size="sm" onClick={() => setIsEditOpen(false)}>Cancel</Button>
-                <Button type="submit" size="sm"><FileCheck className="w-3.5 h-3.5 mr-1.5" />Save</Button>
+                <Button type="submit" size="sm" disabled={isSaving}><FileCheck className="w-3.5 h-3.5 mr-1.5" />{isSaving ? "Saving…" : "Save changes"}</Button>
               </DialogFooter>
             </form>
           </DialogContent>
@@ -595,6 +605,7 @@ function DocumentsContent() {
         {/* AI Generate Dialog */}
         <Dialog open={isGenerateOpen} onOpenChange={setIsGenerateOpen}>
           <DialogContent className="max-w-md">
+            {actionError && <p role="alert" className="text-sm text-destructive">{actionError}</p>}
             {isGenerating ? (
               <div className="py-10 flex flex-col items-center gap-5">
                 <div className="relative w-16 h-16">
@@ -680,22 +691,22 @@ function DocumentsContent() {
         <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>Delete Testbank</AlertDialogTitle>
+              <AlertDialogTitle>{documentToDelete?.is_testbank ? "Delete testbank?" : "Delete document?"}</AlertDialogTitle>
               <AlertDialogDescription className="space-y-1.5">
                 <span>Deleting <strong>{documentToDelete?.title || documentToDelete?.file_name}</strong>.</span>
-                <span className="block text-sm">Also delete all questions generated from this testbank?</span>
+                <span className="block text-sm">{documentToDelete?.is_testbank ? "Choose whether to keep its questions. Deleting questions also removes their student answers and related feedback." : "The document will be removed. Existing questions will be kept."}</span>
               </AlertDialogDescription>
             </AlertDialogHeader>
-            <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            <AlertDialogFooter className="flex-col sm:flex-col gap-2">
               <AlertDialogCancel onClick={() => { setDeleteDialogOpen(false); setDocumentToDelete(null); }}>
                 Cancel
               </AlertDialogCancel>
               <Button variant="outline" size="sm" onClick={() => executeDelete(documentToDelete?.id, false)}>
-                <FileCheck className="w-3.5 h-3.5 mr-1.5" />Keep Questions
+                <FileCheck className="w-3.5 h-3.5 mr-1.5" />{documentToDelete?.is_testbank ? "Delete file, keep questions" : "Delete document"}
               </Button>
-              <Button variant="destructive" size="sm" onClick={() => executeDelete(documentToDelete?.id, true)}>
-                <Trash2 className="w-3.5 h-3.5 mr-1.5" />Delete All
-              </Button>
+              {documentToDelete?.is_testbank && <Button variant="destructive" size="sm" onClick={() => executeDelete(documentToDelete?.id, true)}>
+                <Trash2 className="w-3.5 h-3.5 mr-1.5" />Delete file and questions
+              </Button>}
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>

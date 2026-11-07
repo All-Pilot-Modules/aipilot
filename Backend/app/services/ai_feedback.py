@@ -99,8 +99,11 @@ def _loads_feedback_json(feedback_text: str):
     return json.loads(''.join(output))
 
 
-def _mcq_cache_key(question_id: str, student_answer: str, is_correct) -> str:
-    raw = f"{question_id}:{student_answer}:{is_correct}"
+def _mcq_cache_key(question_id: str, student_answer: str, is_correct, rubric: Dict[str, Any]) -> str:
+    # The teacher's instructions and tone shape the text, so editing them must
+    # not keep serving feedback cached under the old settings.
+    style = json.dumps([rubric.get("custom_instructions"), rubric.get("feedback_style")], sort_keys=True, default=str)
+    raw = f"{question_id}:{student_answer}:{is_correct}:{style}"
     return hashlib.md5(raw.encode()).hexdigest()
 
 
@@ -127,6 +130,8 @@ from app.services.rag_retriever import get_context_for_feedback
 from app.services.prompt_builder import (
     build_mcq_feedback_prompt,
     build_text_feedback_prompt,
+    custom_instructions_section,
+    feedback_messages,
     should_include_context,
     _build_previous_feedback_section,
     MATH_NOTATION_NOTE
@@ -338,7 +343,7 @@ class AIFeedbackService:
             if question.type == 'mcq' and not previous_feedback_context:
                 precomputed_is_correct = _compute_mcq_is_correct(student_answer_text, question)
                 mcq_cache_hit = _get_mcq_cached(
-                    _mcq_cache_key(str(question.id), student_answer_text, precomputed_is_correct)
+                    _mcq_cache_key(str(question.id), student_answer_text, precomputed_is_correct, rubric)
                 ) is not None
 
             # Get RAG context if enabled in rubric
@@ -700,7 +705,7 @@ class AIFeedbackService:
 
         # MCQ cache: same question + same selected option always produces the same feedback.
         # Skip cache only when there's progressive previous_feedback (retry attempts).
-        cache_key = _mcq_cache_key(str(question.id), student_answer, is_correct)
+        cache_key = _mcq_cache_key(str(question.id), student_answer, is_correct, rubric)
         if not previous_feedback:
             cached = _get_mcq_cached(cache_key)
             if cached is not None:
@@ -724,7 +729,7 @@ class AIFeedbackService:
         try:
             # Use the new retry-enabled client
             response = self.client.create_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
+                messages=feedback_messages(prompt, rubric),
                 model=ai_model,
                 temperature=0.1,
                 max_tokens=700  # Per-criterion scores + explanation + hints regularly need 500-600+
@@ -867,7 +872,7 @@ class AIFeedbackService:
         try:
             # Use the new retry-enabled client
             response = self.client.create_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
+                messages=feedback_messages(prompt, rubric),
                 model=ai_model,
                 temperature=0.1,
                 max_tokens=900  # Per-criterion scores + explanation + hints regularly need 600-700+ tokens;
@@ -1283,10 +1288,11 @@ Example of BAD feedback (too generic - AVOID THIS):
 - "Read the sentence carefully and think about what words fit grammatically."
 
 Make your feedback detailed, contextual, and helpful!"""
+        prompt = f"{prompt}\n\n{custom_instructions_section(rubric)}".rstrip()
 
         try:
             response = self.client.create_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
+                messages=feedback_messages(prompt, rubric),
                 model=ai_model,
                 temperature=0.4,
                 max_tokens=600
@@ -1478,10 +1484,11 @@ Example of BAD feedback (too generic - AVOID THIS):
 - "Review all the options carefully. Think about what makes an option correct."
 
 Make your feedback detailed, contextual, and helpful!"""
+        prompt = f"{prompt}\n\n{custom_instructions_section(rubric)}".rstrip()
 
         try:
             response = self.client.create_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
+                messages=feedback_messages(prompt, rubric),
                 model=ai_model,
                 temperature=0.4,
                 max_tokens=700
@@ -1787,10 +1794,11 @@ Example of BAD feedback (too generic - AVOID THIS):
 - "Review each part carefully and make sure you understand what each one is asking."
 
 Make your feedback detailed, contextual, and helpful!"""
+        prompt = f"{prompt}\n\n{custom_instructions_section(rubric)}".rstrip()
 
         try:
             response = self.client.create_chat_completion(
-                messages=[{"role": "user", "content": prompt}],
+                messages=feedback_messages(prompt, rubric),
                 model=ai_model,
                 temperature=0.4,
                 max_tokens=700

@@ -1,5 +1,6 @@
 'use client';
 
+import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog";
 import { MathText } from "@/components/MathText";
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/context/AuthContext";
@@ -26,16 +27,18 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { apiClient } from "@/lib/auth";
+import { useDashboardModule } from "@/lib/useDashboardModule";
 
 function QuestionReviewContent() {
   const { user, loading, isAuthenticated } = useAuth();
   const searchParams = useSearchParams();
-  const moduleId = searchParams.get("module_id");
-  const moduleNameFromUrl = searchParams.get("module_name");
+  const { moduleId, moduleName, loading: resolvingModule } = useDashboardModule();
   const status = searchParams.get("status") || "unreviewed";
 
   const [questions, setQuestions] = useState([]);
-  const [moduleName, setModuleName] = useState(moduleNameFromUrl || "");
+  const [actionError, setActionError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editForm, setEditForm] = useState({});
@@ -49,52 +52,20 @@ function QuestionReviewContent() {
 
     try {
       setIsLoading(true);
+      setActionError("");
       const data = await apiClient.get(`/api/questions/by-module?module_id=${moduleId}&status=${status}`);
       setQuestions(data);
     } catch (error) {
       console.error("Failed to fetch questions:", error);
+      setActionError("Could not load questions. Please try again.");
     } finally {
       setIsLoading(false);
     }
   }, [moduleId, status]);
 
   useEffect(() => {
-    const fetchModuleInfo = async () => {
-      // If module name is already in the URL, no need to fetch
-      if (moduleNameFromUrl) {
-        console.log("✅ Module name from URL:", moduleNameFromUrl);
-        return;
-      }
-
-      if (!moduleId || !user) {
-        console.log("⚠️ Cannot fetch module info - missing moduleId or user", { moduleId, user: user?.id });
-        return;
-      }
-
-      try {
-        console.log("🔍 Fetching module info for moduleId:", moduleId);
-        // Fetch module info to get the module name (fallback if not in URL)
-        const modules = await apiClient.get(`/api/modules?teacher_id=${user.id}`);
-        console.log("📚 Found modules:", modules.length);
-        const foundModule = modules.find(m => m.id === moduleId);
-        if (foundModule) {
-          console.log("✅ Module found:", foundModule.name);
-          setModuleName(foundModule.name);
-        } else {
-          console.error("❌ Module not found for ID:", moduleId);
-        }
-      } catch (error) {
-        console.error("❌ Failed to fetch module name:", error);
-      }
-    };
-
-    if (isAuthenticated && moduleId) {
-      fetchQuestions();
-      if (user) {
-        fetchModuleInfo();
-      }
-    }
-  }, [isAuthenticated, moduleId, user, moduleNameFromUrl, fetchQuestions]);
+    if (isAuthenticated && moduleId) fetchQuestions();
+  }, [isAuthenticated, moduleId, fetchQuestions]);
 
   const handleApprove = async (questionId) => {
     try {
@@ -104,14 +75,14 @@ function QuestionReviewContent() {
       setQuestions(questions.filter(q => q.id !== questionId));
     } catch (error) {
       console.error("Approve error:", error);
-      alert("Failed to approve question");
+      setActionError("Could not approve this question. Please try again.");
     } finally {
       setIsApproving(null);
     }
   };
 
   const handleDelete = async (questionId) => {
-    if (!confirm("Are you sure you want to delete this question?")) return;
+    setDeleteTarget(null);
 
     try {
       setIsDeleting(questionId);
@@ -119,7 +90,7 @@ function QuestionReviewContent() {
       setQuestions(questions.filter(q => q.id !== questionId));
     } catch (error) {
       console.error("Delete error:", error);
-      alert("Failed to delete question");
+      setActionError("Could not delete this question. Please try again.");
     } finally {
       setIsDeleting(null);
     }
@@ -146,13 +117,13 @@ function QuestionReviewContent() {
       setEditingId(null);
     } catch (error) {
       console.error("Update error:", error);
-      alert("Failed to update question");
+      setActionError("Could not save this question. Your edits are still here.");
     }
   };
 
   const handleBulkApprove = async () => {
     if (selectedQuestions.size === 0) {
-      alert("Please select at least one question to approve");
+      setActionError("Select at least one question to approve.");
       return;
     }
 
@@ -164,10 +135,10 @@ function QuestionReviewContent() {
       // Remove approved questions from list
       setQuestions(questions.filter(q => !selectedQuestions.has(q.id)));
       setSelectedQuestions(new Set());
-      alert(`Successfully approved ${selectedQuestions.size} question(s)`);
+      setNotice(`Approved ${selectedQuestions.size} question(s). They are now available to students.`);
     } catch (error) {
       console.error("Bulk approve error:", error);
-      alert("Failed to approve questions");
+      setActionError("Could not approve the selected questions. Please try again.");
     } finally {
       setIsBulkApproving(false);
     }
@@ -202,6 +173,10 @@ function QuestionReviewContent() {
     );
   }
 
+  if (!moduleId && resolvingModule) {
+    return <div className="p-8 text-center text-sm text-muted-foreground" role="status">Loading module…</div>;
+  }
+
   if (!moduleId) {
     return (
       <div className="p-8 text-center">
@@ -230,7 +205,9 @@ function QuestionReviewContent() {
       <SidebarInset>
         <SiteHeader />
         <div className="min-h-screen bg-background">
-          <div className="max-w-7xl mx-auto px-6 py-8">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+            {actionError && <div role="alert" className="mb-4 rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{actionError}<Button variant="outline" className="ml-2" onClick={fetchQuestions}>Reload questions</Button></div>}
+            {notice && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">{notice}</p>}
             {/* Header */}
             <div className="mb-8">
               <div className="flex items-center gap-4 mb-4">
@@ -252,7 +229,7 @@ function QuestionReviewContent() {
                   </Button>
                 )}
               </div>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap gap-3 items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold flex items-center gap-3">
                     <Sparkles className="w-8 h-8 text-purple-500" />
@@ -277,7 +254,7 @@ function QuestionReviewContent() {
             {questions.length > 0 && (
               <Card className="mb-6 border-purple-200 dark:border-purple-800">
                 <CardContent className="p-4">
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap gap-3 items-center justify-between">
                     <div className="flex items-center gap-4">
                       <p className="text-sm font-medium">
                         {selectedQuestions.size} of {questions.length} selected
@@ -488,7 +465,7 @@ function QuestionReviewContent() {
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => handleDelete(question.id)}
+                              onClick={() => setDeleteTarget(question.id)}
                               disabled={isDeleting === question.id}
                             >
                               {isDeleting === question.id ? (
@@ -524,6 +501,12 @@ function QuestionReviewContent() {
             )}
           </div>
         </div>
+        <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader><AlertDialogTitle>Delete this question?</AlertDialogTitle><AlertDialogDescription>This removes the question from the review list. This cannot be undone.</AlertDialogDescription></AlertDialogHeader>
+            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><Button variant="destructive" onClick={() => handleDelete(deleteTarget)}>Delete question</Button></AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </SidebarInset>
     </SidebarProvider>
   );

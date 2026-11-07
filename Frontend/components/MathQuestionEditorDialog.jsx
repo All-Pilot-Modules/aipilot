@@ -359,7 +359,7 @@ export function MathQuestionEditorDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[100dvh] w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0 top-0 left-0 sm:rounded-none">
+      <DialogContent className="flex h-[100dvh] max-h-none w-screen max-w-none translate-x-0 translate-y-0 flex-col gap-0 overflow-hidden rounded-none p-0 top-0 left-0 sm:rounded-none">
         <MathQuestionEditorBody
           questionForm={questionForm}
           setQuestionForm={setQuestionForm}

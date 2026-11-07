@@ -63,6 +63,9 @@ export default function MyModules() {
   const [deletingModules, setDeletingModules] = useState({});
   const [showRegenerateDialog, setShowRegenerateDialog] = useState(false);
   const [moduleToRegenerate, setModuleToRegenerate] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [actionError, setActionError] = useState("");
+  const [notice, setNotice] = useState("");
 
   // Handle client-side mounting
   useEffect(() => {
@@ -125,6 +128,7 @@ export default function MyModules() {
     e.preventDefault();
     if (!formData.name.trim()) return;
 
+    setActionError("");
     setIsSubmitting(true);
     try {
       // Ensure user ID is available
@@ -168,6 +172,7 @@ export default function MyModules() {
       fetchModules(); // Refresh the list
     } catch (error) {
       console.error('Failed to create module:', error);
+      setActionError(error.message || 'Could not create the module. Your entries are still here; please try again.');
     } finally {
       setIsSubmitting(false);
     }
@@ -199,18 +204,15 @@ export default function MyModules() {
       setModuleToRegenerate(null);
     } catch (error) {
       console.error('Failed to regenerate access code:', error);
+      setActionError('Could not regenerate the access code. Please try again.');
       setShowRegenerateDialog(false);
       setModuleToRegenerate(null);
     }
   };
 
   const deleteModule = async (moduleId, moduleName) => {
-    const confirmMessage = `Are you sure you want to delete "${moduleName}"?\n\n⚠️ WARNING: This will permanently delete:\n• All questions in this module\n• All student answers and progress\n• All uploaded documents\n• All student enrollments\n\nThis action cannot be undone!`;
-
-    if (!confirm(confirmMessage)) {
-      return;
-    }
-
+    setDeleteTarget(null);
+    setActionError("");
     setDeletingModules(prev => ({ ...prev, [moduleId]: true }));
 
     try {
@@ -218,10 +220,10 @@ export default function MyModules() {
       fetchModules(); // Refresh the list
 
       // Show success message
-      alert(`Module "${moduleName}" has been successfully deleted.`);
+      setNotice(`Module "${moduleName}" deleted.`);
     } catch (error) {
       console.error('Failed to delete module:', error);
-      alert(`Failed to delete module "${moduleName}". Please try again.`);
+      setActionError(`Could not delete module "${moduleName}". Please try again.`);
     } finally {
       setDeletingModules(prev => ({ ...prev, [moduleId]: false }));
     }
@@ -252,8 +254,10 @@ export default function MyModules() {
   if (user && user.role === 'student') return null;
 
   return (
-    <div className="min-h-screen bg-background [--ring:var(--color-emerald-600)] dark:[--ring:var(--color-emerald-400)] [&_:focus-visible]:outline-emerald-600 dark:[&_:focus-visible]:outline-emerald-400">
+    <div id="main-content" tabIndex={-1} className="min-h-screen bg-background [--ring:var(--color-emerald-600)] dark:[--ring:var(--color-emerald-400)] [&_:focus-visible]:outline-emerald-600 dark:[&_:focus-visible]:outline-emerald-400">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+        {actionError && <p role="alert" className="mb-4 rounded-lg border border-destructive/30 p-3 text-sm text-destructive">{actionError}</p>}
+        {notice && <p role="status" className="mb-4 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">{notice}</p>}
         <header className="mb-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border pb-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-primary mb-2">Teaching workspace</p>
@@ -503,7 +507,7 @@ export default function MyModules() {
                               <Button
                                 variant="ghost"
                                 size="sm"
-                                onClick={() => deleteModule(module.id, module.name)}
+                                onClick={() => setDeleteTarget(module)}
                                 disabled={deletingModules[module.id]}
                                 className="w-full h-9 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/5"
                               >
@@ -532,6 +536,15 @@ export default function MyModules() {
         </div>
       </div>
 
+      <AlertDialog open={!!deleteTarget} onOpenChange={open => { if (!open) setDeleteTarget(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleteTarget?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>This permanently deletes the module, its documents, questions, student answers, feedback, progress, and enrollments. This cannot be undone.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><Button variant="destructive" onClick={() => deleteModule(deleteTarget.id, deleteTarget.name)}>Delete module</Button></AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       {/* Confirmation Dialog for Regenerating Access Code */}
       <AlertDialog open={showRegenerateDialog} onOpenChange={setShowRegenerateDialog}>
         <AlertDialogContent>

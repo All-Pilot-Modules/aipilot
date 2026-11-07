@@ -434,3 +434,44 @@ class TestShouldIncludeContext:
         rubric = {"feedback_style": {"tone": "neutral"}}
         result = context_func("short", rubric)
         assert isinstance(result, bool)
+
+
+class TestCustomInstructionsPriority:
+    """The teacher's custom instructions outrank every other feedback setting."""
+
+    RUBRIC = {"feedback_style": {"tone": "encouraging"}, "custom_instructions": "  Reply only in Spanish.  "}
+
+    def test_system_message_carries_instructions(self):
+        from app.services.prompt_builder import feedback_messages
+        messages = feedback_messages("PROMPT", self.RUBRIC)
+        assert [m["role"] for m in messages] == ["system", "user"]
+        assert "HIGHEST PRIORITY" in messages[0]["content"]
+        assert messages[0]["content"].endswith("Reply only in Spanish.")
+        assert messages[1]["content"] == "PROMPT"
+
+    def test_no_instructions_sends_prompt_alone(self):
+        from app.services.prompt_builder import feedback_messages, custom_instructions_section
+        for rubric in ({}, {"custom_instructions": ""}, {"custom_instructions": "   "}, {"custom_instructions": None}):
+            assert feedback_messages("PROMPT", rubric) == [{"role": "user", "content": "PROMPT"}]
+            assert custom_instructions_section(rubric) == ""
+
+    @pytest.mark.parametrize("kind", ["mcq", "text"])
+    def test_instructions_close_the_prompt(self, kind):
+        from app.services.prompt_builder import build_mcq_feedback_prompt, build_text_feedback_prompt
+        if kind == "mcq":
+            prompt = build_mcq_feedback_prompt("Q?", {"A": "x", "B": "y"}, "A", "B", False, self.RUBRIC)
+        else:
+            prompt = build_text_feedback_prompt("Q?", "short", "ans", "ref", self.RUBRIC)
+        tail = prompt[prompt.rindex("Reply only in Spanish."):]
+        assert "ABSOLUTE PRIORITY" in tail
+        # Built-in tone guidance comes before the teacher's block, never after it.
+        assert prompt.index("supportive") < prompt.index("Reply only in Spanish.")
+
+
+def test_mcq_cache_key_changes_with_instructions():
+    from app.services.ai_feedback import _mcq_cache_key
+    base = {"custom_instructions": "Be brief.", "feedback_style": {"tone": "neutral"}}
+    key = _mcq_cache_key("q1", "A", True, base)
+    assert key == _mcq_cache_key("q1", "A", True, dict(base))
+    assert key != _mcq_cache_key("q1", "A", True, {**base, "custom_instructions": "Be detailed."})
+    assert key != _mcq_cache_key("q1", "A", True, {**base, "feedback_style": {"tone": "strict"}})

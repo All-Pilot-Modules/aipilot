@@ -1027,9 +1027,13 @@ def _generate_feedback_for_job(db, job: FeedbackJob):
             # The service may return generated text even if both persistence
             # attempts failed. Never finish a job until its result is saved.
             saved = db.query(AIFeedback).filter(AIFeedback.answer_id == job.answer_id).populate_existing().first()
+            saved_data = (saved.feedback_data or {}) if saved else {}
+            # Rule-based grading (teacher hides explanations and hints) saves an
+            # empty explanation on purpose; that is a finished result, not a loss.
+            rule_based = saved_data.get('model_used') == 'rule-based'
             if (not saved or saved.generation_status != 'completed'
-                    or not (saved.feedback_data or {}).get('explanation')
-                    or (saved.feedback_data or {}).get('fallback')):
+                    or not (saved_data.get('explanation') or rule_based)
+                    or saved_data.get('fallback')):
                 raise RuntimeError("Generated feedback was not persisted as completed")
             job.status = "done"
             job.completed_at = datetime.now(timezone.utc)

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useDashboardModule } from '@/lib/useDashboardModule';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -19,10 +19,8 @@ import { apiClient } from '@/lib/auth';
 import { LoadingSpinner } from '@/components/LoadingSpinner';
 
 function SurveyResponsesContent() {
-  const searchParams = useSearchParams();
-  // Dashboard links use moduleId; older survey links put the ID in module.
-  const moduleId = searchParams.get('moduleId') || searchParams.get('module');
-  const moduleName = searchParams.get('name') || searchParams.get('module');
+  // Resolved from ?module=<name>; older links with ?moduleId= or an id in ?module= still work.
+  const { moduleId, moduleName, loading: resolvingModule } = useDashboardModule();
 
   const [module, setModule] = useState(null);
   const [surveyConfig, setSurveyConfig] = useState(null);
@@ -63,11 +61,11 @@ function SurveyResponsesContent() {
   useEffect(() => {
     if (moduleId) {
       loadSurveyData();
-    } else {
+    } else if (!resolvingModule) {
       setError('No module selected. Open survey responses from a module dashboard.');
       setLoading(false);
     }
-  }, [moduleId, loadSurveyData]);
+  }, [moduleId, resolvingModule, loadSurveyData]);
 
   const exportToCSV = () => {
     if (!responses || responses.length === 0 || !surveyConfig) return;
@@ -141,7 +139,7 @@ function SurveyResponsesContent() {
         {/* Header */}
         <div className="mb-8">
           <Button variant="ghost" asChild className="mb-4">
-            <Link href={`/dashboard?${new URLSearchParams({ module: module.name, moduleId })}`}>
+            <Link href={`/dashboard?${new URLSearchParams({ module: module.name })}`}>
               <ArrowLeft className="w-4 h-4 mr-2" />
               Back to Dashboard
             </Link>

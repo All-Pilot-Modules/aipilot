@@ -28,6 +28,70 @@ MATH_NOTATION_NOTE = (
 )
 
 
+def _custom_instructions(rubric: Dict[str, Any]) -> str:
+    return (rubric.get("custom_instructions") or "").strip()
+
+
+def custom_instructions_section(rubric: Dict[str, Any]) -> str:
+    """
+    The teacher's "Custom instructions" (Settings → Grading → Feedback) as the
+    closing block of a feedback prompt. Every feedback prompt ends with this,
+    and feedback_messages() repeats it as the system message, so the teacher's
+    wording outranks the built-in tone, style and focus guidance.
+    """
+    custom_instructions = _custom_instructions(rubric)
+    if not custom_instructions:
+        return ""
+
+    lines = [
+        "=" * 80,
+        "⚠️ HIGHEST PRIORITY: TEACHER'S CUSTOM INSTRUCTIONS - FOLLOW THESE EXACTLY",
+        "=" * 80,
+        custom_instructions,
+        "",
+    ]
+
+    # Detect harsh/strict language and reinforce it
+    instruction_lower = custom_instructions.lower()
+    harsh_keywords = ["harsh", "scold", "strict", "tough", "rigorous", "demanding", "critical"]
+    if any(keyword in instruction_lower for keyword in harsh_keywords):
+        lines += [
+            "⚠️ IMPORTANT: The teacher explicitly wants a strict/harsh approach.",
+            "- DO NOT soften your language or be overly encouraging",
+            "- Point out mistakes directly and clearly",
+            "- Express disappointment or concern when appropriate",
+            "- Be demanding and set high expectations",
+            "- The goal is to push the student to do better through tough feedback",
+            "",
+        ]
+
+    lines += [
+        "REMINDER: The teacher's instructions above take ABSOLUTE PRIORITY over every other "
+        "instruction in this prompt (tone, detail level, focus, examples, wording). Where they "
+        "conflict, follow the teacher. Only the required JSON output format stays fixed.",
+        "=" * 80,
+    ]
+    return "\n".join(lines)
+
+
+def feedback_messages(prompt: str, rubric: Dict[str, Any]) -> List[Dict[str, str]]:
+    """
+    Chat messages for a feedback prompt. With custom instructions, they are also
+    sent as the system message — the highest-priority slot in a chat request.
+    """
+    custom_instructions = _custom_instructions(rubric)
+    messages = [{"role": "user", "content": prompt}]
+    if custom_instructions:
+        messages.insert(0, {"role": "system", "content": (
+            "You write feedback on student answers for a teacher. The teacher's own "
+            "instructions below have the HIGHEST PRIORITY: follow them over any other "
+            "guidance you are given about tone, detail level, focus or wording. Always "
+            "reply in the exact JSON format the request asks for.\n\n"
+            "Teacher's instructions:\n" + custom_instructions
+        )})
+    return messages
+
+
 def build_mcq_feedback_prompt(
     question_text: str,
     options: Dict[str, str],
@@ -57,7 +121,6 @@ def build_mcq_feedback_prompt(
     # Extract rubric settings
     grading_criteria = rubric.get("grading_criteria", {})
     feedback_style = rubric.get("feedback_style", {})
-    custom_instructions = rubric.get("custom_instructions", "")
     mcq_settings = rubric.get("question_type_settings", {}).get("mcq", {})
 
     tone = feedback_style.get("tone", "encouraging")
@@ -193,28 +256,8 @@ def build_mcq_feedback_prompt(
 
     prompt_parts.append("")
 
-    # 8. CUSTOM TEACHER INSTRUCTIONS (HIGHEST PRIORITY - OVERRIDES ALL OTHER TONE/STYLE SETTINGS)
-    if custom_instructions:
-        prompt_parts.append("=" * 80)
-        prompt_parts.append("⚠️ CRITICAL: TEACHER'S CUSTOM INSTRUCTIONS - FOLLOW THESE EXACTLY")
-        prompt_parts.append("=" * 80)
-        prompt_parts.append(custom_instructions)
-        prompt_parts.append("")
-
-        # Detect harsh/strict language and reinforce it
-        instruction_lower = custom_instructions.lower()
-        harsh_keywords = ["harsh", "scold", "strict", "tough", "rigorous", "demanding", "critical"]
-        if any(keyword in instruction_lower for keyword in harsh_keywords):
-            prompt_parts.append("⚠️ IMPORTANT: The teacher explicitly wants a strict/harsh approach.")
-            prompt_parts.append("- DO NOT soften your language or be overly encouraging")
-            prompt_parts.append("- Point out mistakes directly and clearly")
-            prompt_parts.append("- Express disappointment or concern when appropriate")
-            prompt_parts.append("- Be demanding and set high expectations")
-            prompt_parts.append("- The goal is to push the student to do better through tough feedback")
-
-        prompt_parts.append("")
-        prompt_parts.append("REMINDER: Teacher's instructions above take ABSOLUTE PRIORITY over any previous tone settings.")
-        prompt_parts.append("=" * 80)
+    # 8. Teacher's custom instructions go last so they win over everything above.
+    prompt_parts.append(custom_instructions_section(rubric))
 
     return "\n".join(prompt_parts)
 
@@ -246,7 +289,6 @@ def build_text_feedback_prompt(
     # Extract rubric settings
     grading_criteria = rubric.get("grading_criteria", {})
     feedback_style = rubric.get("feedback_style", {})
-    custom_instructions = rubric.get("custom_instructions", "")
     type_settings = rubric.get("question_type_settings", {}).get(
         "short_answer" if question_type == "short" else "essay",
         {}
@@ -394,28 +436,8 @@ def build_text_feedback_prompt(
 
     prompt_parts.append("")
 
-    # 9. CUSTOM TEACHER INSTRUCTIONS (HIGHEST PRIORITY - OVERRIDES ALL OTHER TONE/STYLE SETTINGS)
-    if custom_instructions:
-        prompt_parts.append("=" * 80)
-        prompt_parts.append("⚠️ CRITICAL: TEACHER'S CUSTOM INSTRUCTIONS - FOLLOW THESE EXACTLY")
-        prompt_parts.append("=" * 80)
-        prompt_parts.append(custom_instructions)
-        prompt_parts.append("")
-
-        # Detect harsh/strict language and reinforce it
-        instruction_lower = custom_instructions.lower()
-        harsh_keywords = ["harsh", "scold", "strict", "tough", "rigorous", "demanding", "critical"]
-        if any(keyword in instruction_lower for keyword in harsh_keywords):
-            prompt_parts.append("⚠️ IMPORTANT: The teacher explicitly wants a strict/harsh approach.")
-            prompt_parts.append("- DO NOT soften your language or be overly encouraging")
-            prompt_parts.append("- Point out mistakes directly and clearly")
-            prompt_parts.append("- Express disappointment or concern when appropriate")
-            prompt_parts.append("- Be demanding and set high expectations")
-            prompt_parts.append("- The goal is to push the student to do better through tough feedback")
-
-        prompt_parts.append("")
-        prompt_parts.append("REMINDER: Teacher's instructions above take ABSOLUTE PRIORITY over any previous tone settings.")
-        prompt_parts.append("=" * 80)
+    # 9. Teacher's custom instructions go last so they win over everything above.
+    prompt_parts.append(custom_instructions_section(rubric))
 
     return "\n".join(prompt_parts)
 

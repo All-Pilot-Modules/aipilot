@@ -793,8 +793,8 @@ function AccessCodePanel({ moduleData, moduleId, onRegenerated }) {
   if (!accessCode) return null;
 
   return (
-    <div className="sticky top-6">
-      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-muted-foreground mb-4">Student Access</p>
+    <div className="rounded-xl border border-border bg-card p-4">
+      <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-muted-foreground mb-4">Student access</p>
 
       {/* Code display */}
       <div className="rounded-xl border border-border bg-muted/50 dark:bg-muted/20 p-4 mb-3 text-center">
@@ -1091,12 +1091,15 @@ function SettingsPageContent() {
                   <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{currentTab.description}</p>
                 </header>
                 <div hidden={activeTab !== 'general'}>
-                  <GeneralTab formData={formData} set={set} />
-                  {moduleData?.access_code && <div className="mt-8 pt-6 border-t border-border max-w-lg">
-                    <SectionHeading>Student enrollment code</SectionHeading>
-                    <AccessCodePanel moduleData={moduleData} moduleId={moduleId}
-                      onRegenerated={newCode => setModuleData(prev => ({ ...prev, access_code: newCode }))} />
-                  </div>}
+                  <div className="flex flex-col gap-8 lg:flex-row-reverse lg:items-start">
+                    {moduleData?.access_code && <aside className="w-full lg:w-72 lg:shrink-0 lg:sticky lg:top-6">
+                      <AccessCodePanel moduleData={moduleData} moduleId={moduleId}
+                        onRegenerated={newCode => setModuleData(prev => ({ ...prev, access_code: newCode }))} />
+                    </aside>}
+                    <div className="min-w-0 flex-1">
+                      <GeneralTab formData={formData} set={set} />
+                    </div>
+                  </div>
                 </div>
                 <div hidden={activeTab !== 'features'}>{visitedTabs.includes('features') && <FeaturesTab formData={formData} setFeature={setFeature} onConfigureLearning={() => { setGradingSection('policy'); selectTab('grading'); }} />}</div>
                 <div hidden={activeTab !== 'grading'}>{visitedTabs.includes('grading') && <GradingTab section={gradingSection} setSection={setGradingSection} formData={formData} setFormData={setFormData} moduleId={moduleId} />}</div>

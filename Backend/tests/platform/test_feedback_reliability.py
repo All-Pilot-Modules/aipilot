@@ -169,6 +169,22 @@ def test_successful_persisted_feedback_finishes_job(db_session, student_answer_m
     assert job.locked_at is None
 
 
+@pytest.mark.parametrize('model_used,expected', [('rule-based', 'done'), ('gpt-4o-mini', 'queued')])
+def test_empty_explanation_finishes_only_for_rule_based_grading(db_session, student_answer_mcq, monkeypatch, model_used, expected):
+    # Teachers who hide explanations and hints get MCQs graded by rule with no
+    # text; that must finish the job instead of burning retries into "failed".
+    job = add_job(db_session, student_answer_mcq, 'processing')
+    db_session.add(AIFeedback(answer_id=student_answer_mcq.id, generation_status='completed',
+        feedback_data={'explanation': '', 'fallback': False, 'model_used': model_used}))
+    db_session.flush()
+    monkeypatch.setattr(worker, 'AIFeedbackService', lambda: MagicMock(
+        generate_instant_feedback=MagicMock(return_value={'explanation': '', 'is_correct': True})))
+    monkeypatch.setattr(worker, 'calculate_test_score', MagicMock())
+    worker._generate_feedback_for_job(db_session, job)
+    db_session.refresh(job)
+    assert job.status == expected
+
+
 def test_expired_lease_budget_does_not_renew_forever(monkeypatch):
     import threading
     lease = worker._JobLease('job', 1)

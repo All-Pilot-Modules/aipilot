@@ -1,10 +1,11 @@
 "use client";
 
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import Link from "next/link";
 import {
   Sidebar,
+  useSidebar,
   SidebarContent,
   SidebarFooter,
   SidebarHeader,
@@ -34,6 +35,8 @@ export function AppSidebar(props) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
+  const closeMobileMenu = () => { if (isMobile) setOpenMobile(false); };
   // Check for 'module' param first, fall back to 'module_name' (used in review page)
   // Use empty string as default to ensure consistent rendering
   // eslint-disable-next-line @next/next/no-assign-module-variable
@@ -49,19 +52,23 @@ export function AppSidebar(props) {
   );
   const modules = useMemo(() => modulesRaw?.data || modulesRaw || [], [modulesRaw]);
 
-  // Derive currentModuleId — prefer URL param (already set by dashboard links), fall back to name lookup
-  const currentModuleId = useMemo(() => {
-    const idFromParam = searchParams?.get('moduleId');
-    if (idFromParam) return idFromParam;
-    if (module && modules.length > 0) {
-      return modules.find(m => m.name === module)?.id || null;
-    }
-    return null;
-  }, [searchParams, module, modules]);
 
-  const handleModuleSwitch = (moduleName, moduleId) => {
-    const currentPath = pathname.split('?')[0];
-    const params = moduleId ? `module=${moduleName}&moduleId=${moduleId}` : `module=${moduleName}`;
+  // Dashboard URLs name the module but never expose its database id. Pages
+  // resolve the id from the name (unique per teacher). Old bookmarks that still
+  // carry ?moduleId= keep working; the address bar is cleaned once here.
+  useEffect(() => {
+    if (!pathname?.startsWith('/dashboard') || !module) return;
+    if (!searchParams?.has('moduleId') && !searchParams?.has('module_id')) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete('moduleId');
+    params.delete('module_id');
+    router.replace(`${pathname}?${params}`, { scroll: false });
+  }, [pathname, searchParams, module, router]);
+
+  const handleModuleSwitch = (moduleName) => {
+    const currentPath = pathname.startsWith('/dashboard/students/') ? '/dashboard/students' : pathname.split('?')[0];
+    const params = `module=${encodeURIComponent(moduleName)}`;
+    closeMobileMenu();
     router.push(`${currentPath}?${params}`);
   };
 
@@ -72,9 +79,7 @@ export function AppSidebar(props) {
   };
 
   // Memoize navMain to prevent hydration issues
-  const moduleParams = module
-    ? `module=${module}${currentModuleId ? `&moduleId=${currentModuleId}` : ''}`
-    : '';
+  const moduleParams = module ? `module=${encodeURIComponent(module)}` : '';
   const navMain = useMemo(() => [
     {
       title: "Dashboard",
@@ -139,10 +144,10 @@ export function AppSidebar(props) {
         {/* Module Selector - Hidden when collapsed */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="bg-muted dark:bg-muted/50 rounded-lg p-2 cursor-pointer hover:bg-muted dark:hover:bg-muted/70 transition-all duration-200 border border-border group-data-[collapsible=icon]:hidden">
+            <button type="button" aria-label="Switch module" className="w-full text-left bg-muted dark:bg-muted/50 rounded-lg p-2 cursor-pointer hover:bg-muted dark:hover:bg-muted/70 transition-all duration-200 border border-border group-data-[collapsible=icon]:hidden">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3 min-w-0 flex-1">
-                  <div className="w-9 h-9 bg-emerald-700 dark:bg-emerald-500 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
+                  <div className="w-9 h-9 bg-emerald-700 dark:bg-emerald-700 rounded-lg flex items-center justify-center flex-shrink-0 shadow-sm">
                     <BookOpen className="w-4 h-4 text-white" />
                   </div>
                   <div className="flex flex-col min-w-0">
@@ -152,7 +157,7 @@ export function AppSidebar(props) {
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
               </div>
-            </div>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             <DropdownMenuLabel>Switch Module</DropdownMenuLabel>
@@ -165,11 +170,11 @@ export function AppSidebar(props) {
               modules.map((mod) => (
                 <DropdownMenuItem
                   key={mod.id}
-                  onClick={() => handleModuleSwitch(mod.name, mod.id)}
+                  onClick={() => handleModuleSwitch(mod.name)}
                   className="cursor-pointer"
                 >
                   <div className="flex items-center gap-2 w-full">
-                    <div className="w-6 h-6 bg-emerald-700 dark:bg-emerald-500 rounded flex items-center justify-center flex-shrink-0">
+                    <div className="w-6 h-6 bg-emerald-700 dark:bg-emerald-700 rounded flex items-center justify-center flex-shrink-0">
                       <span className="text-white text-xs font-semibold">{mod.name?.charAt(0)?.toUpperCase() || 'M'}</span>
                     </div>
                     <span className="capitalize truncate flex-1">{mod.name}</span>
@@ -211,7 +216,7 @@ export function AppSidebar(props) {
                     tooltip={item.title}
                     className="h-9 px-2 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
                   >
-                    <Link href={item.url} onClick={(e) => e.stopPropagation()}>
+                    <Link href={item.url} onClick={(e) => { e.stopPropagation(); closeMobileMenu(); }}>
                       <item.icon className="w-4 h-4" />
                       <span className="text-sm font-medium">{item.title}</span>
                     </Link>
@@ -236,7 +241,7 @@ export function AppSidebar(props) {
                   tooltip="Settings"
                   className="h-9 px-2 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
                 >
-                  <Link href={`/dashboard/settings?module=${module}`} onClick={(e) => e.stopPropagation()}>
+                  <Link href={`/dashboard/settings?${moduleParams}`} onClick={(e) => { e.stopPropagation(); closeMobileMenu(); }}>
                     <Settings className="w-4 h-4" />
                     <span className="text-sm font-medium">Settings</span>
                   </Link>
@@ -258,7 +263,7 @@ export function AppSidebar(props) {
                     tooltip={item.title}
                     className="h-9 px-2 rounded-lg transition-all duration-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 data-[active=true]:bg-emerald-700 data-[active=true]:text-white data-[active=true]:font-semibold data-[active=true]:shadow-sm"
                   >
-                    <Link href={item.url} onClick={(e) => e.stopPropagation()}>
+                    <Link href={item.url} onClick={(e) => { e.stopPropagation(); closeMobileMenu(); }}>
                       <item.icon className="w-4 h-4" />
                       <span className="text-sm font-medium">{item.title}</span>
                     </Link>
@@ -273,7 +278,7 @@ export function AppSidebar(props) {
       <SidebarFooter className="p-2 border-t border-border ">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-muted dark:hover:bg-muted/50 cursor-pointer transition-all duration-200 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
+            <button type="button" aria-label="Account menu" className="w-full text-left flex items-center gap-3 p-2 rounded-lg hover:bg-muted dark:hover:bg-muted/50 cursor-pointer transition-all duration-200 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-2">
               <Avatar className="h-9 w-9 border-2 border-emerald-700">
                 <AvatarImage src={user?.profile_image} alt={user?.username} />
                 <AvatarFallback className="bg-emerald-700 text-white font-semibold text-sm">
@@ -287,7 +292,7 @@ export function AppSidebar(props) {
                 </p>
               </div>
               <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0 group-data-[collapsible=icon]:hidden" />
-            </div>
+            </button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="font-normal">

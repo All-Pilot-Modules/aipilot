@@ -20,6 +20,7 @@ test('invalid login displays error and preserves login form', async ({ page }) =
 });
 
 test('invalid class access code is shown without granting a session', async ({ page, context }) => {
+  await page.route('**/api/modules/all', route => route.fulfill({ json: [] }));
   await page.route('**/api/student/join-module**', route => route.fulfill({ status: 404, json: { detail: 'Invalid access code' } }));
   await page.goto('/join');
   await page.getByPlaceholder('Enter your Banner ID (e.g., B00123456)').fill('B00123456');

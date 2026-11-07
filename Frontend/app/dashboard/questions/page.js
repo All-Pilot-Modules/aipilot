@@ -898,7 +898,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-red-800 dark:text-red-300">{fetchError}</p>
                   <p className="text-xs text-red-600 dark:text-red-400 mt-0.5">
-                    {fetchError.includes('connect') ? 'Start the backend with `uvicorn main:app --reload` and refresh.' : 'Refresh the page or try again.'}
+                    Check your connection and try again. Your unsaved question is still here.
                   </p>
                 </div>
                 <button
@@ -951,7 +951,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                 {importJob.processing_status === 'queued' ? 'Testbank queued for extraction. You can keep working.' :
                  importJob.processing_status === 'parsed' ? 'Questions extracted. Review any unreviewed questions before publishing.' :
                  (importJob.parse_error || importJob.processing_metadata?.error || 'Processing needs attention.')}
-                <Link className="underline ml-2" href={`/dashboard/documents?moduleId=${currentModule?.id}&module=${encodeURIComponent(currentModule?.name || '')}`}>View status or retry</Link>
+                <Link className="underline ml-2" href={`/dashboard/documents?module=${encodeURIComponent(currentModule?.name || moduleName || '')}`}>View status or retry</Link>
               </div>}
               <DocumentUploadDialog open={isImportOpen} onOpenChange={setIsImportOpen}
                 form={uploadForm} onFormChange={setUploadForm} testbank
@@ -968,7 +968,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       </div>
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="font-semibold text-purple-900 dark:text-purple-100">
+                          <h3 className="font-semibold text-emerald-900 dark:text-emerald-100">
                             {unreviewedCount} AI-Generated Question{unreviewedCount > 1 ? 's' : ''} Pending Review
                           </h3>
                           <Badge className="bg-primary text-primary-foreground">
@@ -984,7 +984,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                       asChild
                       className="bg-primary hover:bg-primary/90 text-primary-foreground"
                     >
-                      <Link href={`/dashboard/questions/review?moduleId=${currentModule?.id}&module=${encodeURIComponent(moduleName)}&status=unreviewed`}>
+                      <Link href={`/dashboard/questions/review?module=${encodeURIComponent(moduleName)}&status=unreviewed`}>
                         <AlertCircle className="w-4 h-4 mr-2" />
                         Review Questions
                         <ArrowRight className="w-4 h-4 ml-2" />
@@ -999,15 +999,18 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
               {/* Left Sidebar - Create Question Form */}
               <div className="lg:col-span-4">
-                <Card className={`sticky top-6 max-h-[calc(100vh-8rem)] overflow-hidden flex flex-col ${isEditOpen ? 'opacity-50 pointer-events-none' : ''}`}>
+                <Card className={`lg:sticky lg:top-6 lg:max-h-[calc(100dvh-8rem)] overflow-hidden flex flex-col ${isEditOpen ? 'opacity-50 pointer-events-none' : ''}`}>
                   <CardHeader className="flex-shrink-0">
                     <CardTitle className="text-lg text-gray-900 dark:text-foreground flex items-center gap-2">
                       <Plus className="w-5 h-5" />
                       Create New Question
                     </CardTitle>
                     <CardDescription>Add a new question to your module</CardDescription>
+                    <Button type="button" variant="outline" className="mt-3 lg:hidden" aria-expanded={showCreateForm} aria-controls="create-question-fields" onClick={() => setShowCreateForm(open => !open)}>
+                      {showCreateForm ? "Hide question form" : "Create question"}
+                    </Button>
                   </CardHeader>
-                  <CardContent className="overflow-y-auto flex-1">
+                  <CardContent id="create-question-fields" className={`${showCreateForm ? "block" : "hidden lg:block"} lg:overflow-y-auto flex-1`}>
                     <form onSubmit={handleCreate} className="space-y-4">
                       <div className="p-3 bg-muted/50 dark:bg-muted/20 rounded-lg border border-border ">
                         <div className="flex items-center gap-2 text-sm text-gray-800 dark:text-muted-foreground">
@@ -1562,7 +1565,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                   <div className="relative flex-1 max-w-md">
                     <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                     <Input
-                      placeholder="Search questions..."
+                      aria-label="Search questions" placeholder="Search questions..."
                       value={searchTerm}
                       onChange={(e) => setSearchTerm(e.target.value)}
                       className="pl-9"
@@ -1615,7 +1618,7 @@ const QuestionsPageContent = memo(function QuestionsPageContent() {
                         <div className="flex items-center justify-between">
                           <div>
                             <p className="text-sm text-gray-800 dark:text-muted-foreground font-medium">Question Types</p>
-                            <p className="text-3xl font-bold text-purple-900 dark:text-purple-100">
+                            <p className="text-3xl font-bold text-emerald-900 dark:text-emerald-100">
                               {[...new Set(filteredQuestions.map(q => q.type))].length}
                             </p>
                           </div>
