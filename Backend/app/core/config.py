@@ -129,6 +129,7 @@ def add_cors(app: FastAPI):
         "http://127.0.0.1:3000",
         "http://localhost:3001",
         "http://127.0.0.1:3001",
+        "https://aipilot-x8jj.vercel.app"
     ]
     if FRONTEND_URL and FRONTEND_URL not in origins:
         origins.append(FRONTEND_URL)
